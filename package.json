@@ -1,0 +1,23 @@
+{
+  "name": "dbm-sql-parse",
+  "version": "1.0.0",
+  "description": "splitting out the parser since it could be used standalone",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --opts mocha.opts"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.4",
+    "@types/core-js": "^0.9.42",
+    "@types/mocha": "^2.2.40",
+    "@types/node": "^10.5.1",
+    "chai": "^3.5.0",
+    "mocha": "^5.2.0",
+    "mocha-typescript": "^1.0.23"
+  },
+  "author": "",
+  "license": "ISC"
+}
