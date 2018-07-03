@@ -1,6 +1,5 @@
 
 // aiming for just legal sql characters here...
-// however I'm sure there will be more here
 export const enum Chars {
   null = 0,
   tab = 9,
@@ -94,6 +93,7 @@ export const enum Chars {
   x = 120,
   y = 121,
   z = 122,
+  pipe = 124,
 
   // not sure I care about this too much, but for completeness.
   bom = 0xFEFF

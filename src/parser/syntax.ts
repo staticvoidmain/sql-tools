@@ -3,7 +3,7 @@
 // string -> int
 // int    -> string
 export const enum SyntaxKind {
-  unknown,
+  EOF,
   // tokens
   whitespace,
   newline,
@@ -20,11 +20,10 @@ export const enum SyntaxKind {
   equal,                // =
   lessThan,             // <
   greaterThan,          // >
+  notLessThan,          // !<
+  notGreaterThan,       // !>
   lessThanEqual,        // <=
   greaterThanEqual,     // >=
-  singleLineComment,    // --
-  blockCommentStart,    // /*
-  blockCommentEnd,      // */
   minusToken,           // -
   plusToken,            // +
   modToken,             // %
@@ -36,12 +35,12 @@ export const enum SyntaxKind {
   bitwiseNot,           // ~
   plusEqualsAssignment,  // +=
   minusEqualsAssignment, // -=
-  divEqualsAssignment,    //  /=
-  mulEqualsAssignment,  //  *=
-  modEqualsAssignment,  // %=
-  bitwiseAndAssignment, // &=
-  bitwiseOrAssignment,  // |=
-  bitwiseXorAssignment, // ^=
+  divEqualsAssignment,   //  /=
+  mulEqualsAssignment,   //  *=
+  modEqualsAssignment,   // %=
+  bitwiseAndAssignment,  // &=
+  bitwiseOrAssignment,   // |=
+  bitwiseXorAssignment,  // ^=
 
   // <keywords>
   add_keyword,
@@ -234,13 +233,21 @@ export const enum SyntaxKind {
 
   name,
   // expressions
-  blockComment,
-  select_expession,
-  into_expression,
+  comment_block,
+  comment_inline,
+  statement_block,
+  if_statement,
+  while_statement,
+  waitfor_statement,
+  execute_statement,
+  print_statement,
+  throw_statement,
+  select_statement,
+  into_clause,
   from_clause,
   where_clause,
-  group_by,
-  order_by,
+  group_by_clause,
+  order_by_clause,
   having_clause,
   begin_transaction,
   commit_transaction,
@@ -248,9 +255,7 @@ export const enum SyntaxKind {
   temp_table,
   shared_temp_table,
   local_variable_reference,
-  boolean_expression,
   numeric_literal,
-  boolean_literal,
   string_literal,
   quoted_identifier,
   table_alias,

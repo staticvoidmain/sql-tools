@@ -2,8 +2,8 @@
 // I may have opened myself up to some annoying complications by supporting
 // code generation for multiple platforms...
 import { Scanner, Token, EmptyToken } from './scanner'
-import { Chars } from './keys'
-import { SyntaxKind } from './syntax';
+import { Chars } from './chars'
+import { SyntaxKind } from './syntax'
 
 import {
   SyntaxNode,
@@ -29,7 +29,8 @@ import {
   ColumnNode,
   Expr,
   ExprKind,
-  BinaryExpression
+  BinaryExpression,
+  ConstantExpression
 } from './ast'
 
 export interface ParserError {
@@ -39,7 +40,7 @@ export interface ParserError {
 
 // todo: speculative lookahead stuff...
 export class Parser {
-  private settings: any;
+  private settings: any
   private scanner?: Scanner
   private errors: Array<ParserError> = []
   private token: Token = EmptyToken
@@ -49,19 +50,21 @@ export class Parser {
     // interesting...
     this.token = this.scanner!.scan()
 
+    let node = <SyntaxNode>{}
+
     switch (this.token.kind) {
 
       case SyntaxKind.go_keyword:
-        return this.parseGo();
+        return this.parseGo()
 
       case SyntaxKind.declare_keyword:
-        return this.parseVariableDeclarationList()
+        node = this.parseVariableDeclarationList()
 
       case SyntaxKind.set_keyword:
         return this.parseSetStatement()
 
       case SyntaxKind.use_keyword:
-      // return this.parseUseDatabase();
+      // return this.parseUseDatabase()
 
       case SyntaxKind.select_keyword:
         return this.parseSelect()
@@ -72,8 +75,10 @@ export class Parser {
       case SyntaxKind.drop_keyword:
 
       default:
-      // return undefined;
+      // return undefined
     }
+
+    return node
   }
 
   private error(err: string) {
@@ -87,7 +92,7 @@ export class Parser {
   }
 
   private moveNext(): Token {
-    return this.token = this.scanner!.scan();
+    return this.token = this.scanner!.scan()
   }
 
   // parseX functions
@@ -97,39 +102,39 @@ export class Parser {
 
   private parseVariableDeclarationList() {
 
-    const statement = <VariableDeclarationStatement>this.createNode(this.token);
+    const statement = <VariableDeclarationStatement>this.createNode(this.token)
 
-    this.expect(SyntaxKind.declare_keyword);
-    statement.keyword = this.token;
-    statement.declarations = [];
+    this.expect(SyntaxKind.declare_keyword)
+    statement.keyword = this.token
+    statement.declarations = []
 
-    this.moveNext();
+    this.moveNext()
 
-    this.expect(SyntaxKind.local_variable_reference);
+    this.expect(SyntaxKind.local_variable_reference)
 
     const decl = <VariableDeclaration>{
       name: this.token.value
-    };
+    }
 
-    this.moveNext();
+    this.moveNext()
 
     if (this.token.kind === SyntaxKind.as_keyword) {
       decl.as = this.token.value
-      this.moveNext();
+      this.moveNext()
     }
 
     if (this.token.kind === SyntaxKind.table_keyword) {
 
       decl.type = 'table'
       // todo:
-      // decl.expression = this.parseTableVariableDecl();
-      return statement;
+      // decl.expression = this.parseTableVariableDecl()
     }
-
 
     // todo: parseType()
     // todo: parseEqualsExpression
     // todo: , and loop back around.
+    return statement
+
   }
 
   private createNode(token: Token): SyntaxNode {
@@ -142,68 +147,69 @@ export class Parser {
 
   private expect(kind: SyntaxKind) {
     if (this.token.kind !== kind) {
-      this.error('Expected ' + kind + ' but found ' + this.token.kind);
+      this.error('Expected ' + kind + ' but found ' + this.token.kind)
     }
   }
 
-  private parseExpected(kind: SyntaxKind, cb): SyntaxNode {
+  private parseExpected(kind: SyntaxKind, cb: Function) {
     if (this.token.kind === kind) {
-      return cb(this.createNode(this.token));
+      return cb(this.createNode(this.token))
     }
-    this.error('Expected ' + kind + ' but found ' + this.token.kind);
+    this.error('Expected ' + kind + ' but found ' + this.token.kind)
   }
 
-  private parseOptional(kind: SyntaxKind, cb): SyntaxNode {
+  private parseOptional(kind: SyntaxKind, cb: Function) {
     if (this.token.kind === kind) {
-      return cb(this.createNode(this.token));
+      return cb(this.createNode(this.token))
     }
   }
 
   private parseGo(): SyntaxNode {
     const statement = <GoStatement>this.createNode(this.token)
 
-    this.moveNext();
+    this.moveNext()
+
     if (this.token.kind === SyntaxKind.numeric_literal) {
       statement.count = this.token.value
       this.moveNext()
     }
 
-    return statement;
+    return statement
   }
 
   private parseSetStatement(): SyntaxNode {
     const statement = <SetStatement>this.createNode(this.token)
-    statement.keyword = this.token;
+    statement.keyword = this.token
 
     this.moveNext()
 
-    this.expect(SyntaxKind.local_variable_reference);
-    statement.name = this.token.value;
+    this.expect(SyntaxKind.local_variable_reference)
+    statement.name = this.token.value
 
-    statement.op = this.parseAssignmentOperation();
+    statement.op = this.parseAssignmentOperation()
     statement.expression = this.parseValueExpression()
 
-    return undefined;
+    return statement
   }
 
   // todo: distinguish from a where predicate?
   private parseValueExpression(): ValueExpression {
     // todo: this is gonna get fairly complex.
 
-    return undefined;
+    return <ConstantExpression>this.createNode(this.token)
   }
 
-
-	/*
-		1	~ (Bitwise NOT)
-		2	* (Multiplication), / (Division), % (Modulus)
-		3	+ (Positive), - (Negative), + (Addition), + (Concatenation), - (Subtraction), & (Bitwise AND), ^ (Bitwise Exclusive OR), | (Bitwise OR)
-		4	=, >, <, >=, <=, <>, !=, !>, !< (Comparison operators)
-		5	NOT
-		6	AND
-		7	ALL, ANY, BETWEEN, IN, LIKE, OR, SOME
-		8	= (Assignment)
-	*/
+  // operator precedence, weird, mul is higher precedence than unary minus?
+  /*
+    1	~ (Bitwise NOT)
+    2	* (Multiplication), / (Division), % (Modulus)
+    3	+ (Positive), - (Negative), + (Addition), + (Concatenation), - (Subtraction), & (Bitwise AND), ^ (Bitwise Exclusive OR), | (Bitwise OR)
+    4	=, >, <, >=, <=, <>, !=, !>, !< (Comparison operators)
+    5	NOT
+    6	AND
+    7	ALL, ANY, BETWEEN, IN, LIKE, OR, SOME
+    8	= (Assignment)
+  */
   // todo
   private parseInExpression(left: Expr) {
 
@@ -213,28 +219,28 @@ export class Parser {
     // todo: more any,all,some,in
     return this.token.kind === SyntaxKind.or_keyword
       || this.token.kind === SyntaxKind.between_keyword
-      || this.token.kind === SyntaxKind.like_keyword;
+      || this.token.kind === SyntaxKind.like_keyword
   }
 
   // fallthrough precedence / recursive descent
   // into all these operator precedences.
   private tryParseOrExpr(): Expr {
-    let expr = this.tryParseAndExpr();
+    let expr = this.tryParseAndExpr()
 
     while (this.isOrPrecedence()) {
       // todo: fix this up so the binary expression spans
       // the length of the expr.
       const next = <BinaryExpression>{}
-      next.left = expr;
+      next.left = expr
       next.op = {
         start: this.token.start,
         end: this.token.end,
         kind: SyntaxKind.or_keyword
-      };
+      }
 
       next.right = this.tryParseAndExpr()
 
-      expr = next;
+      expr = next
     }
 
     return expr
@@ -267,7 +273,7 @@ export class Parser {
   }
 
   private parseAssignmentOperation(): AssignmentOperator {
-    this.moveNext();
+    this.moveNext()
 
     switch (this.token.kind) {
       case SyntaxKind.equal:
@@ -295,19 +301,17 @@ export class Parser {
         return <XorEqualsOperator>this.createNode(this.token)
 
       default:
-        this.error('Expected assignment operator (=, +=, -= etc...)')
+        throw this.error('Expected assignment operator (=, +=, -= etc...)')
     }
   }
 
   private parseUseDatabase() {
-    return undefined;
+    return undefined
   }
 
   private parseSelect() {
-    const node = <SelectStatement>this.createNode(this.token);
+    const node = <SelectStatement>this.createNode(this.token)
 
-    // todo: perhaps this is too complex for the scanner... we don't have a terminal
-    // to know when we're done scanning.
     node.columns = this.parseColumnList()
     // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_expression, this.parseInto)
     node.from = <FromClause>this.parseExpected(SyntaxKind.from_clause, this.parseFrom)
@@ -327,12 +331,17 @@ export class Parser {
   // }
 
   private parseFrom(): FromClause {
+    // todo: createStatement and statement kind.
+    const from = <FromClause>this.createNode(this.token)
 
+    return from
   }
 
   private parseWhere(): WhereClause {
-    return {
+    // broken?
+    return <WhereClause>{
       keyword: this.token,
+      kind: SyntaxKind.where_clause,
       predicate: this.tryParseOrExpr()
     }
   }
@@ -344,16 +353,16 @@ export class Parser {
    * @returns a list of statements within the script.
    */
   parse(script: string, info: any): Array<SyntaxNode> {
-    this.settings = Object.assign({ skipTrivia: true }, info);
+    this.settings = Object.assign({ skipTrivia: true }, info)
 
-    this.scanner = new Scanner(script, this.settings);
+    this.scanner = new Scanner(script, this.settings)
     const tree: Array<SyntaxNode> = []
 
-    let node = undefined;
+    let node = undefined
     while (node = this.next()) {
-      tree.push(node);
+      tree.push(node)
     }
 
-    return tree;
+    return tree
   }
-};
+}

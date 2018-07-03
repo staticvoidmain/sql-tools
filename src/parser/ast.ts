@@ -116,6 +116,7 @@ export type BinaryOperator =
   | LessThanEqualOperator
   | LikeOperator
 
+// overkill?
 export interface PlusEqualsOperator extends SyntaxNode { kind: SyntaxKind.plusEqualsAssignment }
 export interface MinusEqualsOperator extends SyntaxNode { kind: SyntaxKind.minusEqualsAssignment }
 export interface MultiplyEqualsOperator extends SyntaxNode { kind: SyntaxKind.mulEqualsAssignment }
@@ -137,14 +138,14 @@ export type AssignmentOperator =
   | OrEqualsOperator
 
 export interface ColumnExpression extends Expr {
-  expression: ValueExpression
+  expression: Expr
   alias?: string
 }
 
 export interface BinaryExpression extends Expr {
-  left: ValueExpression
+  left: Expr
   op: BinaryOperator
-  right: ValueExpression
+  right: Expr
 }
 
 export type ValueExpression =
@@ -185,8 +186,9 @@ export interface WhenExpression extends Expr {
 
 // function CALL expression?
 // it's unary, but it takes arguments...
-export interface FunctionCallExpression {
-
+export interface FunctionCallExpression extends Expr {
+  name: string
+  arguments: Expr[]
 }
 
 export interface WhereClause extends SyntaxNode {
@@ -215,6 +217,10 @@ export type RowValueExpression =
   | NullLiteral
   | ValueExpression
 
+/**
+ *
+ * ex: (values (1, 2), (3, 4) ) as Tuple(a, b);
+ */
 export interface DerivedTable extends SyntaxNode {
   keyword: Token
   expressions: RowValueExpression[]
@@ -235,6 +241,16 @@ export interface FromClause extends SyntaxNode {
 // these represent the top-level declarations of a script
 // which are made up of all the other node types.
 
+export type Statement =
+| SelectStatement
+| SetStatement
+| VariableDeclaration
+| TableDeclaration
+
+export interface StatementBlock {
+  statements: Statement[]
+}
+
 export interface VariableDeclarationStatement extends SyntaxNode {
   keyword: Token
   declarations: TableDeclaration | VariableDeclaration[]
@@ -249,9 +265,16 @@ export interface VariableDeclaration extends SyntaxNode {
   expression?: ValueExpression
 }
 
+export interface WhileStatement extends SyntaxNode {
+  kind: SyntaxKind.while_statement
+  keyword: SyntaxKind.while_keyword
+  predicate: Expr
+  body: StatementBlock
+}
+
 // set @x = foo
 export interface SetStatement extends SyntaxNode {
-  keyword: Token // todo: nodes for all these.
+  keyword: Token
   name: string
   op: AssignmentOperator
   expression: ValueExpression
@@ -273,13 +296,10 @@ export interface GoStatement extends SyntaxNode {
   count?: number
 }
 
-// unused stuff
+export interface BlockComment extends SyntaxNode { kind: SyntaxKind.comment_block }
+export interface InlineComment extends SyntaxNode { kind: SyntaxKind.comment_inline }
 
 // todo: we don't actually capture comments right now.
-// export type Comment =
-//   SyntaxKind.singleLineComment
-//   | SyntaxKind.blockComment;
-
-// export interface CommentRange extends TextRange {
-//   kind: Comment;
-// }
+export type Comment =
+  | BlockComment
+  | InlineComment;

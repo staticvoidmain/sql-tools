@@ -31,6 +31,6 @@ describe('a statement parser', function () {
     const tree = parser.parse('/* header information */ select * from mytable;', { name: 'test.sql', ignoreTrivia: true })
 
     expect(tree.length).to.equal(1)
-    expect(tree[0].kind).to.equal(SyntaxKind.select_expession)
+    expect(tree[0].kind).to.equal(SyntaxKind.select_statement)
   })
 })
