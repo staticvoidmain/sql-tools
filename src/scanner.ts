@@ -1,10 +1,9 @@
 import { Chars } from './chars'
 import { SyntaxKind } from './syntax'
-import { SIGBREAK } from 'constants'
 
 function isLetter(ch: number): boolean {
-  return Chars.A >= ch && ch <= Chars.Z
-    || Chars.a >= ch && ch <= Chars.z
+  return (Chars.A <= ch && ch <= Chars.Z)
+      || (Chars.a <= ch && ch <= Chars.z)
 }
 
 function isDigit(charCode: number): boolean {
@@ -31,7 +30,77 @@ export class Token {
 
 export const EmptyToken = new Token(SyntaxKind.EOF, 0, 0)
 
-const keywordMap = new Map<string, SyntaxKind>([
+interface Keyword {
+  key: string
+  kind: SyntaxKind
+}
+// lookup case insensitive manner
+class KeywordLookup {
+  buckets: Array<Keyword[]>
+  constructor(items: ReadonlyArray<[string, SyntaxKind]>) {
+    this.buckets = []
+
+    for (let index = 0; index < items.length; index++) {
+      const el = items[index];
+      const [ key, kind ] = el;
+      const ch = key.charCodeAt(0);
+      const i = ch - Chars.a;
+
+      if (this.buckets[i] === undefined) {
+        this.buckets[i] = []
+      }
+
+      this.buckets[i].push({
+        key: key,
+        kind: kind
+      })
+    }
+  }
+
+  invariantMatch(keyword: string, key: string) {
+    if (keyword.length !== key.length) {
+      return false
+    }
+
+    for (let j = 0; j < key.length; j++) {
+      const a = keyword.charCodeAt(j);
+      const b = key.charCodeAt(j);
+
+      if (a === b || a === b - 32) {
+        return true
+      }
+    }
+  }
+
+  get(key: string): SyntaxKind | undefined {
+    let ch = key.charCodeAt(0);
+
+    if (isLetter(ch)) {
+      if (ch >= Chars.A) {
+        // upper to lower case
+        ch -= 32;
+      }
+
+      // normalize
+      ch -= Chars.a;
+      const bucket = this.buckets[ch];
+
+      if (bucket) {
+        for (let i = 0; i < bucket.length; i++) {
+          const el = bucket[i];
+
+          if (this.invariantMatch(el.key, key)) {
+            return el.kind
+          }
+        }
+      }
+    }
+  }
+}
+
+// todo: some kind of specialized data structure
+// that doesn't care about text casing and doesn't require copies
+const keywordMap = new KeywordLookup([
   ['add', SyntaxKind.add_keyword],
   ['all', SyntaxKind.all_keyword],
   ['alter', SyntaxKind.alter_keyword],
@@ -219,8 +288,10 @@ const keywordMap = new Map<string, SyntaxKind>([
   ['writetext', SyntaxKind.writetext_keyword],
 ])
 
-// todo: more options.
 export interface ScannerOptions {
+  /**
+   * @NotImplemented
+   */
   skipTrivia?: boolean
 }
 
@@ -247,20 +318,18 @@ function binarySearch(array: Array<Number>, key: Number) {
 }
 
 export class Scanner {
-
+  private readonly text: string
+  private readonly len: number
+  private readonly lines: number[]
+  private readonly options: any
   // token start position
-  private start: number
+
   private pos: number
-  private options: any
-  private text: string
-  private len: number
-  private lines: number[]
 
   constructor(text: string, options: ScannerOptions) {
     this.options = options
     this.text = text
     this.pos = 0
-    this.start = 0
     this.len = text.length
     this.lines = []
   }
@@ -292,24 +361,13 @@ export class Scanner {
     return ~line - 1
   }
 
-  getTokenStart() {
-    return this.start
-  }
-
-  whitespace() {
-    let token = this.text.charCodeAt(this.pos)
-    while (token === Chars.space || token === Chars.tab) {
-      token = this.text.charCodeAt(++this.pos)
-    }
-  }
-
   // advance until we find the first unescaped single quote.
   // edge case: empty string
   scanString(): string {
-    const start = this.pos
+    const start = ++this.pos
     let ch = this.text.charCodeAt(this.pos)
     // todo: if we hit a newline preceded by a \
-    // then set a flag
+    // then set a flag or something.
     while (true) {
       if (ch === Chars.singleQuote) {
         if (this.peek() !== Chars.singleQuote) {
@@ -322,7 +380,7 @@ export class Scanner {
       ch = this.text.charCodeAt(++this.pos)
     }
     // todo: above.
-    return this.text.substr(start, this.pos - 1)
+    return this.text.substring(start, this.pos)
   }
 
   scanQuotedIdentifier() {
@@ -344,14 +402,14 @@ export class Scanner {
       ch = this.text.charCodeAt(this.pos)
     }
 
-    return this.text.substr(start, this.pos - start)
+    return this.text.substring(start, this.pos)
   }
 
-  // a.b.c.fk_fbab
+  // todo: a full legal name with quotes and all...
   scanDottedIdentifier() {
     const start = this.pos
     let ch = this.text.charCodeAt(this.pos)
-    while (this.pos < this.len) {
+    while (ch) {
       const valid = isLetter(ch)
         || isDigit(ch)
         || ch === Chars.underscore
@@ -366,7 +424,7 @@ export class Scanner {
       ch = this.text.charCodeAt(this.pos)
     }
 
-    return this.text.substr(start, this.pos - start)
+    return this.text.substring(start, this.pos)
   }
 
   /**
@@ -375,13 +433,13 @@ export class Scanner {
   scanIdentifier(): string {
     const start = this.pos
     let ch = this.text.charCodeAt(this.pos)
-    while (this.pos < this.len && isLetter(ch) || isDigit(ch) || ch === Chars.underscore) {
+    while (isLetter(ch) || isDigit(ch) || ch === Chars.underscore) {
       this.pos++
 
       ch = this.text.charCodeAt(this.pos)
     }
 
-    return this.text.substr(start, this.pos - start)
+    return this.text.substring(start, this.pos)
   }
 
   private peek(): number {
@@ -402,7 +460,7 @@ export class Scanner {
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    return this.text.substr(start, this.pos - start)
+    return this.text.substring(start, this.pos - 1)
   }
 
   private scanBlockComment() {
@@ -418,7 +476,7 @@ export class Scanner {
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    return this.text.substr(start, this.pos - start)
+    return this.text.substring(start + 2, this.pos - 2)
   }
 
   scanNumber(): Number {
@@ -430,7 +488,10 @@ export class Scanner {
       while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
     }
 
-    return parseFloat(this.text.substr(start, this.pos - start))
+    // move back just one
+    this.pos--;
+
+    return parseFloat(this.text.substring(start, this.pos))
   }
 
   isSpace() {
@@ -442,19 +503,19 @@ export class Scanner {
       || next === Chars.carriageReturn)
   }
 
-  // hack: remove the undefined specifier later.
   scan(): Token {
-    const start = this.start = this.pos
-
+    const start = this.pos
     const ch = this.text.charCodeAt(this.pos)
+
+    if (isNaN(ch)) {
+      return new Token(SyntaxKind.EOF, start, this.pos);
+    }
+
+    // todo: flags?
     let val = undefined
     let kind = undefined
-    // todo:  flags?
 
     switch (ch) {
-      case NaN:
-        kind = SyntaxKind.EOF
-        break
 
       case Chars.forwardSlash: {
         kind = SyntaxKind.divToken
@@ -478,13 +539,16 @@ export class Scanner {
       case Chars.carriageReturn:
       case Chars.newline:
       case Chars.tab:
-      case Chars.space:
-        this.pos++
+      case Chars.space: {
         while (this.isSpace()) {
           this.pos++
         }
+        // to account for the last
+        // pos++ so I don't have to do it later.
+        this.pos--
         kind = SyntaxKind.whitespace
         break
+      }
 
       // apparently unary + and - can be
       // tucked next to each other,
@@ -494,18 +558,20 @@ export class Scanner {
         const next = this.peek()
 
         if (next === Chars.equal) {
+          this.pos++
           kind = SyntaxKind.minusEqualsAssignment
         }
         break
       }
 
-      case Chars.hyphen:
+      case Chars.hyphen: {
         const next = this.peek()
 
         if (next === Chars.hyphen) {
           this.scanInlineComment()
           kind = SyntaxKind.comment_inline
         } else if (next === Chars.equal) {
+          this.pos++
           kind = SyntaxKind.minusEqualsAssignment
         }
         else {
@@ -514,26 +580,30 @@ export class Scanner {
           // we COULD eagerly go looking for a number or something, but it could be lots of things.
           kind = SyntaxKind.minusToken
         }
+
         break
+      }
 
       // & or &=
       case Chars.ampersand: {
 
         if (this.peek() !== Chars.equal) {
-          this.pos++
           kind = SyntaxKind.bitwiseAnd
         } else {
+          this.pos++
           kind = SyntaxKind.bitwiseAndAssignment
         }
+
         break
       }
 
       // | or |=
       case Chars.pipe: {
+
         if (this.peek() !== Chars.equal) {
-          this.pos++
           kind = SyntaxKind.bitwiseOr
         } else {
+          this.pos++
           kind = SyntaxKind.bitwiseOrAssignment
         }
         break
@@ -626,11 +696,10 @@ export class Scanner {
       case Chars.at: {
         if (this.peek() === Chars.at) {
           // parse config function
-          // ex: @@foo
+          // ex: @@servername
           this.pos++
           val = this.scanIdentifier()
-          // todo: not really, but this gets us a little further.
-          kind = SyntaxKind.local_variable_reference
+          kind = SyntaxKind.server_variable_reference
         }
 
         val = this.scanIdentifier()
@@ -656,19 +725,22 @@ export class Scanner {
       // case Chars.X:
       //   // todo: mysql hex literal X'
 
-      case Chars.n:
-      case Chars.N: // begin nvarchar literal.
+      // case Chars.n:
+      // case Chars.N: // begin nvarchar literal.
 
       default: {
         val = this.scanDottedIdentifier()
-
-        const keyword = keywordMap.get(val.toLowerCase())
+        const keyword = keywordMap.get(val)
 
         kind = keyword ? keyword : SyntaxKind.name
+        break
       }
     }
 
-    // default increment over the current token.
-    return new Token(kind || SyntaxKind.EOF, start, this.pos++)
+    const token = new Token(kind || SyntaxKind.EOF, start, this.pos++)
+    token.flags = undefined
+    token.value = val
+
+    return token
   }
 }

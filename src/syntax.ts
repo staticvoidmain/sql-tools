@@ -2,7 +2,7 @@
 // enums compile down to a funky bi-directional object map
 // string -> int
 // int    -> string
-export const enum SyntaxKind {
+export enum SyntaxKind {
   EOF,
   // tokens
   whitespace,
@@ -254,6 +254,7 @@ export const enum SyntaxKind {
   rollback_transaction,
   temp_table,
   shared_temp_table,
+  server_variable_reference,
   local_variable_reference,
   numeric_literal,
   string_literal,
