@@ -23,7 +23,9 @@ function scanAll(scanner: Scanner) {
 }
 
 function assertTokenKinds(actual: Token[], expected: SyntaxKind[]) {
-  expect(actual.length).to.equal(expected.length, 'Incorrect number of tokens scanned!')
+  const actualKinds = actual.map(function(a) { return SyntaxKind[a.kind]; })
+
+  expect(actual.length).to.equal(expected.length, `Incorrect number of tokens scanned! Got: \n ${actualKinds}`)
 
   for (let index = 0; index < actual.length; index++) {
     expect(actual[index].kind).to.equal(expected[index],
@@ -42,9 +44,11 @@ describe('Scanner', function () {
 
   it('captures line numbers lazily', function() {
     const scanner = new Scanner('   \t \t  \r\n\t\r\n  \n   ', { skipTrivia: true });
-    const token = scanner.scan();
+    const space = scanner.scan();
+    const eof = scanner.scan();
 
-    expect(token.kind).to.equal(SyntaxKind.whitespace)
+    expect(space.kind).to.equal(SyntaxKind.whitespace)
+    expect(eof.kind).to.equal(SyntaxKind.EOF);
     expect(scanner.getCurrentLine()).to.equal(3)
   })
 
@@ -72,6 +76,14 @@ describe('Scanner', function () {
     expect(token.value).to.equal('hello world!')
   })
 
+  it('scans empty strings', function() {
+    const scanner = new Scanner("''", { });
+    const token = scanner.scan();
+
+    expect(token.kind).to.equal(SyntaxKind.string_literal)
+    expect(token.value).to.equal('')
+  })
+
   it('handles escape sequences in strings', function() {
     const scanner = new Scanner("'hello world, I''m Ross'", { });
     const token = scanner.scan();
@@ -80,7 +92,7 @@ describe('Scanner', function () {
     expect(token.value).to.equal("hello world, I''m Ross")
   })
 
-  it('tokenizes keywords and captures casing',  function() {
+  it('tokenizes keywords regardless of case', function() {
     const scanner = new Scanner('set DECLARE Update InSerT', { });
     const tokens = scanAll(scanner);
 
@@ -92,20 +104,36 @@ describe('Scanner', function () {
     ]);
   })
 
-  it('handles operators', function() {
-    const scanner = new Scanner('+ += - -= > >= !> <= <> !=', { });
+  it('handles binary operators', function() {
+    const scanner = new Scanner('+ - * / > < >= <= !> !< <> !=', { });
     const tokens = scanAll(scanner);
     assertTokenKinds(tokens, [
       SyntaxKind.plusToken,
-      SyntaxKind.plusEqualsAssignment,
       SyntaxKind.minusToken,
-      SyntaxKind.minusEqualsAssignment,
+      SyntaxKind.mulToken,
+      SyntaxKind.divToken,
       SyntaxKind.greaterThan,
+      SyntaxKind.lessThan,
       SyntaxKind.greaterThanEqual,
-      SyntaxKind.notGreaterThan,
       SyntaxKind.lessThanEqual,
+      SyntaxKind.notGreaterThan,
+      SyntaxKind.notLessThan,
       SyntaxKind.ltGt,
       SyntaxKind.notEqual,
+    ]);
+  })
+
+  it('handles assignment operators', function() {
+    const scanner = new Scanner('+= -= *= /= |= &= ^=', { });
+    const tokens = scanAll(scanner);
+    assertTokenKinds(tokens, [
+      SyntaxKind.plusEqualsAssignment,
+      SyntaxKind.minusEqualsAssignment,
+      SyntaxKind.mulEqualsAssignment,
+      SyntaxKind.divEqualsAssignment,
+      SyntaxKind.bitwiseOrAssignment,
+      SyntaxKind.bitwiseAndAssignment,
+      SyntaxKind.bitwiseXorAssignment,
     ]);
   })
 

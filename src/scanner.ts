@@ -57,15 +57,19 @@ class KeywordLookup {
     }
   }
 
+  // it's O(n) time in the worst case
+  // but the bucketed sizes are really small.
   invariantMatch(keyword: string, key: string) {
     if (keyword.length === key.length) {
       for (let j = 0; j < key.length; j++) {
         const a = keyword.charCodeAt(j);
         const b = key.charCodeAt(j);
-        if (a === b || a === b - 32) {
-          return true
+        if (a !== b && a !== b + 32) {
+          return false
         }
       }
+
+      return true
     }
 
     return false
@@ -528,9 +532,6 @@ export class Scanner {
         break
       }
 
-      // consume all whitespace for now
-      // but eventually for the linter we need
-      // to actually do something with it.
       case Chars.carriageReturn:
       case Chars.newline:
       case Chars.tab:
@@ -550,12 +551,12 @@ export class Scanner {
       // they just don't bind.
       case Chars.plus: {
         kind = SyntaxKind.plusToken
-        const next = this.peek()
 
-        if (next === Chars.equal) {
+        if (this.peek() === Chars.equal) {
           this.pos++
           kind = SyntaxKind.plusEqualsAssignment
         }
+
         break
       }
 
@@ -579,12 +580,32 @@ export class Scanner {
         break
       }
 
+      case Chars.asterisk: {
+        kind = SyntaxKind.mulToken
+
+        if (this.peek() === Chars.equal) {
+          this.pos++
+          kind = SyntaxKind.mulEqualsAssignment
+        }
+
+        break
+      }
+
+      case Chars.forwardSlash: {
+        kind = SyntaxKind.divToken
+
+        if (this.peek() === Chars.equal) {
+          this.pos++
+          kind = SyntaxKind.divEqualsAssignment
+        }
+
+        break
+      }
+
       // & or &=
       case Chars.ampersand: {
-
-        if (this.peek() !== Chars.equal) {
-          kind = SyntaxKind.bitwiseAnd
-        } else {
+        kind = SyntaxKind.bitwiseAnd
+        if (this.peek() === Chars.equal) {
           this.pos++
           kind = SyntaxKind.bitwiseAndAssignment
         }
@@ -594,16 +615,27 @@ export class Scanner {
 
       // | or |=
       case Chars.pipe: {
+        kind = SyntaxKind.bitwiseOr
 
-        if (this.peek() !== Chars.equal) {
-          kind = SyntaxKind.bitwiseOr
-        } else {
+        if (this.peek() === Chars.equal) {
           this.pos++
           kind = SyntaxKind.bitwiseOrAssignment
         }
         break
       }
 
+      // ^ or ^=
+      case Chars.caret: {
+        kind = SyntaxKind.bitwiseXor
+        if (this.peek() === Chars.equal) {
+          this.pos++
+          kind = SyntaxKind.bitwiseXorAssignment
+        }
+
+        break
+      }
+
+      // < <= <>
       case Chars.lessThan: {
         kind = SyntaxKind.lessThan
 
@@ -619,11 +651,11 @@ export class Scanner {
         break
       }
 
+      // > >=
       case Chars.greaterThan: {
         kind = SyntaxKind.greaterThan;
-        const next = this.peek()
 
-        if (next === Chars.equal) {
+        if (this.peek() === Chars.equal) {
           kind = SyntaxKind.greaterThanEqual
           this.pos++
         }
@@ -636,7 +668,7 @@ export class Scanner {
         this.pos++
 
         if (next === Chars.equal) {
-          kind = SyntaxKind.lessThan
+          kind = SyntaxKind.notEqual
         } else if (next === Chars.lessThan) {
           kind = SyntaxKind.notLessThan
 
@@ -644,7 +676,9 @@ export class Scanner {
           kind = SyntaxKind.notGreaterThan
         }
         else {
-          // todo: unexpected token
+          // todo: unexpected token?
+          // how should that be handled?
+          // in the parser?
         }
 
         break
