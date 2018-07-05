@@ -3,7 +3,7 @@ import { SyntaxKind } from './syntax'
 
 function isLetter(ch: number): boolean {
   return (Chars.A <= ch && ch <= Chars.Z)
-      || (Chars.a <= ch && ch <= Chars.z)
+    || (Chars.a <= ch && ch <= Chars.z)
 }
 
 function isDigit(charCode: number): boolean {
@@ -42,7 +42,7 @@ class KeywordLookup {
 
     for (let index = 0; index < items.length; index++) {
       const el = items[index];
-      const [ key, kind ] = el;
+      const [key, kind] = el;
       const ch = key.charCodeAt(0);
       const i = ch - Chars.a;
 
@@ -58,27 +58,26 @@ class KeywordLookup {
   }
 
   invariantMatch(keyword: string, key: string) {
-    if (keyword.length !== key.length) {
-      return false
-    }
-
-    for (let j = 0; j < key.length; j++) {
-      const a = keyword.charCodeAt(j);
-      const b = key.charCodeAt(j);
-
-      if (a === b || a === b - 32) {
-        return true
+    if (keyword.length === key.length) {
+      for (let j = 0; j < key.length; j++) {
+        const a = keyword.charCodeAt(j);
+        const b = key.charCodeAt(j);
+        if (a === b || a === b - 32) {
+          return true
+        }
       }
     }
+
+    return false
   }
 
   get(key: string): SyntaxKind | undefined {
     let ch = key.charCodeAt(0);
 
     if (isLetter(ch)) {
-      if (ch >= Chars.A) {
+      if (ch <= Chars.Z) {
         // upper to lower case
-        ch -= 32;
+        ch += 32;
       }
 
       // normalize
@@ -488,32 +487,28 @@ export class Scanner {
       while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
     }
 
-    // move back just one
-    this.pos--;
-
     return parseFloat(this.text.substring(start, this.pos))
   }
 
   isSpace() {
-    const next = this.text.charCodeAt(this.pos)
+    const ch = this.text.charCodeAt(this.pos)
 
-    return (next === Chars.tab
-      || next === Chars.space
-      || next === Chars.newline
-      || next === Chars.carriageReturn)
+    return (ch === Chars.tab
+      || ch === Chars.space
+      || ch === Chars.newline
+      || ch === Chars.carriageReturn)
   }
 
   scan(): Token {
     const start = this.pos
     const ch = this.text.charCodeAt(this.pos)
-
-    if (isNaN(ch)) {
-      return new Token(SyntaxKind.EOF, start, this.pos);
-    }
-
     // todo: flags?
     let val = undefined
-    let kind = undefined
+    let kind = SyntaxKind.EOF
+
+    if (isNaN(ch)) {
+      return new Token(kind, start, this.pos);
+    }
 
     switch (ch) {
 
@@ -559,7 +554,7 @@ export class Scanner {
 
         if (next === Chars.equal) {
           this.pos++
-          kind = SyntaxKind.minusEqualsAssignment
+          kind = SyntaxKind.plusEqualsAssignment
         }
         break
       }
@@ -625,7 +620,7 @@ export class Scanner {
       }
 
       case Chars.greaterThan: {
-        kind = SyntaxKind.lessThan;
+        kind = SyntaxKind.greaterThan;
         const next = this.peek()
 
         if (next === Chars.equal) {
@@ -737,7 +732,8 @@ export class Scanner {
       }
     }
 
-    const token = new Token(kind || SyntaxKind.EOF, start, this.pos++)
+    // todo: ignore whitespace here, and just goto?
+    const token = new Token(kind, start, this.pos++)
     token.flags = undefined
     token.value = val
 

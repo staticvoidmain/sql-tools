@@ -27,7 +27,7 @@ function assertTokenKinds(actual: Token[], expected: SyntaxKind[]) {
 
   for (let index = 0; index < actual.length; index++) {
     expect(actual[index].kind).to.equal(expected[index],
-      `Expected ${SyntaxKind[expected[index]]} got ${SyntaxKind[actual[index].kind]}`)
+      `[${index}] Expected ${SyntaxKind[expected[index]]} got ${SyntaxKind[actual[index].kind]}`)
   }
 }
 
@@ -44,16 +44,24 @@ describe('Scanner', function () {
     const scanner = new Scanner('   \t \t  \r\n\t\r\n  \n   ', { skipTrivia: true });
     const token = scanner.scan();
 
-    expect(token.kind).to.equal(SyntaxKind.EOF)
+    expect(token.kind).to.equal(SyntaxKind.whitespace)
     expect(scanner.getCurrentLine()).to.equal(3)
   })
 
-  it('scans numbers', function() {
+  it('scans integers', function() {
     const scanner = new Scanner('012345678', { });
     const token = scanner.scan();
 
     expect(token.kind).to.equal(SyntaxKind.numeric_literal)
     expect(token.value).to.equal(12345678);
+  })
+
+  it('scans floats', function() {
+    const scanner = new Scanner('123.456', { });
+    const token = scanner.scan();
+
+    expect(token.kind).to.equal(SyntaxKind.numeric_literal)
+    expect(token.value).to.equal(123.456);
   })
 
   it('scans simple strings', function() {
@@ -102,7 +110,7 @@ describe('Scanner', function () {
   })
 
   it('scans inline comments', function() {
-    const scanner = new Scanner('-- comment\n 1234', { });
+    const scanner = new Scanner('-- comment\n1234', { });
 
     expect(scanner.scan().kind).to.equal(SyntaxKind.comment_inline)
     expect(scanner.scan().kind).to.equal(SyntaxKind.numeric_literal)
