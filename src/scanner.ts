@@ -34,11 +34,15 @@ interface Keyword {
   key: string
   kind: SyntaxKind
 }
-
+interface Bucket {
+  keywords: Keyword[]
+  min: number
+  max: number
+}
 // lookup case insensitive manner
 class KeywordLookup {
   // todo: custom type for bucket with another min/max keyword size?
-  buckets: Array<Keyword[]>
+  buckets: Array<Bucket>
 
   private minIdentifier: number
   private maxIdentifier: number
@@ -51,17 +55,18 @@ class KeywordLookup {
     for (let index = 0; index < items.length; index++) {
       const [key, kind] = items[index]
       const i = key.charCodeAt(0) - Chars.a
+      const bucket = (this.buckets[i] = this.buckets[i] || { keywords: [] })
 
-      if (this.buckets[i] === undefined) {
-        this.buckets[i] = []
-      }
-
-      this.buckets[i].push({
+      bucket.keywords.push({
         key: key,
         kind: kind
       })
 
-      // zero-length identifiers aren't possible
+      bucket.min = Math.min(bucket.min, key.length) || key.length
+      bucket.max = Math.max(bucket.max, key.length)
+
+      // this is probably not all that important
+      // since each bucket has a min/max
       this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
       this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
     }
@@ -86,7 +91,6 @@ class KeywordLookup {
   }
 
   get(key: string): SyntaxKind | undefined {
-
     if (key.length < this.minIdentifier || key.length > this.maxIdentifier) {
       return undefined
     }
@@ -104,8 +108,13 @@ class KeywordLookup {
       const bucket = this.buckets[ch]
 
       if (bucket) {
-        for (let i = 0; i < bucket.length; i++) {
-          const el = bucket[i]
+        if (key.length < bucket.min || key.length > bucket.max) {
+          return undefined
+        }
+
+        const len = bucket.keywords.length
+        for (let i = 0; i < len; i++) {
+          const el = bucket.keywords[i]
 
           if (this.invariantMatch(el.key, key)) {
             return el.kind
@@ -116,9 +125,9 @@ class KeywordLookup {
   }
 }
 
-// todo: some kind of specialized data structure
-// that doesn't care about text casing and doesn't require copies
-// admission: this should really be a trie, but I'm lazy...
+// todo: data types don't seem to be in this list...
+// do we want to do something else with them?
+// maybe in the parser??
 const keywordMap = new KeywordLookup([
   ['add', SyntaxKind.add_keyword],
   ['all', SyntaxKind.all_keyword],
@@ -160,6 +169,7 @@ const keywordMap = new KeywordLookup([
   ['current_user', SyntaxKind.current_user_keyword],
   ['cursor', SyntaxKind.cursor_keyword],
   ['database', SyntaxKind.database_keyword],
+  // todo: date?
   ['dbcc', SyntaxKind.dbcc_keyword],
   ['deallocate', SyntaxKind.deallocate_keyword],
   ['declare', SyntaxKind.declare_keyword],
@@ -525,6 +535,38 @@ export class Scanner {
     }
 
     switch (ch) {
+      //#region simple terminals
+      case Chars.period: {
+        kind = SyntaxKind.dotToken
+        break
+      }
+
+      case Chars.comma: {
+        kind = SyntaxKind.commaToken
+        break
+      }
+
+      case Chars.semi: {
+        kind = SyntaxKind.semiColonToken
+        break
+      }
+
+      case Chars.openParen: {
+        kind = SyntaxKind.openParen
+        break
+      }
+
+      case Chars.closeParen: {
+        kind = SyntaxKind.closeParen
+        break
+      }
+
+      case Chars.equal: {
+        kind = SyntaxKind.equal
+        break
+      }
+
+      //#endregion
 
       case Chars.carriageReturn:
       case Chars.newline:
@@ -553,31 +595,6 @@ export class Scanner {
           val = this.scanBlockComment()
         }
 
-        break
-      }
-
-      case Chars.period: {
-        kind = SyntaxKind.dotToken
-        break
-      }
-
-      case Chars.comma: {
-        kind = SyntaxKind.commaToken
-        break
-      }
-
-      case Chars.semi: {
-        kind = SyntaxKind.semiColonToken
-        break
-      }
-
-      case Chars.openParen: {
-        kind = SyntaxKind.openParen
-        break
-      }
-
-      case Chars.closeParen: {
-        kind = SyntaxKind.closeParen
         break
       }
 

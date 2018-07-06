@@ -3,6 +3,7 @@ import { expect } from 'chai'
 
 import { Scanner, Token } from '../src/scanner'
 import { SyntaxKind } from '../src/syntax'
+import { readFileSync } from 'fs'
 
 function scanAll(scanner: Scanner) {
   const tokens = []
@@ -28,7 +29,9 @@ interface TokenAssert {
 }
 
 function tokenToString(token: Token | TokenAssert) {
-  return SyntaxKind[token.kind] + ", '"  + token.value + "'"
+  const val = token.value ? "='"  + token.value + "'" : ''
+
+  return SyntaxKind[token.kind] + val
 }
 
 function assertTokens(actual: Token[], expected: TokenAssert[]) {
@@ -129,15 +132,24 @@ describe('Scanner', function () {
     expect(token.value).to.equal("hello world, I''m Ross")
   })
 
+  it('handles unicode strings', function () {
+    const scanner = new Scanner("'hello world, I''m Ross'", {})
+    const token = scanner.scan()
+
+    expect(token.kind).to.equal(SyntaxKind.string_literal)
+    expect(token.value).to.equal("hello world, I''m Ross")
+  })
+
   it('tokenizes keywords regardless of case', function () {
-    const scanner = new Scanner('set DECLARE Update InSerT', {})
+    const scanner = new Scanner('set DECLARE Update InSerT current_date', {})
     const tokens = scanAll(scanner)
 
     assertTokenKinds(tokens, [
       SyntaxKind.set_keyword,
       SyntaxKind.declare_keyword,
       SyntaxKind.update_keyword,
-      SyntaxKind.insert_keyword
+      SyntaxKind.insert_keyword,
+      SyntaxKind.current_date_keyword
     ])
   })
 
@@ -175,10 +187,12 @@ describe('Scanner', function () {
   })
 
   it('scans block comments', function () {
-    const scanner = new Scanner('-- comment\n1234', {})
-
-    expect(scanner.scan().kind).to.equal(SyntaxKind.comment_inline)
-    expect(scanner.scan().kind).to.equal(SyntaxKind.numeric_literal)
+    const scanner = new Scanner('/* comment\n 1234 \r\n */asdf')
+    const tokens = scanAll(scanner)
+    assertTokenKinds(tokens, [
+      SyntaxKind.comment_block,
+      SyntaxKind.identifier
+    ])
   })
 
   it('scans inline comments', function () {
@@ -220,5 +234,13 @@ describe('Scanner', function () {
 
     // and the name should actually be...
     expect(token.kind).to.equal(SyntaxKind.identifier)
+  })
+
+  it ('scans some really complex stuff', function() {
+    const sink = readFileSync('./test/mssql/kitchen_sink.sql', 'utf8')
+    const scanner = new Scanner(sink)
+    const tokens = scanAll(scanner)
+
+    console.log(tokens.map(tokenToString).join('\r\n'))
   })
 })

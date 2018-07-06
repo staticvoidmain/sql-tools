@@ -96,7 +96,7 @@ export const enum Chars {
   y = 121,
   z = 122,
   pipe = 124,
-
+  tilde = 126,
   // not sure I care about this too much, but for completeness.
   bom = 0xFEFF
 }
