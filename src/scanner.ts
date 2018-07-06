@@ -408,9 +408,9 @@ export class Scanner {
     return this.text.substring(start, this.pos)
   }
 
-  // todo: maybe be less greedy... and cause each identifier "part"
-  // to be its own thing...separated by a dotToken
   scanIdentifier() {
+    // why is this leaving the scanner in a strange state
+    // of skipping over dots...
     let ch = this.text.charCodeAt(this.pos)
     let insideQuoteContext = ch === Chars.doubleQuote
     let insideBraceContext = ch === Chars.openBrace
@@ -419,6 +419,7 @@ export class Scanner {
     const start = this.pos++
 
     while (ch = this.text.charCodeAt(this.pos)) {
+      // todo: stupid double quote escape stuff...
       if (ch === Chars.doubleQuote) {
         insideQuoteContext = !insideQuoteContext
         this.pos++
@@ -432,19 +433,21 @@ export class Scanner {
       }
 
       if (insideQuoteContext || insideBraceContext) {
-        // doesn't matter what it is inside the braces.
+        // doesn't matter what it is inside actually,
         this.pos++
       }
       else if (isLetter(ch)
           || isDigit(ch)
           || ch === Chars.dollar
           || ch === Chars.underscore
-          || ch === Chars.period
           || ch === Chars.at) { this.pos++ }
       else break
     }
 
-    return this.text.substring(start, this.pos)
+    // back out one character since we overshot by one
+    // and the top level scanning switch is going to advance
+    // the position by one.
+    return this.text.substring(start, this.pos--)
   }
 
   /**
@@ -459,15 +462,16 @@ export class Scanner {
     while (isLetter(ch)
       || isDigit(ch)
       || ch === Chars.underscore) {
+      // we advance until we are no longer a legal identifier
+      // and then back off one character.
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    return this.text.substring(start, this.pos)
+    return this.text.substring(start, this.pos--)
   }
 
+  // charCodeAt returns NaN if we go out of bounds.
   private peek(): number {
-    // charCodeAt returns NaN if we go out of bounds.
-    // so that's nice.
     return this.text.charCodeAt(this.pos + 1)
   }
 
@@ -511,7 +515,8 @@ export class Scanner {
       while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
     }
 
-    return parseFloat(this.text.substring(start, this.pos))
+    // another -1
+    return parseFloat(this.text.substring(start, this.pos--))
   }
 
   isSpace() {
@@ -536,6 +541,7 @@ export class Scanner {
 
     switch (ch) {
       //#region simple terminals
+
       case Chars.period: {
         kind = SyntaxKind.dotToken
         break
@@ -783,7 +789,6 @@ export class Scanner {
         }
 
         val = this.scanRegularIdentifier()
-
         break
       }
 
@@ -796,7 +801,6 @@ export class Scanner {
         }
 
         val = this.scanRegularIdentifier()
-
         break
       }
 

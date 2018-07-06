@@ -5,7 +5,7 @@ import { Scanner, Token } from '../src/scanner'
 import { SyntaxKind } from '../src/syntax'
 import { readFileSync } from 'fs'
 
-function scanAll(scanner: Scanner) {
+function scanAll(scanner: Scanner, whitespace?: boolean) {
   const tokens = []
 
   while (true) {
@@ -15,7 +15,7 @@ function scanAll(scanner: Scanner) {
       break
     }
 
-    if (token.kind !== SyntaxKind.whitespace) {
+    if (token.kind !== SyntaxKind.whitespace || whitespace) {
       tokens.push(token)
     }
   }
@@ -25,7 +25,7 @@ function scanAll(scanner: Scanner) {
 
 interface TokenAssert {
   kind: SyntaxKind
-  value: any
+  value?: any
 }
 
 function tokenToString(token: Token | TokenAssert) {
@@ -43,7 +43,7 @@ function assertTokens(actual: Token[], expected: TokenAssert[]) {
     const ex = expected[index]
     const token = actual[index]
     const match = ex.kind === token.kind
-      && ex.value === token.value
+      && (!ex.value || ex.value === token.value)
 
     expect(match).to.equal(true,
       `[${index}] Expected ${tokenToString(ex)} got ${tokenToString(token)}`)
@@ -88,11 +88,22 @@ describe('Scanner', function () {
   })
 
   it('scans floats', function () {
-    const scanner = new Scanner('123.456', {})
+    const scanner = new Scanner('123.456')
     const token = scanner.scan()
 
     expect(token.kind).to.equal(SyntaxKind.numeric_literal)
     expect(token.value).to.equal(123.456)
+  })
+
+  it('scans numbers without screwing up the next token', function () {
+    const scanner = new Scanner('1.2*3')
+    const tokens = scanAll(scanner)
+
+    assertTokens(tokens, [
+      { kind: SyntaxKind.numeric_literal,  value: 1.2 },
+      { kind: SyntaxKind.mulToken },
+      { kind: SyntaxKind.numeric_literal, value: 3 },
+    ])
   })
 
   it ('scans miscellaneous terminals',  function() {
@@ -206,7 +217,7 @@ describe('Scanner', function () {
     // The at sign, dollar sign ($), number sign, or underscore.
     // nothing wrong here...
     const ident = 'foo _bar1 @baz #tbl'
-    const scanner = new Scanner(ident, {})
+    const scanner = new Scanner(ident)
     const tokens = scanAll(scanner)
 
     assertTokens(tokens, [
@@ -217,14 +228,29 @@ describe('Scanner', function () {
     ])
   })
 
-  it('scans complex identifiers', function () {
-    const ident = '[foo].b@r."$b_z"'
-    const scanner = new Scanner(ident, {})
-    const token = scanner.scan()
+  it ('scans regular identifiers with dots', function() {
+    // maybe some kind of flavor: mssql flag?
+    const scanner = new Scanner('@sometable.some_col')
+    const tokens = scanAll(scanner, false)
 
-    // todo: should be 3 identifiers separated by dotTokens
-    expect(token.kind).to.equal(SyntaxKind.identifier)
-    expect(token.value).to.equal(ident)
+    assertTokens(tokens, [
+      { kind: SyntaxKind.identifier, value: '@sometable' },
+      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.identifier, value: 'some_col' }
+    ])
+  })
+
+  it('scans complex identifiers', function () {
+    const scanner = new Scanner('[foo].b@r."$b_z"')
+    const tokens = scanAll(scanner)
+
+    assertTokens(tokens, [
+      { kind: SyntaxKind.identifier, value: '[foo]' },
+      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.identifier, value: 'b@r' },
+      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.identifier, value: '"$b_z"' },
+    ])
   })
 
   it('scans insane identifiers', function () {
@@ -234,12 +260,13 @@ describe('Scanner', function () {
 
     // and the name should actually be...
     expect(token.kind).to.equal(SyntaxKind.identifier)
+    // todo: this is passing, but it shouldn't be.
   })
 
-  it ('scans some really complex stuff', function() {
+  xit ('debug: show token stream', function() {
     const sink = readFileSync('./test/mssql/kitchen_sink.sql', 'utf8')
     const scanner = new Scanner(sink)
-    const tokens = scanAll(scanner)
+    const tokens = scanAll(scanner, true)
 
     console.log(tokens.map(tokenToString).join('\r\n'))
   })
