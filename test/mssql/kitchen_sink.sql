@@ -6,6 +6,6 @@ set @foo += 1;
   with foo and bar
 */
 update ex
-set ex.foo = 10
+set ex.foo /= 10
 from [SomeTable] as ex
-where ex.bar < @foo
+where ex.bar <= @foo and ex.foo is null

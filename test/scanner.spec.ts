@@ -29,7 +29,7 @@ interface TokenAssert {
 }
 
 function tokenToString(token: Token | TokenAssert) {
-  const val = token.value ? "='"  + token.value + "'" : ''
+  const val = token.value ? ' = '  + token.value : ''
 
   return SyntaxKind[token.kind] + val
 }
