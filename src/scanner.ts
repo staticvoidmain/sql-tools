@@ -34,17 +34,23 @@ interface Keyword {
   key: string
   kind: SyntaxKind
 }
+
 // lookup case insensitive manner
 class KeywordLookup {
+  // todo: custom type for bucket with another min/max keyword size?
   buckets: Array<Keyword[]>
+
+  private minIdentifier: number
+  private maxIdentifier: number
+
   constructor(items: ReadonlyArray<[string, SyntaxKind]>) {
     this.buckets = []
+    this.maxIdentifier = 0
+    this.minIdentifier = 0
 
     for (let index = 0; index < items.length; index++) {
-      const el = items[index];
-      const [key, kind] = el;
-      const ch = key.charCodeAt(0);
-      const i = ch - Chars.a;
+      const [key, kind] = items[index]
+      const i = key.charCodeAt(0) - Chars.a
 
       if (this.buckets[i] === undefined) {
         this.buckets[i] = []
@@ -54,6 +60,10 @@ class KeywordLookup {
         key: key,
         kind: kind
       })
+
+      // zero-length identifiers aren't possible
+      this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
+      this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
     }
   }
 
@@ -62,8 +72,8 @@ class KeywordLookup {
   invariantMatch(keyword: string, key: string) {
     if (keyword.length === key.length) {
       for (let j = 0; j < key.length; j++) {
-        const a = keyword.charCodeAt(j);
-        const b = key.charCodeAt(j);
+        const a = keyword.charCodeAt(j)
+        const b = key.charCodeAt(j)
         if (a !== b && a !== b + 32) {
           return false
         }
@@ -76,21 +86,26 @@ class KeywordLookup {
   }
 
   get(key: string): SyntaxKind | undefined {
-    let ch = key.charCodeAt(0);
+
+    if (key.length < this.minIdentifier || key.length > this.maxIdentifier) {
+      return undefined
+    }
+
+    let ch = key.charCodeAt(0)
 
     if (isLetter(ch)) {
       if (ch <= Chars.Z) {
         // upper to lower case
-        ch += 32;
+        ch += 32
       }
 
       // normalize
-      ch -= Chars.a;
-      const bucket = this.buckets[ch];
+      ch -= Chars.a
+      const bucket = this.buckets[ch]
 
       if (bucket) {
         for (let i = 0; i < bucket.length; i++) {
-          const el = bucket[i];
+          const el = bucket[i]
 
           if (this.invariantMatch(el.key, key)) {
             return el.kind
@@ -103,6 +118,7 @@ class KeywordLookup {
 
 // todo: some kind of specialized data structure
 // that doesn't care about text casing and doesn't require copies
+// admission: this should really be a trie, but I'm lazy...
 const keywordMap = new KeywordLookup([
   ['add', SyntaxKind.add_keyword],
   ['all', SyntaxKind.all_keyword],
@@ -322,18 +338,15 @@ function binarySearch(array: Array<Number>, key: Number) {
 
 export class Scanner {
   private readonly text: string
-  private readonly len: number
   private readonly lines: number[]
   private readonly options: any
   // token start position
-
   private pos: number
 
-  constructor(text: string, options: ScannerOptions) {
+  constructor(text: string, options?: ScannerOptions) {
     this.options = options
     this.text = text
     this.pos = 0
-    this.len = text.length
     this.lines = []
   }
 
@@ -365,7 +378,6 @@ export class Scanner {
   }
 
   // advance until we find the first unescaped single quote.
-  // edge case: empty string
   scanString(): string {
     const start = ++this.pos
     let ch = this.text.charCodeAt(this.pos)
@@ -386,60 +398,58 @@ export class Scanner {
     return this.text.substring(start, this.pos)
   }
 
-  scanQuotedIdentifier() {
-    const start = this.pos
+  // todo: maybe be less greedy... and cause each identifier "part"
+  // to be its own thing...separated by a dotToken
+  scanIdentifier() {
     let ch = this.text.charCodeAt(this.pos)
-    while (this.pos < this.len) {
-      const valid = isLetter(ch)
-        || isDigit(ch)
-        || ch === Chars.underscore
-        || ch === Chars.period
-        || ch === Chars.doubleQuote
+    let insideQuoteContext = ch === Chars.doubleQuote
+    let insideBraceContext = ch === Chars.openBrace
 
-      if (!valid) {
-        break
+    // all idents are at least one character long.
+    const start = this.pos++
+
+    while (ch = this.text.charCodeAt(this.pos)) {
+      if (ch === Chars.doubleQuote) {
+        insideQuoteContext = !insideQuoteContext
+        this.pos++
+        continue
       }
 
-      this.pos++
-
-      ch = this.text.charCodeAt(this.pos)
-    }
-
-    return this.text.substring(start, this.pos)
-  }
-
-  // todo: a full legal name with quotes and all...
-  scanDottedIdentifier() {
-    const start = this.pos
-    let ch = this.text.charCodeAt(this.pos)
-    while (ch) {
-      const valid = isLetter(ch)
-        || isDigit(ch)
-        || ch === Chars.underscore
-        || ch === Chars.period
-
-      if (!valid) {
-        break
+      if (ch === Chars.closeBrace) {
+        insideBraceContext = !insideBraceContext
+        this.pos++
+        continue
       }
 
-      this.pos++
-
-      ch = this.text.charCodeAt(this.pos)
+      if (insideQuoteContext || insideBraceContext) {
+        // doesn't matter what it is inside the braces.
+        this.pos++
+      }
+      else if (isLetter(ch)
+          || isDigit(ch)
+          || ch === Chars.dollar
+          || ch === Chars.underscore
+          || ch === Chars.period
+          || ch === Chars.at) { this.pos++ }
+      else break
     }
 
     return this.text.substring(start, this.pos)
   }
 
   /**
-   * Some_Consecutive_Name1
+   * simple identifier with no spacing
+   * @@something
+   * ##something
+   * #Some_Consecutive_Name1
    */
-  scanIdentifier(): string {
+  scanRegularIdentifier(): string {
     const start = this.pos
-    let ch = this.text.charCodeAt(this.pos)
-    while (isLetter(ch) || isDigit(ch) || ch === Chars.underscore) {
-      this.pos++
-
-      ch = this.text.charCodeAt(this.pos)
+    let ch = this.text.charCodeAt(++this.pos)
+    while (isLetter(ch)
+      || isDigit(ch)
+      || ch === Chars.underscore) {
+      ch = this.text.charCodeAt(++this.pos)
     }
 
     return this.text.substring(start, this.pos)
@@ -452,7 +462,7 @@ export class Scanner {
   }
 
   private scanInlineComment() {
-    const start = this.pos;
+    const start = this.pos
     let ch = this.text.charCodeAt(this.pos)
 
     while (ch) {
@@ -506,31 +516,15 @@ export class Scanner {
   scan(): Token {
     const start = this.pos
     const ch = this.text.charCodeAt(this.pos)
-    // todo: flags?
+    let flags = 0
     let val = undefined
     let kind = SyntaxKind.EOF
 
     if (isNaN(ch)) {
-      return new Token(kind, start, this.pos);
+      return new Token(kind, start, this.pos)
     }
 
     switch (ch) {
-
-      case Chars.forwardSlash: {
-        kind = SyntaxKind.divToken
-
-        const next = this.peek();
-
-        if (next === Chars.equal) {
-          this.pos++;
-          kind = SyntaxKind.divEqualsAssignment;
-        } else if (next === Chars.asterisk) {
-          kind = SyntaxKind.comment_block
-          val = this.scanBlockComment();
-        }
-
-        break
-      }
 
       case Chars.carriageReturn:
       case Chars.newline:
@@ -543,6 +537,47 @@ export class Scanner {
         // pos++ so I don't have to do it later.
         this.pos--
         kind = SyntaxKind.whitespace
+        break
+      }
+
+      case Chars.forwardSlash: {
+        kind = SyntaxKind.divToken
+
+        const next = this.peek()
+
+        if (next === Chars.equal) {
+          this.pos++
+          kind = SyntaxKind.divEqualsAssignment
+        } else if (next === Chars.asterisk) {
+          kind = SyntaxKind.comment_block
+          val = this.scanBlockComment()
+        }
+
+        break
+      }
+
+      case Chars.period: {
+        kind = SyntaxKind.dotToken
+        break
+      }
+
+      case Chars.comma: {
+        kind = SyntaxKind.commaToken
+        break
+      }
+
+      case Chars.semi: {
+        kind = SyntaxKind.semiColonToken
+        break
+      }
+
+      case Chars.openParen: {
+        kind = SyntaxKind.openParen
+        break
+      }
+
+      case Chars.closeParen: {
+        kind = SyntaxKind.closeParen
         break
       }
 
@@ -653,7 +688,7 @@ export class Scanner {
 
       // > >=
       case Chars.greaterThan: {
-        kind = SyntaxKind.greaterThan;
+        kind = SyntaxKind.greaterThan
 
         if (this.peek() === Chars.equal) {
           kind = SyntaxKind.greaterThanEqual
@@ -716,52 +751,63 @@ export class Scanner {
         break
       }
 
-      case Chars.doubleQuote: {
-        val = this.scanQuotedIdentifier()
-        kind = SyntaxKind.quoted_identifier
+      case Chars.doubleQuote:
+      case Chars.openBrace: {
+        val = this.scanIdentifier()
+        kind = SyntaxKind.identifier
         break
       }
 
       case Chars.at: {
+        kind = SyntaxKind.identifier
         if (this.peek() === Chars.at) {
-          // parse config function
-          // ex: @@servername
+          // mssql config functions
           this.pos++
-          val = this.scanIdentifier()
-          kind = SyntaxKind.server_variable_reference
         }
 
-        val = this.scanIdentifier()
-        kind = SyntaxKind.local_variable_reference
+        val = this.scanRegularIdentifier()
+
         break
       }
 
       case Chars.hash: {
-        kind = SyntaxKind.temp_table
+        kind = SyntaxKind.identifier
 
-        // && isMssql
         if (this.peek() === Chars.hash) {
+          // mssql shared temp table
           this.pos++
-          kind = SyntaxKind.shared_temp_table
         }
 
-        val = this.scanIdentifier()
+        val = this.scanRegularIdentifier()
 
         break
       }
-      // fallthrough?
+
       // case Chars.x:
       // case Chars.X:
       //   // todo: mysql hex literal X'
 
-      // case Chars.n:
-      // case Chars.N: // begin nvarchar literal.
+      case Chars.n:
+      case Chars.N: {
+        if (this.peek() === Chars.singleQuote) {
+          this.pos++
+          val = this.scanString()
+          kind = SyntaxKind.string_literal
+          flags |= 1  // todo: unicode literal.
+
+          break
+        }
+        // fallthrough intended
+      }
 
       default: {
-        val = this.scanDottedIdentifier()
+        val = this.scanIdentifier()
         const keyword = keywordMap.get(val)
 
-        kind = keyword ? keyword : SyntaxKind.name
+        kind = keyword
+          ? keyword
+          : SyntaxKind.identifier
+
         break
       }
     }

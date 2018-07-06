@@ -9,6 +9,7 @@ export const enum Chars {
   bang = 33,
   doubleQuote = 34,
   hash = 35,
+  dollar = 36,
   percent = 37,
   ampersand = 38,
   singleQuote = 39,

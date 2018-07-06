@@ -1,4 +1,4 @@
-use Database
+use [Database]
 go
 
 select a.b, b.c

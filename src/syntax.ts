@@ -11,8 +11,6 @@ export enum SyntaxKind {
   closeParen,
   openBracket,
   closeBracket,
-  at,                   // @
-  atAt,                 // @@
 
   // operators
   ltGt,                 // <>
@@ -24,6 +22,9 @@ export enum SyntaxKind {
   notGreaterThan,       // !>
   lessThanEqual,        // <=
   greaterThanEqual,     // >=
+  dotToken,             // .
+  commaToken,           // ,
+  semiColonToken,       // ;
   minusToken,           // -
   plusToken,            // +
   modToken,             // %
@@ -231,7 +232,7 @@ export enum SyntaxKind {
   writetext_keyword,
   // </end keywords>
 
-  name,
+  identifier,
   // expressions
   comment_block,
   comment_inline,
@@ -252,13 +253,14 @@ export enum SyntaxKind {
   begin_transaction,
   commit_transaction,
   rollback_transaction,
+  // I think I'm mixing concerns here
+  // these might need to be parser directives
   temp_table,
   shared_temp_table,
   server_variable_reference,
   local_variable_reference,
   numeric_literal,
   string_literal,
-  quoted_identifier,
   table_alias,
   column_alias,
   // todo: all kinds of kinds
