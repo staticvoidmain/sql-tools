@@ -51,7 +51,21 @@ describe('a statement parser', function () {
     expect(decl.name).to.equal('@x')
     expect(decl.type).to.equal('int')
     expect(decl.expression).to.exist
-    // todo:
+  })
+
+  it('parses multi-declares', () => {
+    const parser = new Parser()
+    const list = parser.parse('declare @x int=0,\n     @y int')
+
+    const statement = <VariableDeclarationStatement>list[0]
+    const decls = <VariableDeclaration[]>statement.declarations
+
+    expect(decls.length).to.equal(2)
+
+    const decl = decls[1]
+
+    expect(decl.name).to.equal('@y')
+    expect(decl.type).to.equal('int')
   })
 
   xit('parses declare table')
