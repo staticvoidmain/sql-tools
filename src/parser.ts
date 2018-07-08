@@ -88,18 +88,6 @@ export class Parser {
     return this.token
   }
 
-  // less efficient, use only for speculative stuff.
-  private peekToken(): SyntaxKind {
-    const pos = this.scanner!.getPos()
-    let token = this.scanner!.scan()
-    if (this.token.kind === SyntaxKind.whitespace) {
-      token = this.scanner!.scan()
-    }
-
-    this.scanner!.setPos(pos)
-    return token.kind
-  }
-
   private parseColumnList(): Array<ColumnNode> {
     return []
   }

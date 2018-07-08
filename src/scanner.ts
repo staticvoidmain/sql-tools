@@ -384,14 +384,6 @@ export class Scanner {
     return ~line - 1
   }
 
-  lineOf(token: Token) {
-    return this.getLine(token.start)
-  }
-
-  getCurrentLine(): number {
-    return this.getLine(this.pos)
-  }
-
   // advance until we find the first unescaped single quote.
   private scanString(): string {
     const start = ++this.pos
@@ -544,14 +536,18 @@ export class Scanner {
       || ch === Chars.carriageReturn)
   }
 
-  getPos() {
-    return this.pos
+  /**
+   * Returns the line of the specified token.
+   * todo: also compute the column offset
+   * @param token the token to inspect
+   */
+  lineOf(token: Token) {
+    return this.getLine(token.start)
   }
 
-  setPos(p: number) {
-    this.pos = p
-  }
-
+  /**
+   * advance the token stream by one and return the current token.
+   */
   scan(): Token {
     const start = this.pos
     const ch = this.text.charCodeAt(this.pos)
