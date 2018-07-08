@@ -7,10 +7,7 @@
     {
       "type": "node",
       "request": "launch",
-      "autoAttachChildProcesses": true,
-      "sourceMaps": true,
       "name": "Mocha Tests",
-      "restart": true,
       "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
       "args": [
         "-u",

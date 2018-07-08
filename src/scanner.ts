@@ -20,6 +20,7 @@ export class Token {
   kind: SyntaxKind
   value?: any
   flags?: number
+  debug?: string
 
   constructor(kind: SyntaxKind, start: number, end: number) {
     this.kind = kind
@@ -34,15 +35,15 @@ interface Keyword {
   key: string
   kind: SyntaxKind
 }
+
 interface Bucket {
   keywords: Keyword[]
   min: number
   max: number
 }
-// lookup case insensitive manner
+
 class KeywordLookup {
-  // todo: custom type for bucket with another min/max keyword size?
-  buckets: Array<Bucket>
+  private readonly buckets: Array<Bucket>
 
   private minIdentifier: number
   private maxIdentifier: number
@@ -169,7 +170,6 @@ const keywordMap = new KeywordLookup([
   ['current_user', SyntaxKind.current_user_keyword],
   ['cursor', SyntaxKind.cursor_keyword],
   ['database', SyntaxKind.database_keyword],
-  // todo: date?
   ['dbcc', SyntaxKind.dbcc_keyword],
   ['deallocate', SyntaxKind.deallocate_keyword],
   ['declare', SyntaxKind.declare_keyword],
@@ -203,6 +203,7 @@ const keywordMap = new KeywordLookup([
   ['from', SyntaxKind.from_keyword],
   ['full', SyntaxKind.full_keyword],
   ['function', SyntaxKind.function_keyword],
+  ['go', SyntaxKind.go_keyword], // special: mssql
   ['goto', SyntaxKind.goto_keyword],
   ['grant', SyntaxKind.grant_keyword],
   ['group', SyntaxKind.group_keyword],
@@ -324,7 +325,7 @@ export interface ScannerOptions {
   skipTrivia?: boolean
 }
 
-function binarySearch(array: Array<Number>, key: Number) {
+export function binarySearch(array: Array<number>, key: number) {
   let low = 0
   let high = array.length - 1
   while (low <= high) {
@@ -342,7 +343,6 @@ function binarySearch(array: Array<Number>, key: Number) {
     }
   }
 
-  // do the 2s compliment trick
   return ~low
 }
 
@@ -350,7 +350,6 @@ export class Scanner {
   private readonly text: string
   private readonly lines: number[]
   private readonly options: any
-  // token start position
   private pos: number
 
   constructor(text: string, options?: ScannerOptions) {
@@ -360,25 +359,23 @@ export class Scanner {
     this.lines = []
   }
 
-  // only compute it when we need it.
-  lazyComputeLineNumbers() {
-    if (!this.lines.length) {
-      let pos = 0
-      let ch = NaN
-      this.lines.push(0)
+  // todo: broke this at some point.
+  private lazyComputeLineNumbers() {
+    if (this.lines.length) return
 
-      while (ch = this.text.charCodeAt(pos++)) {
-        if (ch === Chars.newline) {
-          this.lines.push(pos)
-        }
+    this.lines.push(0)
+
+    let pos = 0, ch = NaN
+    while (ch = this.text.charCodeAt(pos++)) {
+      if (ch  === Chars.newline) {
+        this.lines.push(pos)
       }
     }
   }
 
-  // current char position as well?
-  getCurrentLine(): number {
+  private getLine(pos: number) {
     this.lazyComputeLineNumbers()
-    const line = binarySearch(this.lines, this.pos)
+    const line = binarySearch(this.lines, pos)
 
     if (line >= 0) {
       return line
@@ -387,8 +384,16 @@ export class Scanner {
     return ~line - 1
   }
 
+  lineOf(token: Token) {
+    return this.getLine(token.start)
+  }
+
+  getCurrentLine(): number {
+    return this.getLine(this.pos)
+  }
+
   // advance until we find the first unescaped single quote.
-  scanString(): string {
+  private scanString(): string {
     const start = ++this.pos
     let ch = this.text.charCodeAt(this.pos)
     // todo: if we hit a newline preceded by a \
@@ -404,11 +409,11 @@ export class Scanner {
 
       ch = this.text.charCodeAt(++this.pos)
     }
-    // todo: above.
+    // todo: see above.
     return this.text.substring(start, this.pos)
   }
 
-  scanIdentifier() {
+  private scanIdentifier() {
     // why is this leaving the scanner in a strange state
     // of skipping over dots...
     let ch = this.text.charCodeAt(this.pos)
@@ -437,10 +442,10 @@ export class Scanner {
         this.pos++
       }
       else if (isLetter(ch)
-          || isDigit(ch)
-          || ch === Chars.dollar
-          || ch === Chars.underscore
-          || ch === Chars.at) { this.pos++ }
+        || isDigit(ch)
+        || ch === Chars.dollar
+        || ch === Chars.underscore
+        || ch === Chars.at) { this.pos++ }
       else break
     }
 
@@ -456,7 +461,7 @@ export class Scanner {
    * ##something
    * #Some_Consecutive_Name1
    */
-  scanRegularIdentifier(): string {
+  private scanRegularIdentifier(): string {
     const start = this.pos
     let ch = this.text.charCodeAt(++this.pos)
     while (isLetter(ch)
@@ -506,26 +511,45 @@ export class Scanner {
     return this.text.substring(start + 2, this.pos - 2)
   }
 
-  scanNumber(): Number {
+  private scanNumber(): Number {
     const start = this.pos
     while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
 
     if (this.text.charCodeAt(this.pos) === Chars.period) {
       this.pos++
-      while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
+
+      let flag = false
+      while (isDigit(this.text.charCodeAt(this.pos))) {
+        flag = true
+        this.pos++
+      }
+
+      if (!flag) {
+        // todo: assert that there is at least one digit
+        // after the period...
+        // js might correctly parse it...
+      }
     }
 
     // another -1
     return parseFloat(this.text.substring(start, this.pos--))
   }
 
-  isSpace() {
+  private isSpace() {
     const ch = this.text.charCodeAt(this.pos)
 
     return (ch === Chars.tab
       || ch === Chars.space
       || ch === Chars.newline
       || ch === Chars.carriageReturn)
+  }
+
+  getPos() {
+    return this.pos
+  }
+
+  setPos(p: number) {
+    this.pos = p
   }
 
   scan(): Token {
@@ -543,6 +567,7 @@ export class Scanner {
       //#region simple terminals
 
       case Chars.period: {
+        // todo: does sql allow naked floats .001?
         kind = SyntaxKind.dotToken
         break
       }
@@ -837,6 +862,8 @@ export class Scanner {
     const token = new Token(kind, start, this.pos++)
     token.flags = undefined
     token.value = val
+    // todo: remove me later
+    token.debug = SyntaxKind[kind]
 
     return token
   }

@@ -69,14 +69,14 @@ describe('Scanner', function () {
     expect(token.kind).to.equal(SyntaxKind.whitespace)
   })
 
-  it('captures line numbers lazily', function () {
+  it('captures line numbers', function () {
     const scanner = new Scanner('   \t \t  \r\n\t\r\n  \n   ', { skipTrivia: true })
     const space = scanner.scan()
     const eof = scanner.scan()
 
     expect(space.kind).to.equal(SyntaxKind.whitespace)
     expect(eof.kind).to.equal(SyntaxKind.EOF)
-    expect(scanner.getCurrentLine()).to.equal(3)
+    expect(scanner.lineOf(eof)).to.equal(3)
   })
 
   it('scans integers', function () {

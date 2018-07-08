@@ -60,7 +60,7 @@ as many kinds of sql specifications as possible
 import {
   SyntaxKind
 } from './syntax'
-import { Token } from './scanner';
+import { Token } from './scanner'
 
 export interface TextRange {
   start: number
@@ -89,6 +89,14 @@ export interface NamedColumn extends SyntaxNode {
   alias?: string
 }
 
+export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plusToken }
+export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minusToken }
+export interface MultiplyOperator extends SyntaxNode { kind: SyntaxKind.mulToken }
+export interface DivideOperator extends SyntaxNode { kind: SyntaxKind.divToken }
+export interface BitwiseOrOperator extends SyntaxNode { kind: SyntaxKind.bitwiseOr }
+export interface BitwiseAndOperator extends SyntaxNode { kind: SyntaxKind.bitwiseAnd }
+
+
 export interface EqualsOperator extends SyntaxNode { kind: SyntaxKind.equal }
 export interface NotEqualsOperator extends SyntaxNode { kind: SyntaxKind.notEqual }
 export interface OrOperator extends SyntaxNode { kind: SyntaxKind.or_keyword }
@@ -99,13 +107,17 @@ export interface GreaterThanEqualOperator extends SyntaxNode { kind: SyntaxKind.
 export interface LessThanEqualOperator extends SyntaxNode { kind: SyntaxKind.lessThanEqual }
 export interface LikeOperator extends SyntaxNode { kind: SyntaxKind.like_keyword }
 export interface InOperator extends SyntaxNode { kind: SyntaxKind.in_keyword }
-export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
+// todo: exists is a weird one...
+// export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
 export interface NotOperator extends SyntaxNode { kind: SyntaxKind.not_keyword }
 
 export interface DefaultLiteral extends SyntaxNode { kind: SyntaxKind.default_keyword }
-export interface NullLiteral extends SyntaxNode { kind: SyntaxKind.null_keyword }
 
 export type BinaryOperator =
+  | PlusOperator
+  | MinusOperator
+  | MultiplyOperator
+  | DivideOperator
   | EqualsOperator
   | NotEqualsOperator
   | OrOperator
@@ -160,26 +172,35 @@ export enum ExprKind {
   Boolean,
   Value
 }
-
+// todo: keyword expr?
 export interface Expr extends SyntaxNode {
   type: ExprKind
 }
 
+export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }
+
+export type ConstantExpression =
+//   | DefaultLiteral
+  | NullExpression
+  | LiteralExpression
+
 // todo: make this a type to account for nulls and defaults and all that
 // good stuff...
-export interface ConstantExpression extends Expr {
-  // hack:
+export interface LiteralExpression extends Expr {
   value: any
 }
 
-export interface CaseExpression extends Expr {
-  keyword: Token
+export interface ParenExpression extends Expr {
+  kind: SyntaxKind.paren_expr
+  expression: Expr
+}
+
+export interface CaseExpression extends Expr, KeywordNode {
   cases: Array<WhenExpression>
   else: ValueExpression
 }
 
-export interface WhenExpression extends Expr {
-  keyword: Token
+export interface WhenExpression extends Expr, KeywordNode {
   when: Expr
   then: ValueExpression
 }
@@ -191,13 +212,11 @@ export interface FunctionCallExpression extends Expr {
   arguments: Expr[]
 }
 
-export interface WhereClause extends SyntaxNode {
-  keyword: Token
+export interface WhereClause extends KeywordNode {
   predicate: Expr
 }
 
-export interface IntoClause extends SyntaxNode {
-  keyword: Token
+export interface IntoClause extends KeywordNode {
   target: Identifier
 }
 
@@ -214,15 +233,14 @@ export interface NamedSource extends SyntaxNode {
 
 export type RowValueExpression =
   | DefaultLiteral
-  | NullLiteral
+  | NullExpression
   | ValueExpression
 
 /**
- *
+ * legal in a from clause, apparently.
  * ex: (values (1, 2), (3, 4) ) as Tuple(a, b);
  */
-export interface DerivedTable extends SyntaxNode {
-  keyword: Token
+export interface DerivedTable extends KeywordNode {
   expressions: RowValueExpression[]
 }
 
@@ -231,8 +249,7 @@ export type DataSource =
   | FunctionCallExpression
   | DerivedTable
 
-export interface FromClause extends SyntaxNode {
-  keyword: Token
+export interface FromClause extends KeywordNode {
   sources: DataSource[]
 }
 
@@ -240,19 +257,28 @@ export interface FromClause extends SyntaxNode {
 // ----------
 // these represent the top-level declarations of a script
 // which are made up of all the other node types.
-
 export type Statement =
 | SelectStatement
 | SetStatement
 | VariableDeclaration
 | TableDeclaration
+| UseDatabaseStatement
+
+export interface KeywordNode extends SyntaxNode {
+  keyword: Token
+}
+
+export interface UseDatabaseStatement extends KeywordNode {
+  // todo: maybe later actually factor this into
+  // something else...
+  name: string
+}
 
 export interface StatementBlock {
   statements: Statement[]
 }
 
-export interface VariableDeclarationStatement extends SyntaxNode {
-  keyword: Token
+export interface VariableDeclarationStatement extends KeywordNode {
   declarations: TableDeclaration | VariableDeclaration[]
 }
 
@@ -265,16 +291,13 @@ export interface VariableDeclaration extends SyntaxNode {
   expression?: ValueExpression
 }
 
-export interface WhileStatement extends SyntaxNode {
+export interface WhileStatement extends KeywordNode {
   kind: SyntaxKind.while_statement
-  keyword: SyntaxKind.while_keyword
   predicate: Expr
   body: StatementBlock
 }
 
-// set @x = foo
-export interface SetStatement extends SyntaxNode {
-  keyword: Token
+export interface SetStatement extends KeywordNode {
   name: string
   op: AssignmentOperator
   expression: ValueExpression
@@ -291,15 +314,13 @@ export interface SelectStatement extends SyntaxNode {
   having?: any
 }
 
-export interface GoStatement extends SyntaxNode {
-  keyword: Token
+export interface GoStatement extends KeywordNode {
   count?: number
 }
 
 export interface BlockComment extends SyntaxNode { kind: SyntaxKind.comment_block }
 export interface InlineComment extends SyntaxNode { kind: SyntaxKind.comment_inline }
 
-// todo: we don't actually capture comments right now.
 export type Comment =
   | BlockComment
-  | InlineComment;
+  | InlineComment

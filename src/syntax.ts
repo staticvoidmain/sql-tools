@@ -1,7 +1,6 @@
-
-// enums compile down to a funky bi-directional object map
-// string -> int
-// int    -> string
+// const enums compile away, whereas
+// these standard enums allow for the name
+// of the enum value to be accessed at runtime
 export enum SyntaxKind {
   EOF,
   // tokens
@@ -236,6 +235,12 @@ export enum SyntaxKind {
   // expressions
   comment_block,
   comment_inline,
+  add_expr,
+  and_expr,
+  or_expr,
+  paren_expr,
+  multiply_expr,
+  divide_expr,
   statement_block,
   if_statement,
   while_statement,
@@ -255,16 +260,13 @@ export enum SyntaxKind {
   rollback_transaction,
   // I think I'm mixing concerns here
   // these might need to be parser directives
-  temp_table,
-  shared_temp_table,
-  server_variable_reference,
-  local_variable_reference,
+  // temp_table,
+  // shared_temp_table,
+  // server_variable_reference,
+  // local_variable_reference,
   numeric_literal,
   string_literal,
   table_alias,
   column_alias,
   // todo: all kinds of kinds
 }
-
-
-// todo: operators (all, and, any, between, exists, in, like, not, or, some)
