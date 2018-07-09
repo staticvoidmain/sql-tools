@@ -49,6 +49,7 @@ export interface ParserError {
 
 // todo: speculative lookahead stuff...
 export class Parser {
+
   private settings: any
   private scanner?: Scanner
   private errors: Array<ParserError> = []
@@ -342,16 +343,20 @@ export class Parser {
     7	ALL, ANY, BETWEEN, IN, LIKE, OR, SOME
     8	= (Assignment)
   */
+  // todo: how do I handle 'is null' and 'is not null'
   // IS NOT? hmmm...
-  private parseInExpression(left: Expr) {
-
-  }
 
   private isLiteral() {
     const kind = this.token.kind
     return kind === SyntaxKind.null_keyword
       || kind === SyntaxKind.numeric_literal
       || kind === SyntaxKind.string_literal
+  }
+
+  private isComparisonPrecedence() {
+    const kind = this.token.kind
+    return kind >= SyntaxKind.equal
+      && kind <= SyntaxKind.greaterThanEqual
   }
 
   // todo: kinds as integer ranges
@@ -363,7 +368,6 @@ export class Parser {
       || kind === SyntaxKind.like_keyword
   }
 
-  // 3
   private isAddPrecedence() {
     const kind = this.token.kind
     return kind === SyntaxKind.plus_token
@@ -402,8 +406,12 @@ export class Parser {
   }
 
   private tryParseComparisonExpr(): Expr {
-    // todo
-    return this.tryParseAddExpr()
+    let expr = this.tryParseAddExpr()
+
+    while (this.isComparisonPrecedence()) {
+      expr = this.makeBinaryExpr(expr, this.tryParseAddExpr)
+    }
+    return expr
   }
 
   // or higher

@@ -12,9 +12,9 @@ export enum SyntaxKind {
   closeBracket,
 
   // operators
+  equal,                // =
   ltGt,                 // <>
   notEqual,             // !=
-  equal,                // =
   lessThan,             // <
   greaterThan,          // >
   notLessThan,          // !<
