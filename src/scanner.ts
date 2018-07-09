@@ -659,6 +659,11 @@ export class Scanner {
         break
       }
 
+      case Chars.tilde: {
+        kind = SyntaxKind.bitwise_not_token
+        break
+      }
+
       case Chars.asterisk: {
         kind = SyntaxKind.mul_token
 

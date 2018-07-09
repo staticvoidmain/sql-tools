@@ -5,6 +5,8 @@ import { Scanner, Token } from '../src/scanner'
 import { SyntaxKind } from '../src/syntax'
 import { readFileSync } from 'fs'
 
+//#region helpers
+
 function scanAll(scanner: Scanner, whitespace?: boolean) {
   const tokens = []
 
@@ -59,6 +61,7 @@ function assertTokenKinds(actual: Token[], expected: SyntaxKind[]) {
       `[${index}] Expected ${SyntaxKind[expected[index]]} got ${SyntaxKind[actual[index].kind]}`)
   }
 }
+//#endregion
 
 describe('Scanner', function () {
 
@@ -107,7 +110,7 @@ describe('Scanner', function () {
   })
 
   it ('scans miscellaneous terminals',  function() {
-    const scanner = new Scanner(', . ; ( )')
+    const scanner = new Scanner(', . ; ( ) ~')
     const tokens = scanAll(scanner)
 
     assertTokenKinds(tokens, [
@@ -115,7 +118,8 @@ describe('Scanner', function () {
       SyntaxKind.dot_token,
       SyntaxKind.semicolon_token,
       SyntaxKind.openParen,
-      SyntaxKind.closeParen
+      SyntaxKind.closeParen,
+      SyntaxKind.bitwise_not_token
     ])
   })
 
@@ -144,7 +148,7 @@ describe('Scanner', function () {
   })
 
   it('handles unicode strings', function () {
-    const scanner = new Scanner("'hello world, I''m Ross'", {})
+    const scanner = new Scanner("n'hello world, I''m Ross'", {})
     const token = scanner.scan()
 
     expect(token.kind).to.equal(SyntaxKind.string_literal)

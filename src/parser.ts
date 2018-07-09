@@ -249,6 +249,7 @@ export class Parser {
     this.moveNext()
 
     return <BinaryExpression>{
+      kind: SyntaxKind.binary_expr,
       left: left,
       op: {
         start: start,
@@ -333,7 +334,7 @@ export class Parser {
 
   // operator precedence, weird, mul is higher precedence than unary minus?
   /*
-    0 unary stuff: parens, literals, case exprs,
+    0 unary stuff: parens, literals, case exprs, function_call exprs
     1	~ (Bitwise NOT)
     2	* (Multiplication), / (Division), % (Modulus)
     3	+ (Positive), - (Negative), + (Addition), + (Concatenation), - (Subtraction), & (Bitwise AND), ^ (Bitwise Exclusive OR), | (Bitwise OR)
@@ -426,24 +427,13 @@ export class Parser {
   }
 
   private tryParseMultiplicationExpr(): Expr {
-    let expr = this.tryParseBitwiseNotExpr()
+    let expr = this.exprBase()
 
     while (this.isMultiplyPrecedence()) {
-      expr = this.makeBinaryExpr(expr, this.tryParseBitwiseNotExpr)
+      expr = this.makeBinaryExpr(expr, this.exprBase)
     }
 
     return expr
-  }
-
-  private tryParseBitwiseNotExpr(): Expr {
-    // unary: if the current token isn't a bitwise not... we don't have to do that...
-    if (this.token.kind === SyntaxKind.bitwise_not_token) {
-      const not = <BitwiseNotExpression>this.createNode(this.token)
-      not.expr = this.exprBase()
-      return not
-    }
-
-    return this.exprBase()
   }
 
   private parseIdentifier(): Identifier {
@@ -465,9 +455,22 @@ export class Parser {
     return ident
   }
 
+  //  precedence sort of bottoms out here.
   private exprBase(): Expr {
+    // todo: other unary like +/-?
+    if (this.token.kind === SyntaxKind.bitwise_not_token) {
+      const not = <BitwiseNotExpression>this.createNode(this.token)
+
+      this.moveNext()
+
+      not.kind = SyntaxKind.bitwise_not_expr
+      not.expr = this.exprBase()
+      return not
+    }
+
     if (this.isLiteral()) {
       const literal = <LiteralExpression>this.createNode(this.token)
+      literal.kind = SyntaxKind.literal_expr
       literal.value = this.token.value
       this.moveNext()
       return literal
@@ -475,7 +478,7 @@ export class Parser {
 
     if (this.match(SyntaxKind.openParen)) {
       const expr = <ParenExpression>this.createNode(this.token)
-
+      expr.kind = SyntaxKind.paren_expr
       this.moveNext()
       expr.expression = this.tryParseOrExpr()
 
@@ -508,11 +511,12 @@ export class Parser {
         const expr = <IdentifierExpression>this.createNode(start)
         expr.identifier = ident
         expr.end = this.token.end
+        this.moveNext()
         return expr
       }
     }
 
-    // a case expression...?
+    // a case expression
     if (this.token.kind === SyntaxKind.case_keyword) {
       this.error('not supported yet')
     }

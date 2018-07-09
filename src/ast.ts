@@ -175,6 +175,7 @@ export type ValueExpression =
   | CaseExpression
   | BinaryExpression
   | BitwiseNotExpression
+  | IdentifierExpression
 // todo: table expression with select-top 1 some_col
 // or just select 1
 
@@ -205,6 +206,7 @@ export type ConstantExpression =
 // todo: make this a type to account for nulls and defaults and all that
 // good stuff...
 export interface LiteralExpression extends Expr {
+  kind: SyntaxKind.literal_expr
   value: any
 }
 
@@ -226,6 +228,7 @@ export interface WhenExpression extends Expr, KeywordNode {
 }
 
 export interface FunctionCallExpression extends Expr {
+  kind: SyntaxKind.function_call_expr
   name: Identifier
   arguments: Expr[]
 }
