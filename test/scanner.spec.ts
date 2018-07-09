@@ -101,7 +101,7 @@ describe('Scanner', function () {
 
     assertTokens(tokens, [
       { kind: SyntaxKind.numeric_literal,  value: 1.2 },
-      { kind: SyntaxKind.mulToken },
+      { kind: SyntaxKind.mul_token },
       { kind: SyntaxKind.numeric_literal, value: 3 },
     ])
   })
@@ -111,9 +111,9 @@ describe('Scanner', function () {
     const tokens = scanAll(scanner)
 
     assertTokenKinds(tokens, [
-      SyntaxKind.commaToken,
-      SyntaxKind.dotToken,
-      SyntaxKind.semiColonToken,
+      SyntaxKind.comma_token,
+      SyntaxKind.dot_token,
+      SyntaxKind.semicolon_token,
       SyntaxKind.openParen,
       SyntaxKind.closeParen
     ])
@@ -168,10 +168,10 @@ describe('Scanner', function () {
     const scanner = new Scanner('+ - * / > < >= <= !> !< <> !=', {})
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [
-      SyntaxKind.plusToken,
-      SyntaxKind.minusToken,
-      SyntaxKind.mulToken,
-      SyntaxKind.divToken,
+      SyntaxKind.plus_token,
+      SyntaxKind.minus_token,
+      SyntaxKind.mul_token,
+      SyntaxKind.div_token,
       SyntaxKind.greaterThan,
       SyntaxKind.lessThan,
       SyntaxKind.greaterThanEqual,
@@ -235,7 +235,7 @@ describe('Scanner', function () {
 
     assertTokens(tokens, [
       { kind: SyntaxKind.identifier, value: '@sometable' },
-      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.dot_token },
       { kind: SyntaxKind.identifier, value: 'some_col' }
     ])
   })
@@ -246,9 +246,9 @@ describe('Scanner', function () {
 
     assertTokens(tokens, [
       { kind: SyntaxKind.identifier, value: '[foo]' },
-      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.dot_token },
       { kind: SyntaxKind.identifier, value: 'b@r' },
-      { kind: SyntaxKind.dotToken },
+      { kind: SyntaxKind.dot_token },
       { kind: SyntaxKind.identifier, value: '"$b_z"' },
     ])
   })

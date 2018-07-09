@@ -69,15 +69,12 @@ export interface TextRange {
 
 export interface SyntaxNode extends TextRange {
   kind: SyntaxKind
-  parent?: Node
 }
 
-export interface DottedIdentifier extends Identifier {
-  parts: Array<string>
-}
-
+// one two or three part name
+// not sure if this needs another type.
 export interface Identifier extends SyntaxNode {
-  text: string
+  parts: string[]
 }
 
 export type ColumnNode = ColumnExpression | NamedColumn
@@ -89,12 +86,12 @@ export interface NamedColumn extends SyntaxNode {
   alias?: string
 }
 
-export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plusToken }
-export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minusToken }
-export interface MultiplyOperator extends SyntaxNode { kind: SyntaxKind.mulToken }
-export interface DivideOperator extends SyntaxNode { kind: SyntaxKind.divToken }
-export interface BitwiseOrOperator extends SyntaxNode { kind: SyntaxKind.bitwiseOr }
-export interface BitwiseAndOperator extends SyntaxNode { kind: SyntaxKind.bitwiseAnd }
+export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plus_token }
+export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minus_token }
+export interface MultiplyOperator extends SyntaxNode { kind: SyntaxKind.mul_token }
+export interface DivideOperator extends SyntaxNode { kind: SyntaxKind.div_token }
+export interface BitwiseOrOperator extends SyntaxNode { kind: SyntaxKind.bitwise_or_token }
+export interface BitwiseAndOperator extends SyntaxNode { kind: SyntaxKind.bitwise_and_token }
 
 
 export interface EqualsOperator extends SyntaxNode { kind: SyntaxKind.equal }
@@ -149,6 +146,13 @@ export type AssignmentOperator =
   | XorEqualsOperator
   | OrEqualsOperator
 
+
+export interface IdentifierExpression extends Expr {
+  kind: SyntaxKind.identifier_expr
+  identifier: Identifier
+}
+
+// todo: capture the kind
 export interface ColumnExpression extends Expr {
   expression: Expr
   alias?: string
@@ -160,18 +164,32 @@ export interface BinaryExpression extends Expr {
   right: Expr
 }
 
+export interface BitwiseNotExpression extends Expr {
+  kind: SyntaxKind.bitwise_not_expr
+  expr: Expr
+}
+
 export type ValueExpression =
   | FunctionCallExpression
   | ConstantExpression
   | CaseExpression
   | BinaryExpression
+  | BitwiseNotExpression
 // todo: table expression with select-top 1 some_col
 // or just select 1
+
+export interface DataType extends SyntaxNode {
+  name: string
+  // max 2: precision + scale | length | 'max'
+  args: string[] | 'max'
+}
 
 export enum ExprKind {
   Boolean,
   Value
 }
+
+// hmmm... this is a little screwy
 // todo: keyword expr?
 export interface Expr extends SyntaxNode {
   type: ExprKind
@@ -180,7 +198,7 @@ export interface Expr extends SyntaxNode {
 export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }
 
 export type ConstantExpression =
-//   | DefaultLiteral
+  //   | DefaultLiteral
   | NullExpression
   | LiteralExpression
 
@@ -196,23 +214,51 @@ export interface ParenExpression extends Expr {
 }
 
 export interface CaseExpression extends Expr, KeywordNode {
+  kind: SyntaxKind.case_expr
   cases: Array<WhenExpression>
   else: ValueExpression
 }
 
 export interface WhenExpression extends Expr, KeywordNode {
+  kind: SyntaxKind.when_expr
   when: Expr
   then: ValueExpression
 }
 
-// function CALL expression?
-// it's unary, but it takes arguments...
 export interface FunctionCallExpression extends Expr {
-  name: string
+  name: Identifier
   arguments: Expr[]
 }
 
 export interface WhereClause extends KeywordNode {
+  predicate: Expr
+}
+
+// https://docs.microsoft.com/en-us/sql/t-sql/queries/from-transact-sql?view=sql-server-2017
+export enum JoinType {
+  left,
+  right,
+  full,
+  inner,
+  cross
+}
+
+export interface JoinTableClause extends SyntaxNode {
+  type: JoinType
+  source: DataSource
+  on: Expr
+}
+
+export interface GroupByClause extends KeywordNode {
+  grouping: ValueExpression[]
+}
+
+export interface OrderByClause extends KeywordNode {
+  ordering: ValueExpression[]
+}
+
+
+export interface HavingClause extends KeywordNode {
   predicate: Expr
 }
 
@@ -222,7 +268,7 @@ export interface IntoClause extends KeywordNode {
 
 export interface Source extends SyntaxNode {
   alias?: string
-  with?: string[] // todo: specialized type for this
+  with?: string[] // todo: specialized type for table hints
 }
 
 // todo: TableLikeObject?
@@ -258,11 +304,11 @@ export interface FromClause extends KeywordNode {
 // these represent the top-level declarations of a script
 // which are made up of all the other node types.
 export type Statement =
-| SelectStatement
-| SetStatement
-| VariableDeclaration
-| TableDeclaration
-| UseDatabaseStatement
+  | SelectStatement
+  | SetStatement
+  | VariableDeclaration
+  | TableDeclaration
+  | UseDatabaseStatement
 
 export interface KeywordNode extends SyntaxNode {
   keyword: Token
@@ -282,12 +328,14 @@ export interface VariableDeclarationStatement extends KeywordNode {
   declarations: TableDeclaration | VariableDeclaration[]
 }
 
-export interface TableDeclaration extends SyntaxNode { }
+export interface TableDeclaration extends SyntaxNode {
+  // todo:
+}
 
 export interface VariableDeclaration extends SyntaxNode {
   name: string
   as: string
-  type: string
+  type: DataType
   expression?: ValueExpression
 }
 
@@ -303,15 +351,17 @@ export interface SetStatement extends KeywordNode {
   expression: ValueExpression
 }
 
-export interface SelectStatement extends SyntaxNode {
+export interface SelectStatement extends KeywordNode {
+  top: any
+  qualifier: 'all' | 'distinct'
   columns: Array<ColumnNode>
   from?: FromClause
   into?: IntoClause
+  joins?: JoinTableClause[]
   where?: WhereClause
-  // todo: account for these.
-  order_by?: any
-  group_by?: any
-  having?: any
+  order_by?: OrderByClause
+  group_by?: GroupByClause
+  having?: HavingClause
 }
 
 export interface GoStatement extends KeywordNode {

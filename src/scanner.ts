@@ -564,17 +564,17 @@ export class Scanner {
 
       case Chars.period: {
         // todo: does sql allow naked floats .001?
-        kind = SyntaxKind.dotToken
+        kind = SyntaxKind.dot_token
         break
       }
 
       case Chars.comma: {
-        kind = SyntaxKind.commaToken
+        kind = SyntaxKind.comma_token
         break
       }
 
       case Chars.semi: {
-        kind = SyntaxKind.semiColonToken
+        kind = SyntaxKind.semicolon_token
         break
       }
 
@@ -610,7 +610,7 @@ export class Scanner {
       }
 
       case Chars.forwardSlash: {
-        kind = SyntaxKind.divToken
+        kind = SyntaxKind.div_token
 
         const next = this.peek()
 
@@ -629,7 +629,7 @@ export class Scanner {
       // tucked next to each other,
       // they just don't bind.
       case Chars.plus: {
-        kind = SyntaxKind.plusToken
+        kind = SyntaxKind.plus_token
 
         if (this.peek() === Chars.equal) {
           this.pos++
@@ -653,14 +653,14 @@ export class Scanner {
           // regular old minus, let the parser figure out
           // what to do with it.
           // we COULD eagerly go looking for a number or something, but it could be lots of things.
-          kind = SyntaxKind.minusToken
+          kind = SyntaxKind.minus_token
         }
 
         break
       }
 
       case Chars.asterisk: {
-        kind = SyntaxKind.mulToken
+        kind = SyntaxKind.mul_token
 
         if (this.peek() === Chars.equal) {
           this.pos++
@@ -671,7 +671,7 @@ export class Scanner {
       }
 
       case Chars.forwardSlash: {
-        kind = SyntaxKind.divToken
+        kind = SyntaxKind.div_token
 
         if (this.peek() === Chars.equal) {
           this.pos++
@@ -683,7 +683,7 @@ export class Scanner {
 
       // & or &=
       case Chars.ampersand: {
-        kind = SyntaxKind.bitwiseAnd
+        kind = SyntaxKind.bitwise_and_token
         if (this.peek() === Chars.equal) {
           this.pos++
           kind = SyntaxKind.bitwiseAndAssignment
@@ -694,7 +694,7 @@ export class Scanner {
 
       // | or |=
       case Chars.pipe: {
-        kind = SyntaxKind.bitwiseOr
+        kind = SyntaxKind.bitwise_or_token
 
         if (this.peek() === Chars.equal) {
           this.pos++
@@ -705,7 +705,7 @@ export class Scanner {
 
       // ^ or ^=
       case Chars.caret: {
-        kind = SyntaxKind.bitwiseXor
+        kind = SyntaxKind.bitwise_xor_token
         if (this.peek() === Chars.equal) {
           this.pos++
           kind = SyntaxKind.bitwiseXorAssignment
@@ -764,7 +764,7 @@ export class Scanner {
       }
 
       case Chars.percent: {
-        kind = SyntaxKind.modToken
+        kind = SyntaxKind.mod_token
 
         const next = this.peek()
         if (next === Chars.equal) {
@@ -773,6 +773,13 @@ export class Scanner {
         }
 
         break
+      }
+
+      case Chars.dollar: {
+        this.pos++
+        // todo: flag for money literal.
+        flags |= 2
+        // fallthrough
       }
 
       case Chars.num_0:
@@ -835,7 +842,7 @@ export class Scanner {
           this.pos++
           val = this.scanString()
           kind = SyntaxKind.string_literal
-          flags |= 1  // todo: unicode literal.
+          flags |= 1  // todo: unicode literal flag
 
           break
         }

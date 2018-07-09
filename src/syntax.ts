@@ -21,18 +21,18 @@ export enum SyntaxKind {
   notGreaterThan,       // !>
   lessThanEqual,        // <=
   greaterThanEqual,     // >=
-  dotToken,             // .
-  commaToken,           // ,
-  semiColonToken,       // ;
-  minusToken,           // -
-  plusToken,            // +
-  modToken,             // %
-  mulToken,             // *
-  divToken,             // /
-  bitwiseAnd,           // &
-  bitwiseOr,            // |
-  bitwiseXor,           // ^
-  bitwiseNot,           // ~
+  dot_token,             // .
+  comma_token,           // ,
+  semicolon_token,       // ;
+  minus_token,           // -
+  plus_token,            // +
+  mod_token,             // %
+  mul_token,             // *
+  div_token,             // /
+  bitwise_and_token,     // &
+  bitwise_or_token,      // |
+  bitwise_xor_token,     // ^
+  bitwise_not_token,     // ~
   plusEqualsAssignment,  // +=
   minusEqualsAssignment, // -=
   divEqualsAssignment,   //  /=
@@ -239,8 +239,13 @@ export enum SyntaxKind {
   and_expr,
   or_expr,
   paren_expr,
+  case_expr,
+  when_expr,
+  then_expr,
   multiply_expr,
   divide_expr,
+  bitwise_not_expr,
+  identifier_expr,
   statement_block,
   if_statement,
   while_statement,
@@ -255,9 +260,9 @@ export enum SyntaxKind {
   group_by_clause,
   order_by_clause,
   having_clause,
-  begin_transaction,
-  commit_transaction,
-  rollback_transaction,
+  begin_transaction_statement,
+  commit_transaction_statement,
+  rollback_transaction_statement,
   // I think I'm mixing concerns here
   // these might need to be parser directives
   // temp_table,

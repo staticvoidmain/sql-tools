@@ -31,7 +31,15 @@ import {
   LiteralExpression,
   ParenExpression,
   UseDatabaseStatement,
-  KeywordNode
+  KeywordNode,
+  BitwiseNotExpression,
+  NamedColumn,
+  ColumnExpression,
+  DataType,
+  TableDeclaration,
+  Identifier,
+  FunctionCallExpression,
+  IdentifierExpression
 } from './ast'
 
 export interface ParserError {
@@ -73,6 +81,10 @@ export class Parser {
     }
   }
 
+  private match(kind: SyntaxKind) {
+    return this.token.kind === kind
+  }
+
   private error(err: string) {
     throw {
       message: err,
@@ -88,13 +100,88 @@ export class Parser {
     return this.token
   }
 
-  private parseColumnList(): Array<ColumnNode> {
-    return []
+  private tryParseIdentifierOrExpression(): Identifier | Expr {
+    // but a column reference really IS... an expr...
+    return this.exprBase()
   }
 
-  private parseType(): string {
+  private parseColumnList(): Array<ColumnNode> {
+    const columns: Array<ColumnNode> = []
+    while (true) {
+      // todo: This really needs to be simplified, tryParseIdentifierOrExpression
+      const start = this.token
+      if (this.optional(SyntaxKind.identifier)) {
+        if (this.optional(SyntaxKind.equal)) {
+          const col = <ColumnExpression>this.createNode(start)
+          col.alias = start.value
+          col.expression = this.tryParseAddExpr()
+
+          columns.push(col)
+        } else {
+          // todo: this is super wrong... should parse the
+          // identifier fully
+          const val = this.token.value
+          const col = <NamedColumn>this.createNode(this.token)
+          col.column = val
+          columns.push(col)
+        }
+      } else {
+        // todo: expect...?
+        const col = <ColumnExpression>this.createNode(start)
+        col.expression = this.tryParseAddExpr()
+
+        if (this.optional(SyntaxKind.as_keyword)) {
+          col.alias = this.expect(SyntaxKind.identifier).value
+        }
+        else {
+          const token = this.token
+          if (this.optional(SyntaxKind.identifier)) {
+            col.alias = token.value
+          }
+        }
+
+        columns.push(col)
+      }
+
+      if (this.token.kind !== SyntaxKind.comma_token) break
+    }
+    return columns
+  }
+
+  private parseType(): DataType {
     // todo: this doesn't allow for parens and stuff
-    return this.expect(SyntaxKind.identifier).value
+    const ident = this.expect(SyntaxKind.identifier)
+    const type = <DataType>this.createNode(this.token)
+
+    // todo: lookup and canonicalize type?
+    type.name = ident.value
+    if (this.match(SyntaxKind.openParen)) {
+      this.moveNext()
+
+      if (this.match(SyntaxKind.identifier)) {
+        if (this.token.value !== 'max') {
+          this.error('illegal identifier in type specification')
+        }
+
+        type.args = 'max'
+        this.moveNext()
+      }
+      else {
+        type.args = []
+        // I think this is actually at most 2...
+        while (true) {
+          type.args.push(this.expect(SyntaxKind.numeric_literal).value)
+
+          if (this.match(SyntaxKind.comma_token)) {
+            this.moveNext()
+          } else break
+        }
+      }
+
+      this.expect(SyntaxKind.closeParen)
+    }
+
+    return type
   }
 
   private parseVariableDeclarationList() {
@@ -118,10 +205,12 @@ export class Parser {
     }
 
     if (this.token.kind === SyntaxKind.table_keyword) {
-      decl.type = 'table'
+      const table = <TableDeclaration>this.createKeyword(this.token)
       // todo:
       // decl.expression = this.parseTableVariableDecl()
       // DONE
+      statement.declarations = table
+
     }
     else {
       decl.type = this.parseType()
@@ -132,8 +221,7 @@ export class Parser {
 
       statement.declarations.push(decl)
 
-      // todo: optional()
-      while (this.optional(SyntaxKind.commaToken)) {
+      while (this.optional(SyntaxKind.comma_token)) {
         const next = <VariableDeclaration>{
           name: this.expect(SyntaxKind.identifier).value,
           type: this.parseType()
@@ -222,7 +310,7 @@ export class Parser {
   private parseGo(): SyntaxNode {
     const statement = <GoStatement>this.createKeyword(this.token)
 
-    if (this.token.kind === SyntaxKind.numeric_literal) {
+    if (this.match(SyntaxKind.numeric_literal)) {
       statement.count = this.token.value
       this.moveNext()
     }
@@ -278,18 +366,18 @@ export class Parser {
   // 3
   private isAddPrecedence() {
     const kind = this.token.kind
-    return kind === SyntaxKind.plusToken
-      || kind === SyntaxKind.minusToken
-      || kind === SyntaxKind.bitwiseAnd
-      || kind === SyntaxKind.bitwiseOr
-      || kind === SyntaxKind.bitwiseXor
+    return kind === SyntaxKind.plus_token
+      || kind === SyntaxKind.minus_token
+      || kind === SyntaxKind.bitwise_and_token
+      || kind === SyntaxKind.bitwise_or_token
+      || kind === SyntaxKind.bitwise_xor_token
   }
 
   private isMultiplyPrecedence() {
     const kind = this.token.kind
-    return kind === SyntaxKind.mulToken
-      || kind === SyntaxKind.divToken
-      || kind === SyntaxKind.modToken
+    return kind === SyntaxKind.mul_token
+      || kind === SyntaxKind.div_token
+      || kind === SyntaxKind.mod_token
   }
 
   // fallthrough from lowest to highest precedence.
@@ -341,14 +429,32 @@ export class Parser {
 
   private tryParseBitwiseNotExpr(): Expr {
     // unary: if the current token isn't a bitwise not... we don't have to do that...
-    if (this.token.kind === SyntaxKind.bitwiseNot) {
-      // const not = <BitwiseNotExpression>this.createNode(this.token);
-      // not.expression = this.exprBase()
-      // return not
-      this.error('not implemented')
+    if (this.token.kind === SyntaxKind.bitwise_not_token) {
+      const not = <BitwiseNotExpression>this.createNode(this.token)
+      not.expr = this.exprBase()
+      return not
     }
 
     return this.exprBase()
+  }
+
+  private parseIdentifier(): Identifier {
+    const ident = <Identifier>this.createNode(this.token)
+    ident.parts = [
+      this.token.value
+    ]
+
+    this.moveNext()
+
+    while (this.match(SyntaxKind.dot_token)) {
+      // expect will advance to the next token
+      ident.parts.push(
+        this.expect(SyntaxKind.identifier).value)
+    }
+
+    // todo: maybe also intern the identifier for easy lookup?
+    // maybe allowing us to resolve them to the same ident or something
+    return ident
   }
 
   private exprBase(): Expr {
@@ -359,7 +465,7 @@ export class Parser {
       return literal
     }
 
-    if (this.token.kind === SyntaxKind.openParen) {
+    if (this.match(SyntaxKind.openParen)) {
       const expr = <ParenExpression>this.createNode(this.token)
 
       this.moveNext()
@@ -369,12 +475,33 @@ export class Parser {
       return expr
     }
 
-    // todo: loop while it's a dot or open paren... sheesh this is
-    // gonna get complex.
-    if (this.token.kind === SyntaxKind.identifier) {
-      // todo: readIdentifierRest
-      // could be a function call
-      this.error('not supported')
+    if (this.match(SyntaxKind.identifier)) {
+      // todo: extract this to identifierOrExpression
+      const start = this.token
+      const ident = this.parseIdentifier()
+
+      if (this.match(SyntaxKind.openParen)) {
+
+        const expr = <FunctionCallExpression>this.createNode(start)
+        expr.name = ident
+
+        this.moveNext()
+        if (!this.match(SyntaxKind.closeParen)) {
+          while (true) {
+            expr.arguments.push(this.tryParseAddExpr())
+
+            if (!this.match(SyntaxKind.comma_token)) break
+          }
+        }
+
+        this.expect(SyntaxKind.closeParen)
+        return expr
+      } else {
+        const expr = <IdentifierExpression>this.createNode(start)
+        expr.identifier = ident
+        expr.end = this.token.end
+        return expr
+      }
     }
 
     // a case expression...?
@@ -424,14 +551,19 @@ export class Parser {
     const name = this.expect(SyntaxKind.identifier)
     statement.name = name.value
 
-    this.optional(SyntaxKind.semiColonToken)
+    this.optional(SyntaxKind.semicolon_token)
 
     return statement
   }
 
   private parseSelect() {
-    const node = <SelectStatement>this.createNode(this.token)
+    const node = <SelectStatement>this.createKeyword(this.token)
 
+    if (this.optional(SyntaxKind.top_keyword)) {
+      node.top = this.expect(SyntaxKind.numeric_literal).value
+    }
+
+    // todo: distinct | all
     node.columns = this.parseColumnList()
     // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_expression, this.parseInto)
     // TODO: from is not required.
@@ -451,13 +583,15 @@ export class Parser {
   // }
 
   private parseFrom(): FromClause {
-    // todo: createStatement and statement kind.
     const from = <FromClause>this.createNode(this.token)
+    from.kind = SyntaxKind.from_clause
 
+    this.moveNext()
     return from
   }
 
   private parseWhere(): WhereClause {
+    // todo: createKeyword
     return <WhereClause>{
       keyword: this.token,
       kind: SyntaxKind.where_clause,
