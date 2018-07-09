@@ -494,6 +494,7 @@ export class Parser {
       if (this.match(SyntaxKind.openParen)) {
 
         const expr = <FunctionCallExpression>this.createNode(start)
+        expr.kind = SyntaxKind.function_call_expr
         expr.name = ident
 
         this.moveNext()
@@ -509,9 +510,9 @@ export class Parser {
         return expr
       } else {
         const expr = <IdentifierExpression>this.createNode(start)
+        expr.kind = SyntaxKind.identifier_expr
         expr.identifier = ident
         expr.end = this.token.end
-        this.moveNext()
         return expr
       }
     }

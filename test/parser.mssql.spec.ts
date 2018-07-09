@@ -15,7 +15,8 @@ import {
   BitwiseNotExpression,
   IdentifierExpression,
   LiteralExpression,
-  ParenExpression
+  ParenExpression,
+  FunctionCallExpression
 } from '../src/ast'
 
 describe('a statement parser', () => {
@@ -102,45 +103,50 @@ describe('a statement parser', () => {
   ops[SyntaxKind.minus_token] = '-'
 
   it('debug: parses operator precedence', () => {
-    // todo: doesn't support unary minus properly yet.
+    // todo: doesn't support unary +/- properly yet.
+    // todo: function call expressions are broken
+    // todo: some.col wouldn't work either
     const parser = new Parser()
-    const tree = parser.parse('select 1 + ~(2 * 3) / 4 - 5')
+    const tree = parser.parse('select 1 + ~(2 * 3) / somecol - 5')
 
     const select = <SelectStatement>tree[0]
     const col = <ColumnExpression>select.columns[0]
 
     // todo: make this a visitor
-    const printExpr = (expr: Expr, level: number) => {
+    const printExpr = (expr: Expr) => {
+      const write = (str: string) => {
+        process.stdout.write(str)
+      }
 
       switch (expr.kind) {
 
         case SyntaxKind.identifier_expr: {
           const ident = <IdentifierExpression>expr
-          process.stdout.write(ident.identifier.parts.join('.'))
+          write(ident.identifier.parts.join('.'))
           break
         }
 
         case SyntaxKind.literal_expr: {
           const literal = <LiteralExpression>expr
-          process.stdout.write('' + literal.value)
+          write('' + literal.value)
           break
         }
 
         case SyntaxKind.binary_expr: {
           const binary = <BinaryExpression>expr
-          process.stdout.write('(' + ops[binary.op.kind] + ' ')
-          printExpr(binary.left, level + 1)
+          write('(' + ops[binary.op.kind] + ' ')
+          printExpr(binary.left)
           process.stdout.write(' ')
-          printExpr(binary.right, level + 1)
-          process.stdout.write(')')
+          printExpr(binary.right)
+          write(')')
           break
         }
 
         case SyntaxKind.bitwise_not_expr: {
           const unary = <BitwiseNotExpression>expr
-          process.stdout.write('(~ ')
-          printExpr(unary.expr, level + 1)
-          process.stdout.write(')')
+          write('(~ ')
+          printExpr(unary.expr)
+          write(')')
           break
         }
 
@@ -148,15 +154,25 @@ describe('a statement parser', () => {
           // todo: paren exprs can just be erased...at the site
           // where they are used.
           const paren = <ParenExpression>expr
-          printExpr(paren.expression, level + 1)
+          printExpr(paren.expression)
           break
+        }
+
+        case SyntaxKind.function_call_expr: {
+          const call = <FunctionCallExpression>expr
+          write('(call ' + call.name)
+          call.arguments.forEach(e => {
+            write(' ')
+            printExpr(e)
+          })
+          write(')')
         }
 
         default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
       }
     }
 
-    printExpr(col.expression, 0)
+    printExpr(col.expression)
     process.stdout.write('\n')
   })
 })
