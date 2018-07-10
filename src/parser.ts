@@ -36,12 +36,22 @@ import {
   TableDeclaration,
   Identifier,
   FunctionCallExpression,
-  IdentifierExpression
+  IdentifierExpression,
+  CollateNode,
+  SetOptionStatement,
+  InsertStatement,
+  AlterStatement,
+  ExecuteStatement
 } from './ast'
 
 export interface ParserError {
   message: string
   line: number
+}
+
+function isLocal(ident: Token) {
+  // todo: maybe a flag in the scanner...
+  return ident.value[0] === '@'
 }
 
 // todo: speculative lookahead stuff...
@@ -55,6 +65,7 @@ export class Parser {
   // parse the next statement in the list.
   private next(): SyntaxNode | undefined {
 
+    // todo: print, throw, if, while
     switch (this.token.kind) {
       case SyntaxKind.EOF:
         return undefined
@@ -74,8 +85,42 @@ export class Parser {
       case SyntaxKind.select_keyword:
         return this.parseSelect()
 
-      default:
+      case SyntaxKind.exec_keyword:
+      case SyntaxKind.execute_keyword: {
+        return this.parseExecuteStatement()
+      }
+
+      case SyntaxKind.create_keyword: {
+        // create what?
+        return this.parseCreateStatement()
+      }
+
+      case SyntaxKind.alter_keyword: {
+        return this.parseAlterStatement()
+      }
+
+      case SyntaxKind.insert_keyword: {
+        return this.parseInsertStatement()
+
+      }
+
+      case SyntaxKind.update_keyword: {
+        break
+      }
+
+      case SyntaxKind.drop_keyword: {
+        break
+      }
+
+      case SyntaxKind.delete_keyword: {
+        break
+      }
+
+      default: {
+        // todo: should this just moveNext and loop back around?
+        // that's the lazy-man's error handling right there boyz.
         this.error('unsupported statement ' + SyntaxKind[this.token.kind])
+      }
     }
   }
 
@@ -90,9 +135,17 @@ export class Parser {
     }
   }
 
+  private isTrivia() {
+    return this.token.kind === SyntaxKind.whitespace
+      || this.token.kind === SyntaxKind.comment_block
+      || this.token.kind === SyntaxKind.comment_inline
+  }
+
   private moveNext(): Token {
+    // todo: this could capture leading and trailing trivia
+    // but for now it straight up ignores it.
     this.token = this.scanner!.scan()
-    if (this.token.kind === SyntaxKind.whitespace) {
+    while (this.isTrivia()) {
       this.token = this.scanner!.scan()
     }
     return this.token
@@ -109,13 +162,12 @@ export class Parser {
         const identifier = <IdentifierExpression>expr
 
         if (this.optional(SyntaxKind.equal)) {
-          // identifier WITH value
           // todo: if it's an @local = expr that should get a different type as well.
           const col = <ColumnExpression>this.createNode(start)
-          // this is probably wrong.
           col.kind = SyntaxKind.column_expr
           col.alias = identifier.identifier
           col.expression = this.tryParseAddExpr()
+          col.collation = this.tryParseCollation()
 
           columns.push(col)
         } else {
@@ -127,6 +179,7 @@ export class Parser {
         const col = <ColumnExpression>this.createNode(start)
         col.kind = SyntaxKind.column_expr
         col.expression = expr
+        col.collation = this.tryParseCollation()
 
         if (this.optional(SyntaxKind.as_keyword)) {
           col.alias = this.parseIdentifier()
@@ -145,12 +198,21 @@ export class Parser {
     return columns
   }
 
+  private tryParseCollation(): CollateNode | undefined {
+    if (this.match(SyntaxKind.collate_keyword)) {
+      const collate = <CollateNode>this.createKeyword(this.token)
+      collate.collation = this.parseIdentifier()
+      return collate
+    }
+  }
+
   private parseType(): DataType {
-    // todo: this doesn't allow for parens and stuff
     const ident = this.expect(SyntaxKind.identifier)
     const type = <DataType>this.createNode(this.token)
 
     // todo: lookup and canonicalize type?
+    // not sure why that would be necessary right now
+    // but maybe in the future
     type.name = ident.value
     if (this.match(SyntaxKind.openParen)) {
       this.moveNext()
@@ -187,7 +249,7 @@ export class Parser {
 
     const local = this.expect(SyntaxKind.identifier)
 
-    if (local.value[0] !== '@') {
+    if (isLocal(local)) {
       this.error('expected local variable, saw ' + local.value)
     }
 
@@ -317,15 +379,29 @@ export class Parser {
   }
 
   private parseSetStatement(): SyntaxNode {
-    const statement = <SetStatement>this.createKeyword(this.token)
-    const local = this.expect(SyntaxKind.identifier)
 
-    statement.name = local.value
-    statement.op = this.parseAssignmentOperation()
+    const set = this.token
+    const node = this.createKeyword(set)
     this.moveNext()
-    statement.expression = <ValueExpression>this.tryParseAddExpr()
 
-    return statement
+    const ident = this.expect(SyntaxKind.identifier)
+
+    if (isLocal(ident)) {
+      const statement = <SetStatement>node
+      statement.name = ident.value
+      statement.op = this.parseAssignmentOperation()
+      this.moveNext()
+      statement.expression = <ValueExpression>this.tryParseAddExpr()
+
+      return statement
+    } else {
+      // is it really an option?
+      const statement = <SetOptionStatement>node
+      statement.option = ident
+      statement.option_value = this.moveNext()
+
+      return statement
+    }
   }
 
   // operator precedence, weird, mul is higher precedence than unary minus?
@@ -525,6 +601,7 @@ export class Parser {
     return <Expr>this.createNode(this.token)
   }
 
+  // does not call moveNext for you...
   private parseAssignmentOperation(): AssignmentOperator {
     switch (this.token.kind) {
       case SyntaxKind.equal:
@@ -565,6 +642,23 @@ export class Parser {
 
     return statement
   }
+
+  private parseExecuteStatement(): ExecuteStatement {
+
+  }
+
+  private parseCreateStatement(): CreateStatement {
+
+  }
+
+  private parseAlterStatement(): AlterStatement {
+
+  }
+
+  private parseInsertStatement(): InsertStatement {
+
+  }
+
 
   private parseSelect() {
     const node = <SelectStatement>this.createKeyword(this.token)

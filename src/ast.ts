@@ -144,11 +144,15 @@ export interface IdentifierExpression extends Expr {
   identifier: Identifier
 }
 
-// todo: capture the kind
+export interface CollateNode extends KeywordNode {
+  collation: Identifier
+}
+
 export interface ColumnExpression extends Expr {
   kind: SyntaxKind.column_expr
   expression: Expr
   alias?: Identifier
+  collation?: CollateNode
 }
 
 export interface BinaryExpression extends Expr {
@@ -333,6 +337,11 @@ export interface WhileStatement extends KeywordNode {
   body: StatementBlock
 }
 
+export interface SetOptionStatement extends KeywordNode {
+  option: Token
+  option_value: Token
+}
+
 export interface SetStatement extends KeywordNode {
   name: string
   op: AssignmentOperator
@@ -354,6 +363,66 @@ export interface SelectStatement extends KeywordNode {
 
 export interface GoStatement extends KeywordNode {
   count?: number
+}
+
+export type InsertStatement =
+| InsertSelectStatement
+// | InsertIntoStatement
+
+export interface ExecuteStatement extends KeywordNode {
+
+}
+
+export interface InsertSelectStatement extends KeywordNode {
+  insert_keyword: Token
+
+}
+
+// shiiiiit... this is gonna get messy
+// alter and create should be similar for most of these I think
+export type AlterStatement =
+  | AlterTableStatement
+  | AlterProcedureStatement
+  | AlterFunctionStatement
+
+export type CreateStatement =
+| CreateTableStatement
+
+export interface CreateTableStatement extends KeywordNode {
+  object: Identifier
+  columns: ColumnExpression[]
+}
+
+// alter table, view
+export interface AlterTableStatement extends KeywordNode {
+  object: Identifier
+}
+
+export interface AlterFunctionStatement extends KeywordNode {
+  function_keyword: Token
+  name: Identifier
+  arguments: VariableDeclaration[]
+  as_keyword: Token
+  returns_keyword: Token
+  body: StatementBlock
+}
+
+export interface AlterProcedureStatement extends KeywordNode {
+  procedure_keyword: Token
+  name: Identifier
+  // todo: does this work?
+  arguments: VariableDeclaration[]
+  as_keyword: Token
+  body: StatementBlock
+}
+
+// throw is weird.
+export interface PrintStatement extends KeywordNode {
+  value: Expr
+}
+
+export interface ReturnStatement extends KeywordNode {
+  value: Expr
 }
 
 export interface BlockComment extends SyntaxNode { kind: SyntaxKind.comment_block }

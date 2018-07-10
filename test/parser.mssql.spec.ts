@@ -104,6 +104,95 @@ describe('a statement parser', () => {
   ops[SyntaxKind.plus_token] = '+'
   ops[SyntaxKind.minus_token] = '-'
 
+  // todo: make this a visitor
+  const printExpr = (expr: SyntaxNode) => {
+    const write = (str: string) => {
+      process.stdout.write(str)
+    }
+
+    switch (expr.kind) {
+      case SyntaxKind.column_expr: {
+        const col = <ColumnExpression>expr
+        if (col.alias) {
+          write(col.alias.parts.join('.') + ' ')
+        } else {
+          write('\'a ')
+        }
+
+        printExpr(col.expression)
+        break
+      }
+
+      case SyntaxKind.select_statement: {
+        const select = <SelectStatement>expr
+        write('(select')
+
+        write('\n  (cols')
+        select.columns.forEach(c => {
+          write('\n    ')
+          printExpr(c)
+        })
+        write('\n  )')
+
+        write('\n)')
+        break
+      }
+
+      case SyntaxKind.identifier_expr: {
+        const ident = <IdentifierExpression>expr
+        write(ident.identifier.parts.join('.'))
+        break
+      }
+
+      case SyntaxKind.literal_expr: {
+        const literal = <LiteralExpression>expr
+        write('' + literal.value)
+        break
+      }
+
+      case SyntaxKind.binary_expr: {
+        // thought: expressions in a divisor slot which are non-literal
+        // could cause divide by zero, that might be cool to test for
+        const binary = <BinaryExpression>expr
+        write('(' + ops[binary.op.kind] + ' ')
+        printExpr(binary.left)
+        process.stdout.write(' ')
+        printExpr(binary.right)
+        write(')')
+        break
+      }
+
+      case SyntaxKind.bitwise_not_expr: {
+        const unary = <BitwiseNotExpression>expr
+        write('(~ ')
+        printExpr(unary.expr)
+        write(')')
+        break
+      }
+
+      case SyntaxKind.paren_expr: {
+        // thought: useless paren exprs could be a linting rule
+        const paren = <ParenExpression>expr
+        printExpr(paren.expression)
+        break
+      }
+
+      case SyntaxKind.function_call_expr: {
+        const call = <FunctionCallExpression>expr
+        write('(call ' + call.name.parts.join('.'))
+        call.arguments.forEach(e => {
+          write(' ')
+          printExpr(e)
+        })
+        write(')')
+        break
+      }
+
+      default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
+    }
+  }
+
+
   it('debug: parses operator precedence', () => {
     // todo: doesn't support unary +/- properly yet.
     // todo: function call expressions are broken
@@ -113,93 +202,7 @@ describe('a statement parser', () => {
 
     const select = <SelectStatement>tree[0]
 
-    // todo: make this a visitor
-    const printExpr = (expr: SyntaxNode) => {
-      const write = (str: string) => {
-        process.stdout.write(str)
-      }
 
-      switch (expr.kind) {
-        case SyntaxKind.column_expr: {
-          const col = <ColumnExpression>expr
-          if (col.alias) {
-            write(col.alias.parts.join('.') + ' ')
-          } else {
-            write('\'a ')
-          }
-
-          printExpr(col.expression)
-          break
-        }
-
-        case SyntaxKind.select_statement: {
-          const select = <SelectStatement>expr
-          write('(select')
-
-          write('\n  (cols')
-          select.columns.forEach(c => {
-            write('\n    ')
-            printExpr(c)
-          })
-          write('\n  )')
-
-          write('\n)')
-          break
-        }
-
-        case SyntaxKind.identifier_expr: {
-          const ident = <IdentifierExpression>expr
-          write(ident.identifier.parts.join('.'))
-          break
-        }
-
-        case SyntaxKind.literal_expr: {
-          const literal = <LiteralExpression>expr
-          write('' + literal.value)
-          break
-        }
-
-        case SyntaxKind.binary_expr: {
-          // thought: expressions in a divisor slot which are non-literal
-          // could cause divide by zero, that might be cool to test for
-          const binary = <BinaryExpression>expr
-          write('(' + ops[binary.op.kind] + ' ')
-          printExpr(binary.left)
-          process.stdout.write(' ')
-          printExpr(binary.right)
-          write(')')
-          break
-        }
-
-        case SyntaxKind.bitwise_not_expr: {
-          const unary = <BitwiseNotExpression>expr
-          write('(~ ')
-          printExpr(unary.expr)
-          write(')')
-          break
-        }
-
-        case SyntaxKind.paren_expr: {
-          // thought: useless paren exprs could be a linting rule
-          const paren = <ParenExpression>expr
-          printExpr(paren.expression)
-          break
-        }
-
-        case SyntaxKind.function_call_expr: {
-          const call = <FunctionCallExpression>expr
-          write('(call ' + call.name.parts.join('.'))
-          call.arguments.forEach(e => {
-            write(' ')
-            printExpr(e)
-          })
-          write(')')
-          break
-        }
-
-        default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
-      }
-    }
 
     printExpr(select)
     process.stdout.write('\n')
