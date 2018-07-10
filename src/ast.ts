@@ -77,14 +77,7 @@ export interface Identifier extends SyntaxNode {
   parts: string[]
 }
 
-export type ColumnNode = ColumnExpression | NamedColumn
-
-// is quoted?
-export interface NamedColumn extends SyntaxNode {
-  column: Identifier
-  table?: Identifier
-  alias?: string
-}
+export type ColumnNode = ColumnExpression | IdentifierExpression
 
 export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plus_token }
 export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minus_token }
@@ -146,7 +139,6 @@ export type AssignmentOperator =
   | XorEqualsOperator
   | OrEqualsOperator
 
-
 export interface IdentifierExpression extends Expr {
   kind: SyntaxKind.identifier_expr
   identifier: Identifier
@@ -154,8 +146,9 @@ export interface IdentifierExpression extends Expr {
 
 // todo: capture the kind
 export interface ColumnExpression extends Expr {
+  kind: SyntaxKind.column_expr
   expression: Expr
-  alias?: string
+  alias?: Identifier
 }
 
 export interface BinaryExpression extends Expr {
@@ -185,16 +178,8 @@ export interface DataType extends SyntaxNode {
   args: string[] | 'max'
 }
 
-export enum ExprKind {
-  Boolean,
-  Value
-}
-
 // hmmm... this is a little screwy
-// todo: keyword expr?
-export interface Expr extends SyntaxNode {
-  type: ExprKind
-}
+export interface Expr extends SyntaxNode { }
 
 export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }
 

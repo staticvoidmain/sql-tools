@@ -25,15 +25,12 @@ import {
   ValueExpression,
   ColumnNode,
   Expr,
-  ExprKind,
   BinaryExpression,
-  ConstantExpression,
   LiteralExpression,
   ParenExpression,
   UseDatabaseStatement,
   KeywordNode,
   BitwiseNotExpression,
-  NamedColumn,
   ColumnExpression,
   DataType,
   TableDeclaration,
@@ -101,50 +98,49 @@ export class Parser {
     return this.token
   }
 
-  private tryParseIdentifierOrExpression(): Identifier | Expr {
-    // but a column reference really IS... an expr...
-    return this.exprBase()
-  }
-
   private parseColumnList(): Array<ColumnNode> {
     const columns: Array<ColumnNode> = []
     while (true) {
       // todo: This really needs to be simplified, tryParseIdentifierOrExpression
       const start = this.token
-      if (this.optional(SyntaxKind.identifier)) {
+      const expr = this.tryParseAddExpr()
+
+      if (expr.kind === SyntaxKind.identifier_expr) {
+        const identifier = <IdentifierExpression>expr
+
         if (this.optional(SyntaxKind.equal)) {
+          // identifier WITH value
+          // todo: if it's an @local = expr that should get a different type as well.
           const col = <ColumnExpression>this.createNode(start)
-          col.alias = start.value
+          // this is probably wrong.
+          col.kind = SyntaxKind.column_expr
+          col.alias = identifier.identifier
           col.expression = this.tryParseAddExpr()
 
           columns.push(col)
         } else {
-          // todo: this is super wrong... should parse the
-          // identifier fully
-          const val = this.token.value
-          const col = <NamedColumn>this.createNode(this.token)
-          col.column = val
-          columns.push(col)
+          // just push the identifier
+          columns.push(identifier)
         }
       } else {
-        // todo: expect...?
+
         const col = <ColumnExpression>this.createNode(start)
-        col.expression = this.tryParseAddExpr()
+        col.kind = SyntaxKind.column_expr
+        col.expression = expr
 
         if (this.optional(SyntaxKind.as_keyword)) {
-          col.alias = this.expect(SyntaxKind.identifier).value
+          col.alias = this.parseIdentifier()
         }
         else {
-          const token = this.token
           if (this.optional(SyntaxKind.identifier)) {
-            col.alias = token.value
+            col.alias = this.parseIdentifier()
           }
         }
 
         columns.push(col)
       }
 
-      if (this.token.kind !== SyntaxKind.comma_token) break
+      if (!this.optional(SyntaxKind.comma_token)) break
     }
     return columns
   }
@@ -268,11 +264,11 @@ export class Parser {
     return node
   }
 
-  private createNode(token: Token): SyntaxNode {
+  private createNode(token: Token, kind?: SyntaxKind): SyntaxNode {
     return {
       start: token.start,
       end: token.end,
-      kind: token.kind
+      kind: kind || token.kind
     }
   }
 
@@ -444,7 +440,7 @@ export class Parser {
 
     this.moveNext()
 
-    while (this.match(SyntaxKind.dot_token)) {
+    while (this.optional(SyntaxKind.dot_token)) {
       // expect will advance to the next token
       ident.parts.push(
         this.expect(SyntaxKind.identifier).value)
@@ -479,6 +475,7 @@ export class Parser {
     if (this.match(SyntaxKind.openParen)) {
       const expr = <ParenExpression>this.createNode(this.token)
       expr.kind = SyntaxKind.paren_expr
+
       this.moveNext()
       expr.expression = this.tryParseOrExpr()
 
@@ -492,8 +489,8 @@ export class Parser {
       const ident = this.parseIdentifier()
 
       if (this.match(SyntaxKind.openParen)) {
-
         const expr = <FunctionCallExpression>this.createNode(start)
+        expr.arguments = []
         expr.kind = SyntaxKind.function_call_expr
         expr.name = ident
 
@@ -519,12 +516,12 @@ export class Parser {
 
     // a case expression
     if (this.token.kind === SyntaxKind.case_keyword) {
-      this.error('not supported yet')
+      this.error('CASE not supported yet')
     }
 
     // todo: asdf IN (1, 2, 3, 4)
     // nothing else should really behave that way...
-    this.error('not supported yet')
+    this.error(SyntaxKind[this.token.kind] + ' cannot start an expr')
     return <Expr>this.createNode(this.token)
   }
 
@@ -571,29 +568,30 @@ export class Parser {
 
   private parseSelect() {
     const node = <SelectStatement>this.createKeyword(this.token)
+    node.kind = SyntaxKind.select_statement
 
     if (this.optional(SyntaxKind.top_keyword)) {
       node.top = this.expect(SyntaxKind.numeric_literal).value
     }
 
-    // todo: distinct | all
+    if (this.optional(SyntaxKind.distinct_keyword)) {
+      node.qualifier = 'distinct'
+    }
+    else if (this.optional(SyntaxKind.all_keyword)) {
+      node.qualifier = 'all'
+    }
+
     node.columns = this.parseColumnList()
-    // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_expression, this.parseInto)
-    // TODO: from is not required.
+    // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_clause, this.parseInto)
     node.from = <FromClause>this.parseOptional(SyntaxKind.from_clause, this.parseFrom)
     // node.where = <WhereClause>this.parseOptional(SyntaxKind.where_clause, this.parseWhere)
     // node.group_by = this.parseOptional(SyntaxKind.group_by)
     // node.order_by = this.parseOptional(SyntaxKind.order_by)
     // node.having = this.parseOptional(SyntaxKind.having_clause)
-    // todo: full-text index support.
-    // node.contains freetext etc.
+    // todo: full-text index support (node.contains freetext etc.)
 
     return node
   }
-
-  // private parseInto(): IntoClause {
-  //   return undefined
-  // }
 
   private parseFrom(): FromClause {
     const from = <FromClause>this.createNode(this.token)

@@ -16,7 +16,9 @@ import {
   IdentifierExpression,
   LiteralExpression,
   ParenExpression,
-  FunctionCallExpression
+  FunctionCallExpression,
+  Identifier,
+  SyntaxNode
 } from '../src/ast'
 
 describe('a statement parser', () => {
@@ -88,7 +90,7 @@ describe('a statement parser', () => {
     const select = <SelectStatement>list[0]
     const col = <ColumnExpression>select.columns[0]
 
-    expect(col.alias).to.equal('sum')
+    expect((<Identifier>col.alias).parts[0]).to.equal('sum')
 
     const expr = <BinaryExpression>col.expression
     expect(expr.left.kind).to.equal(SyntaxKind.literal_expr)
@@ -107,18 +109,38 @@ describe('a statement parser', () => {
     // todo: function call expressions are broken
     // todo: some.col wouldn't work either
     const parser = new Parser()
-    const tree = parser.parse('select 1 + ~(2 * 3) / somecol - 5')
+    const tree = parser.parse('select expr = some_func(1) + ~(2 * 3) / [some].col - 5, 1 + 1 as two')
 
     const select = <SelectStatement>tree[0]
-    const col = <ColumnExpression>select.columns[0]
 
     // todo: make this a visitor
-    const printExpr = (expr: Expr) => {
+    const printExpr = (expr: SyntaxNode) => {
       const write = (str: string) => {
         process.stdout.write(str)
       }
 
       switch (expr.kind) {
+        case SyntaxKind.column_expr: {
+          const col = <ColumnExpression>expr
+          if (col.alias) {
+            write('\n  ' + col.alias.parts.join('.') + ' ')
+          } else {
+            write('\n  \'a ')
+          }
+
+          printExpr(col.expression)
+          break
+        }
+
+        case SyntaxKind.select_statement: {
+          const select = <SelectStatement>expr
+          write('(select')
+          select.columns.forEach(c => {
+            printExpr(c)
+          })
+          write('\n)')
+          break
+        }
 
         case SyntaxKind.identifier_expr: {
           const ident = <IdentifierExpression>expr
@@ -133,6 +155,8 @@ describe('a statement parser', () => {
         }
 
         case SyntaxKind.binary_expr: {
+          // thought: expressions in a divisor slot which are non-literal
+          // could cause divide by zero, that might be cool to test for
           const binary = <BinaryExpression>expr
           write('(' + ops[binary.op.kind] + ' ')
           printExpr(binary.left)
@@ -151,8 +175,7 @@ describe('a statement parser', () => {
         }
 
         case SyntaxKind.paren_expr: {
-          // todo: paren exprs can just be erased...at the site
-          // where they are used.
+          // thought: useless paren exprs could be a linting rule
           const paren = <ParenExpression>expr
           printExpr(paren.expression)
           break
@@ -160,19 +183,20 @@ describe('a statement parser', () => {
 
         case SyntaxKind.function_call_expr: {
           const call = <FunctionCallExpression>expr
-          write('(call ' + call.name)
+          write('(call ' + call.name.parts.join('.'))
           call.arguments.forEach(e => {
             write(' ')
             printExpr(e)
           })
           write(')')
+          break
         }
 
         default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
       }
     }
 
-    printExpr(col.expression)
+    printExpr(select)
     process.stdout.write('\n')
   })
 })

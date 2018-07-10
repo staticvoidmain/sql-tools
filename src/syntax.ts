@@ -246,6 +246,7 @@ export enum SyntaxKind {
   bitwise_not_expr,
   identifier_expr,
   function_call_expr,
+  column_expr,
   statement_block,
   if_statement,
   while_statement,
