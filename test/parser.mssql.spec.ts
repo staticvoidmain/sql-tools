@@ -123,9 +123,9 @@ describe('a statement parser', () => {
         case SyntaxKind.column_expr: {
           const col = <ColumnExpression>expr
           if (col.alias) {
-            write('\n  ' + col.alias.parts.join('.') + ' ')
+            write(col.alias.parts.join('.') + ' ')
           } else {
-            write('\n  \'a ')
+            write('\'a ')
           }
 
           printExpr(col.expression)
@@ -135,9 +135,14 @@ describe('a statement parser', () => {
         case SyntaxKind.select_statement: {
           const select = <SelectStatement>expr
           write('(select')
+
+          write('\n  (cols')
           select.columns.forEach(c => {
+            write('\n    ')
             printExpr(c)
           })
+          write('\n  )')
+
           write('\n)')
           break
         }
