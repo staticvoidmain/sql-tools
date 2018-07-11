@@ -192,7 +192,6 @@ describe('a statement parser', () => {
     }
   }
 
-
   it('debug: parses operator precedence', () => {
     // todo: doesn't support unary +/- properly yet.
     // todo: function call expressions are broken
@@ -200,11 +199,10 @@ describe('a statement parser', () => {
     const parser = new Parser()
     const tree = parser.parse('select expr = some_func(1) + ~(2 * 3) / [some].col - 5, 1 + 1 as two')
 
-    const select = <SelectStatement>tree[0]
-
-
-
-    printExpr(select)
+    process.stdout.write('-- full JSON --\n')
+    process.stdout.write(JSON.stringify(tree, undefined, ' '))
+    process.stdout.write('\n-- pretty --\n')
+    printExpr(tree[0])
     process.stdout.write('\n')
   })
 })

@@ -20,6 +20,7 @@ export class Token {
   kind: SyntaxKind
   value?: any
   flags?: number
+  // todo: remove me
   debug?: string
 
   constructor(kind: SyntaxKind, start: number, end: number) {

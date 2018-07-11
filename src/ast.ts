@@ -1,65 +1,9 @@
-/*
-
-map a SIMPLE sql grammar that accepts
-as many kinds of sql specifications as possible
-
-// totally made up AST based on zero CS theory or practical
-// knowledge of how parsers and scanners should work. :)
-  declare @x int = 11
-  if (@x > 10)
-  begin
-    select *
-    from Foo.Bar.Baz
-    where Val > @x or Val < @x and Val is not null
-  end
-  declare_statement
-    decls: [
-      name: @x
-      value: const_expr(number(11))
-    ]
-  if_statement
-    binary_expression
-      left: variable(@x)
-      op: greater_than
-      right: number(10)
-    block
-      begin_keyword
-      expression
-        select_statement
-          columns: [
-            all_columns
-          ]
-        from_clause
-          table_identity
-            db: label(Foo)
-            schame: label(Bar)
-            table: label(Baz)
-        where_clause
-          keyword: where
-          expr: binary_expression
-            left: binary_expression
-              left:
-                binary_expression
-              op: or_operator
-              right:
-                binary_expression
-
-      end_keyword
-*/
-
-/*
-  TODO:
-
-  // todo: @x between a and b
-  // todo: @x like 'foo%'
-  // todo: @x is null
-  // todo: @x is not null
-
- */
-
+// disclaimer: I doubt I'm ever going to support the full mssql grammar
+// but maybe someone will send me a PR with "for xml" and all that crap
 import {
   SyntaxKind
 } from './syntax'
+
 import { Token } from './scanner'
 
 export interface TextRange {
@@ -69,6 +13,9 @@ export interface TextRange {
 
 export interface SyntaxNode extends TextRange {
   kind: SyntaxKind
+
+  // todo: remove me
+  debug?: string
 }
 
 // one two or three part name
@@ -79,13 +26,13 @@ export interface Identifier extends SyntaxNode {
 
 export type ColumnNode = ColumnExpression | IdentifierExpression
 
+// todo: these might not matter... since createNode makes it with the token kind baked in...
 export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plus_token }
 export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minus_token }
 export interface MultiplyOperator extends SyntaxNode { kind: SyntaxKind.mul_token }
 export interface DivideOperator extends SyntaxNode { kind: SyntaxKind.div_token }
 export interface BitwiseOrOperator extends SyntaxNode { kind: SyntaxKind.bitwise_or_token }
 export interface BitwiseAndOperator extends SyntaxNode { kind: SyntaxKind.bitwise_and_token }
-
 
 export interface EqualsOperator extends SyntaxNode { kind: SyntaxKind.equal }
 export interface NotEqualsOperator extends SyntaxNode { kind: SyntaxKind.notEqual }
@@ -140,7 +87,6 @@ export type AssignmentOperator =
   | OrEqualsOperator
 
 export interface IdentifierExpression extends Expr {
-  kind: SyntaxKind.identifier_expr
   identifier: Identifier
 }
 
@@ -168,7 +114,6 @@ export interface ComputedColumnDefinition extends SyntaxNode {
 }
 
 export interface ColumnExpression extends Expr {
-  kind: SyntaxKind.column_expr
   expression: Expr
   alias?: Identifier
   collation?: CollateNode
@@ -181,7 +126,6 @@ export interface BinaryExpression extends Expr {
 }
 
 export interface BitwiseNotExpression extends Expr {
-  kind: SyntaxKind.bitwise_not_expr
   expr: Expr
 }
 
@@ -214,29 +158,24 @@ export type ConstantExpression =
 // todo: make this a type to account for nulls and defaults and all that
 // good stuff...
 export interface LiteralExpression extends Expr {
-  kind: SyntaxKind.literal_expr
   value: any
 }
 
 export interface ParenExpression extends Expr {
-  kind: SyntaxKind.paren_expr
   expression: Expr
 }
 
 export interface CaseExpression extends Expr, KeywordNode {
-  kind: SyntaxKind.case_expr
   cases: Array<WhenExpression>
   else: ValueExpression
 }
 
 export interface WhenExpression extends Expr, KeywordNode {
-  kind: SyntaxKind.when_expr
   when: Expr
   then: ValueExpression
 }
 
 export interface FunctionCallExpression extends Expr {
-  kind: SyntaxKind.function_call_expr
   name: Identifier
   arguments: Expr[]
 }
@@ -351,7 +290,6 @@ export interface VariableDeclaration extends SyntaxNode {
 }
 
 export interface WhileStatement extends KeywordNode {
-  kind: SyntaxKind.while_statement
   predicate: Expr
   body: StatementBlock
 }
@@ -385,8 +323,8 @@ export interface GoStatement extends KeywordNode {
 }
 
 export type InsertStatement =
-| InsertSelectStatement
-| InsertIntoStatement
+  | InsertSelectStatement
+  | InsertIntoStatement
 
 export interface ExecuteStatement extends KeywordNode {
   procedure: Identifier

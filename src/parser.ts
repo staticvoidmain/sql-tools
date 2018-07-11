@@ -190,8 +190,7 @@ export class Parser {
 
         if (this.optional(SyntaxKind.equal)) {
           // todo: if it's an @local = expr that should get a different type as well.
-          const col = <ColumnExpression>this.createNode(start)
-          col.kind = SyntaxKind.column_expr
+          const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
           col.alias = identifier.identifier
           col.expression = this.tryParseAddExpr()
           col.collation = this.tryParseCollation()
@@ -203,8 +202,7 @@ export class Parser {
         }
       } else {
 
-        const col = <ColumnExpression>this.createNode(start)
-        col.kind = SyntaxKind.column_expr
+        const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
         col.expression = expr
         col.collation = this.tryParseCollation()
 
@@ -345,8 +343,8 @@ export class Parser {
     }
   }
 
-  private createKeyword(token: Token): KeywordNode {
-    const node = <KeywordNode>this.createNode(token)
+  private createKeyword(token: Token, kind?: SyntaxKind): KeywordNode {
+    const node = <KeywordNode>this.createNode(token, kind)
     node.keyword = token
 
     this.moveNext()
@@ -357,7 +355,8 @@ export class Parser {
     return {
       start: token.start,
       end: token.end,
-      kind: kind || token.kind
+      kind: kind || token.kind,
+      debug: SyntaxKind[kind || token.kind]
     }
   }
 
@@ -556,26 +555,23 @@ export class Parser {
   private exprBase(): Expr {
     // todo: other unary like +/-?
     if (this.token.kind === SyntaxKind.bitwise_not_token) {
-      const not = <BitwiseNotExpression>this.createNode(this.token)
+      const not = <BitwiseNotExpression>this.createNode(this.token, SyntaxKind.bitwise_not_expr)
 
       this.moveNext()
 
-      not.kind = SyntaxKind.bitwise_not_expr
       not.expr = this.exprBase()
       return not
     }
 
     if (this.isLiteral()) {
-      const literal = <LiteralExpression>this.createNode(this.token)
-      literal.kind = SyntaxKind.literal_expr
+      const literal = <LiteralExpression>this.createNode(this.token, SyntaxKind.literal_expr)
       literal.value = this.token.value
       this.moveNext()
       return literal
     }
 
     if (this.match(SyntaxKind.openParen)) {
-      const expr = <ParenExpression>this.createNode(this.token)
-      expr.kind = SyntaxKind.paren_expr
+      const expr = <ParenExpression>this.createNode(this.token, SyntaxKind.paren_expr)
 
       this.moveNext()
       expr.expression = this.tryParseOrExpr()
@@ -590,9 +586,8 @@ export class Parser {
       const ident = this.parseIdentifier()
 
       if (this.match(SyntaxKind.openParen)) {
-        const expr = <FunctionCallExpression>this.createNode(start)
+        const expr = <FunctionCallExpression>this.createNode(start, SyntaxKind.function_call_expr)
         expr.arguments = []
-        expr.kind = SyntaxKind.function_call_expr
         expr.name = ident
 
         this.moveNext()
@@ -607,8 +602,7 @@ export class Parser {
         this.expect(SyntaxKind.closeParen)
         return expr
       } else {
-        const expr = <IdentifierExpression>this.createNode(start)
-        expr.kind = SyntaxKind.identifier_expr
+        const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
         expr.identifier = ident
         expr.end = this.token.end
         return expr
@@ -714,8 +708,7 @@ export class Parser {
   }
 
   private parseSelect() {
-    const node = <SelectStatement>this.createKeyword(this.token)
-    node.kind = SyntaxKind.select_statement
+    const node = <SelectStatement>this.createKeyword(this.token, SyntaxKind.select_statement)
 
     if (this.optional(SyntaxKind.top_keyword)) {
       node.top = this.expect(SyntaxKind.numeric_literal).value
@@ -741,9 +734,7 @@ export class Parser {
   }
 
   private parseFrom(): FromClause {
-    const from = <FromClause>this.createNode(this.token)
-    from.kind = SyntaxKind.from_clause
-
+    const from = <FromClause>this.createNode(this.token, SyntaxKind.from_clause)
     this.moveNext()
     return from
   }
