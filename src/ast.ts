@@ -148,6 +148,25 @@ export interface CollateNode extends KeywordNode {
   collation: Identifier
 }
 
+export type CreateTableElement =
+| ColumnDefinition
+| ComputedColumnDefinition
+// ... lots more here... constraints
+
+export interface ColumnDefinition extends SyntaxNode {
+  name: Identifier
+  type: DataType
+  not_keyword?: Token
+  null_keyword?: Token
+  default_keyword?: Token
+}
+
+export interface ComputedColumnDefinition extends SyntaxNode {
+  name: Identifier
+  as_keyword: Token
+  expression: Expr
+}
+
 export interface ColumnExpression extends Expr {
   kind: SyntaxKind.column_expr
   expression: Expr
@@ -367,19 +386,23 @@ export interface GoStatement extends KeywordNode {
 
 export type InsertStatement =
 | InsertSelectStatement
-// | InsertIntoStatement
+| InsertIntoStatement
 
 export interface ExecuteStatement extends KeywordNode {
+  procedure: Identifier
+  arguments: Expr[]
+}
 
+export interface InsertIntoStatement extends KeywordNode {
+  into_keyword: Token
+  values_keyword: Token
+  values: Expr[]
 }
 
 export interface InsertSelectStatement extends KeywordNode {
   insert_keyword: Token
-
 }
 
-// shiiiiit... this is gonna get messy
-// alter and create should be similar for most of these I think
 export type AlterStatement =
   | AlterTableStatement
   | AlterProcedureStatement
@@ -389,8 +412,11 @@ export type CreateStatement =
 | CreateTableStatement
 
 export interface CreateTableStatement extends KeywordNode {
+  table_keyword: Token
   object: Identifier
-  columns: ColumnExpression[]
+  body: CreateTableElement[]
+  // file group stuff
+  // as FileTable blah
 }
 
 // alter table, view

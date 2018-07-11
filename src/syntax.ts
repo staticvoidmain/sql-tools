@@ -232,9 +232,9 @@ export enum SyntaxKind {
   // </end keywords>
 
   identifier,
-  // expressions
   comment_block,
   comment_inline,
+  // expressions
   literal_expr,
   binary_expr,
   and_expr,
@@ -264,15 +264,10 @@ export enum SyntaxKind {
   begin_transaction_statement,
   commit_transaction_statement,
   rollback_transaction_statement,
-  // I think I'm mixing concerns here
-  // these might need to be parser directives
-  // temp_table,
-  // shared_temp_table,
-  // server_variable_reference,
-  // local_variable_reference,
   numeric_literal,
   string_literal,
   table_alias,
   column_alias,
+  computed_column_definition,
   // todo: all kinds of kinds
 }

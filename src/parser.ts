@@ -41,7 +41,11 @@ import {
   SetOptionStatement,
   InsertStatement,
   AlterStatement,
-  ExecuteStatement
+  ExecuteStatement,
+  CreateStatement,
+  CreateTableStatement,
+  ColumnDefinition,
+  ComputedColumnDefinition
 } from './ast'
 
 export interface ParserError {
@@ -91,7 +95,6 @@ export class Parser {
       }
 
       case SyntaxKind.create_keyword: {
-        // create what?
         return this.parseCreateStatement()
       }
 
@@ -101,7 +104,6 @@ export class Parser {
 
       case SyntaxKind.insert_keyword: {
         return this.parseInsertStatement()
-
       }
 
       case SyntaxKind.update_keyword: {
@@ -149,6 +151,31 @@ export class Parser {
       this.token = this.scanner!.scan()
     }
     return this.token
+  }
+
+  // todo: come up with a better name for what this is
+  private parseColumnDefinitionList() {
+    const cols = []
+    while (true) {
+      const name = this.parseIdentifier()
+
+      if (this.match(SyntaxKind.as_keyword)) {
+        const kind = SyntaxKind.computed_column_definition
+        const col = <ComputedColumnDefinition>this.createNode(this.token, kind)
+
+        col.name = name
+        col.as_keyword = this.token
+        this.moveNext()
+
+        col.expression = this.tryParseAddExpr()
+        cols.push(col)
+      } else {
+
+      }
+
+      if (!this.optional(SyntaxKind.comma_token)) break
+    }
+    return cols
   }
 
   private parseColumnList(): Array<ColumnNode> {
@@ -249,7 +276,7 @@ export class Parser {
 
     const local = this.expect(SyntaxKind.identifier)
 
-    if (isLocal(local)) {
+    if (!isLocal(local)) {
       this.error('expected local variable, saw ' + local.value)
     }
 
@@ -382,8 +409,6 @@ export class Parser {
 
     const set = this.token
     const node = this.createKeyword(set)
-    this.moveNext()
-
     const ident = this.expect(SyntaxKind.identifier)
 
     if (isLocal(ident)) {
@@ -644,21 +669,49 @@ export class Parser {
   }
 
   private parseExecuteStatement(): ExecuteStatement {
-
+    return <ExecuteStatement>this.createNode(this.token,
+      SyntaxKind.execute_statement)
   }
 
   private parseCreateStatement(): CreateStatement {
+    const start = this.token
+    const objectType = this.moveNext()
+
+    switch (objectType.kind) {
+      case SyntaxKind.table_keyword: {
+        const create = <CreateTableStatement>this.createKeyword(start)
+        create.table_keyword = objectType
+        this.expect(SyntaxKind.openParen)
+        // come up with a better name for this
+        create.body = this.parseColumnDefinitionList()
+        this.expect(SyntaxKind.closeParen)
+        break
+      }
+        //
+
+      case SyntaxKind.view_keyword: {
+        break
+      }
+
+      case SyntaxKind.proc_keyword:
+      case SyntaxKind.procedure_keyword:
+        break
+
+      case SyntaxKind.index_keyword:
+        break
+    }
+
+    throw 'asfd exception'
 
   }
 
   private parseAlterStatement(): AlterStatement {
-
+    return <AlterStatement>this.createNode(this.token)
   }
 
   private parseInsertStatement(): InsertStatement {
-
+    return <InsertStatement>this.createNode(this.token)
   }
-
 
   private parseSelect() {
     const node = <SelectStatement>this.createKeyword(this.token)
