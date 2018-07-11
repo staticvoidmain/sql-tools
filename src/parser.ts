@@ -681,7 +681,6 @@ export class Parser {
         this.expect(SyntaxKind.closeParen)
         break
       }
-        //
 
       case SyntaxKind.view_keyword: {
         break
@@ -695,8 +694,7 @@ export class Parser {
         break
     }
 
-    throw 'asfd exception'
-
+    throw Error('incomplete')
   }
 
   private parseAlterStatement(): AlterStatement {
