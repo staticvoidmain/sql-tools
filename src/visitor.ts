@@ -16,7 +16,11 @@ import {
   SetStatement,
   DeclareStatement,
   VariableDeclaration,
-  DataType
+  DataType,
+  FromClause,
+  DataSource,
+  NamedSource,
+  Identifier
 } from './ast'
 
 export class Visitor {
@@ -43,11 +47,17 @@ export class Visitor {
   // visitKeyword(keyword: KeywordNode): void { }
 }
 
+function formatIdentifier(id: Identifier) {
+  return id.parts.join('.')
+}
+
 const ops: any = {}
 ops[SyntaxKind.mul_token] = '*'
 ops[SyntaxKind.div_token] = '/'
 ops[SyntaxKind.plus_token] = '+'
 ops[SyntaxKind.minus_token] = '-'
+
+// todo: more assignment ops
 // this doesn't quite fit with the s-expr syntax,
 // but whatever for now.
 ops[SyntaxKind.plusEqualsAssignment] = '+='
@@ -61,7 +71,7 @@ export function printNode (expr: SyntaxNode) {
   switch (expr.kind) {
     // just noise
     case SyntaxKind.use_database_statement:
-    case SyntaxKind.goto_statement: {
+    case SyntaxKind.go_statement: {
       break
     }
 
@@ -93,9 +103,23 @@ export function printNode (expr: SyntaxNode) {
       break
     }
 
+    case SyntaxKind.from_clause: {
+      const from = <FromClause>expr
+      // todo: recursion and printNode
+      const sources = <NamedSource[]>from.sources
+
+      write('\n  (from ' + formatIdentifier(sources[0].name))
+      write(')')
+      break
+    }
+
+    case SyntaxKind.null_test_expr: {
+
+    }
+
     case SyntaxKind.identifier_expr: {
       const ident = <IdentifierExpression>expr
-      write(ident.identifier.parts.join('.'))
+      write(formatIdentifier(ident.identifier))
       break
     }
 

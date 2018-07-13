@@ -13,9 +13,11 @@ function isDigit(charCode: number): boolean {
 // stash some additional stuff inside the token
 // for later tools
 export enum TokenFlags {
-  UnicodeString = 1,
-  MoneyLiteral = 2,
-  SharedTempTable = 4
+  None = 0,
+  Keyword = 1,
+  UnicodeString = 2,
+  MoneyLiteral = 4,
+  SharedTempTable = 8
 }
 
 /**
@@ -27,7 +29,7 @@ export class Token {
   end: number
   kind: SyntaxKind
   value?: any
-  flags?: number
+  flags: TokenFlags
   // todo: remove debug props
   debug?: string
 
@@ -35,6 +37,7 @@ export class Token {
     this.kind = kind
     this.start = start
     this.end = end
+    this.flags = 0
   }
 }
 
@@ -876,7 +879,7 @@ export class Scanner {
           this.pos++
           val = this.scanString()
           kind = SyntaxKind.string_literal
-          flags |= TokenFlags.UnicodeString  // todo: unicode literal flag
+          flags |= TokenFlags.UnicodeString
 
           break
         }
@@ -885,19 +888,20 @@ export class Scanner {
 
       default: {
         val = this.scanIdentifier()
-        const keyword = keywordMap.get(val)
+        kind = SyntaxKind.identifier
 
-        kind = keyword
-          ? keyword
-          : SyntaxKind.identifier
+        const keyword = keywordMap.get(val)
+        if (keyword) {
+          kind = keyword
+          flags |= TokenFlags.Keyword
+        }
 
         break
       }
     }
 
-    // todo: ignore whitespace here, and just goto?
     const token = new Token(kind, start, this.pos++)
-    token.flags = undefined
+    token.flags = flags
     token.value = val
     // todo: remove me later
     token.debug = SyntaxKind[kind]

@@ -1,4 +1,4 @@
-import { Scanner, Token, EmptyToken } from './scanner'
+import { Scanner, Token, EmptyToken, TokenFlags } from './scanner'
 import { Chars } from './chars'
 import { SyntaxKind } from './syntax'
 
@@ -48,7 +48,9 @@ import {
   ComputedColumnDefinition,
   UnaryMinusExpression,
   UnaryPlusExpression,
-  NamedSource
+  NamedSource,
+  LogicalNotExpression,
+  IsNullTestExpression
 } from './ast'
 
 export interface ParserError {
@@ -170,7 +172,9 @@ export class Parser {
         col.expression = this.tryParseAddExpr()
         cols.push(col)
       } else {
-
+        // todo: other stuff that's legal inside a
+        // create table
+        // constraint foo on (blah) default (0)
       }
 
       if (!this.optional(SyntaxKind.comma_token)) break
@@ -224,7 +228,7 @@ export class Parser {
 
   private tryParseCollation(): CollateNode | undefined {
     if (this.match(SyntaxKind.collate_keyword)) {
-      const collate = <CollateNode>this.createKeyword(this.token)
+      const collate = <CollateNode>this.createKeyword(this.token, SyntaxKind.column_collation)
       collate.collation = this.parseIdentifier()
       return collate
     }
@@ -343,7 +347,7 @@ export class Parser {
     }
   }
 
-  private createKeyword(token: Token, kind?: SyntaxKind): KeywordNode {
+  private createKeyword(token: Token, kind: SyntaxKind): KeywordNode {
     const node = <KeywordNode>this.createNode(token, kind)
     node.keyword = token
 
@@ -407,7 +411,7 @@ export class Parser {
   private parseSetStatement(): SyntaxNode {
 
     const set = this.token
-    const node = this.createKeyword(set)
+    const node = this.createKeyword(set, SyntaxKind.set_statement)
     const ident = this.expect(SyntaxKind.identifier)
     let statement: SetStatement | SetOptionStatement
 
@@ -418,9 +422,10 @@ export class Parser {
       this.moveNext()
       statement.expression = <ValueExpression>this.tryParseAddExpr()
     } else {
-      // is it really an option?
       statement = <SetOptionStatement>node
+      statement.kind = SyntaxKind.set_option_statement
       statement.option = ident
+      // on | off
       statement.option_value = this.moveNext()
     }
 
@@ -441,8 +446,8 @@ export class Parser {
     7	ALL, ANY, BETWEEN, IN, LIKE, OR, SOME
     8	= (Assignment)
   */
-  // todo: how do I handle 'is null' and 'is not null'
-  // IS NOT? hmmm...
+
+  // todo: how do I handle 'is' and 'is not'
 
   private isLiteral() {
     const kind = this.token.kind
@@ -451,13 +456,7 @@ export class Parser {
       || kind === SyntaxKind.string_literal
   }
 
-  private isComparisonPrecedence() {
-    const kind = this.token.kind
-    return kind >= SyntaxKind.equal
-      && kind <= SyntaxKind.greaterThanEqual
-  }
-
-  // todo: kinds as integer ranges
+  // 7
   private isOrPrecedence() {
     // todo: more any,all,some,in
     const kind = this.token.kind
@@ -466,6 +465,18 @@ export class Parser {
       || kind === SyntaxKind.like_keyword
   }
 
+  // 6 this.token.kind === SyntaxKind.and_keyword
+  // 5 this.token.kind === SyntaxKind.not_keyword
+
+  // 4
+  private isComparisonPrecedence() {
+    const kind = this.token.kind
+    return (kind >= SyntaxKind.equal
+      && kind <= SyntaxKind.greaterThanEqual)
+      || kind === SyntaxKind.is_keyword
+  }
+
+  // 3
   private isAddPrecedence() {
     const kind = this.token.kind
     return kind === SyntaxKind.plus_token
@@ -475,6 +486,7 @@ export class Parser {
       || kind === SyntaxKind.bitwise_xor_token
   }
 
+  // 2
   private isMultiplyPrecedence() {
     const kind = this.token.kind
     return kind === SyntaxKind.mul_token
@@ -494,21 +506,47 @@ export class Parser {
   }
 
   private tryParseAndExpr(): Expr {
-    // todo
-    return this.tryParseNotExpr()
+    let expr = this.tryParseNotExpr()
+    while (this.match(SyntaxKind.and_keyword)) {
+      expr = this.makeBinaryExpr(expr, this.tryParseNotExpr)
+    }
+    return expr
   }
 
   private tryParseNotExpr(): Expr {
-    // todo
+    // todo: this needs more testing I think...
+    if (this.match(SyntaxKind.not_keyword)) {
+      const not = <LogicalNotExpression>this.createKeyword(this.token, SyntaxKind.logical_not_expr)
+      not.expr = this.tryParseComparisonExpr()
+      return not
+    }
+
     return this.tryParseComparisonExpr()
+  }
+
+
+  private makeNullTest(left: Expr) {
+    // feels weird... and it's probably wrong.
+    const is = <IsNullTestExpression>this.createNode(this.token, SyntaxKind.null_test_expr)
+    this.moveNext()
+    is.expr = left
+    is.not_null = this.optional(SyntaxKind.not_keyword)
+    this.expect(SyntaxKind.null_keyword)
+
+    return is
   }
 
   private tryParseComparisonExpr(): Expr {
     let expr = this.tryParseAddExpr()
 
     while (this.isComparisonPrecedence()) {
-      expr = this.makeBinaryExpr(expr, this.tryParseAddExpr)
+      if (this.match(SyntaxKind.is_keyword)) {
+        expr = this.makeNullTest(expr)
+      } else {
+        expr = this.makeBinaryExpr(expr, this.tryParseAddExpr)
+      }
     }
+
     return expr
   }
 
@@ -534,7 +572,12 @@ export class Parser {
   }
 
   private parseIdentifier(): Identifier {
-    const ident = <Identifier>this.createNode(this.token)
+    // todo: if it's a keyword... we can just bail out. ya?
+    const kind = this.token.flags & TokenFlags.Keyword
+      ? this.token.kind
+      : SyntaxKind.identifier
+
+    const ident = <Identifier>this.createNode(this.token, kind)
     ident.parts = [
       this.token.value
     ]
@@ -692,10 +735,9 @@ export class Parser {
 
     switch (objectType.kind) {
       case SyntaxKind.table_keyword: {
-        const create = <CreateTableStatement>this.createKeyword(start)
+        const create = <CreateTableStatement>this.createKeyword(start, SyntaxKind.create_table_statement)
         create.table_keyword = objectType
         this.expect(SyntaxKind.openParen)
-        // come up with a better name for this
         create.body = this.parseColumnDefinitionList()
         this.expect(SyntaxKind.closeParen)
         break
@@ -745,8 +787,7 @@ export class Parser {
       node.from = this.parseFrom()
     }
 
-    // where can actually be included without a from
-    // so strange
+    // odd: where can actually be included without a from
     if (this.match(SyntaxKind.where_keyword)) {
       node.where = this.parseWhere()
     }
@@ -754,7 +795,8 @@ export class Parser {
     // node.group_by = this.parseOptional(SyntaxKind.group_by)
     // node.order_by = this.parseOptional(SyntaxKind.order_by)
     // node.having = this.parseOptional(SyntaxKind.having_clause)
-    // todo: full-text index support (node.contains freetext etc.)
+    // todo: full-text index support????
+    // (node.contains freetext etc.)
 
     return node
   }
@@ -763,12 +805,14 @@ export class Parser {
     const from = <FromClause>this.createNode(this.token, SyntaxKind.from_clause)
     this.moveNext()
 
-    // super lazy for now. identifier OR function
+    // super lazy for now.
+    // todo: multiple sources, identifiers, functions etc
     if (this.match(SyntaxKind.identifier)) {
       const named = <NamedSource>this.createNode(this.token)
       named.name = this.parseIdentifier()
-      from.sources = [ named ]
+      from.sources = [named]
     }
+    this.moveNext()
 
     return from
   }
@@ -780,7 +824,7 @@ export class Parser {
   }
 
   /**
-   * Parse a given sql string into a tree.
+   * Parse a given sql string into an array of top level statements and their child expressions.
    *
    * @param script the script to parse.
    * @returns a list of statements within the script.

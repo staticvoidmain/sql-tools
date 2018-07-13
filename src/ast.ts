@@ -125,9 +125,19 @@ export interface BinaryExpression extends Expr {
   right: Expr
 }
 
+export interface IsNullTestExpression extends Expr {
+  expr: Expr
+  not_null: boolean
+}
+
 export interface BitwiseNotExpression extends Expr {
   expr: Expr
 }
+
+export interface LogicalNotExpression extends KeywordNode {
+  expr: Expr
+}
+
 
 export interface UnaryPlusExpression extends Expr {
   expr: Expr
@@ -247,6 +257,7 @@ export interface DerivedTable extends KeywordNode {
   expressions: RowValueExpression[]
 }
 
+// todo: more sources and all that jazz
 export type DataSource =
   | NamedSource
   | FunctionCallExpression

@@ -257,7 +257,7 @@ describe('Scanner', function () {
 
   it('scans insane identifiers', function () {
     // this is ACTUALLY a temp table...named #"sometable"
-    const scanner = new Scanner('  "#""sometable"""    ')
+    const scanner = new Scanner('"#""sometable"""    ')
     const token = scanner.scan()
 
     expect(token.kind).to.equal(SyntaxKind.identifier)
