@@ -9,7 +9,7 @@ import {
   FromClause,
   WhereClause,
   CaseExpression,
-  VariableDeclarationStatement,
+  DeclareStatement,
   VariableDeclaration,
   GoStatement,
   SetStatement,
@@ -45,7 +45,10 @@ import {
   CreateStatement,
   CreateTableStatement,
   ColumnDefinition,
-  ComputedColumnDefinition
+  ComputedColumnDefinition,
+  UnaryMinusExpression,
+  UnaryPlusExpression,
+  NamedSource
 } from './ast'
 
 export interface ParserError {
@@ -131,10 +134,7 @@ export class Parser {
   }
 
   private error(err: string) {
-    throw {
-      message: err,
-      line: this.scanner!.lineOf(this.token)
-    }
+    throw new Error(`${this.settings.path} (${this.scanner!.offsetOf(this.token)}) ${err}`)
   }
 
   private isTrivia() {
@@ -181,7 +181,6 @@ export class Parser {
   private parseColumnList(): Array<ColumnNode> {
     const columns: Array<ColumnNode> = []
     while (true) {
-      // todo: This really needs to be simplified, tryParseIdentifierOrExpression
       const start = this.token
       const expr = this.tryParseAddExpr()
 
@@ -197,7 +196,7 @@ export class Parser {
 
           columns.push(col)
         } else {
-          // just push the identifier
+          // just push the identifier standalone
           columns.push(identifier)
         }
       } else {
@@ -233,7 +232,7 @@ export class Parser {
 
   private parseType(): DataType {
     const ident = this.expect(SyntaxKind.identifier)
-    const type = <DataType>this.createNode(this.token)
+    const type = <DataType>this.createNode(this.token, SyntaxKind.data_type)
 
     // todo: lookup and canonicalize type?
     // not sure why that would be necessary right now
@@ -269,9 +268,7 @@ export class Parser {
   }
 
   private parseVariableDeclarationList() {
-    const statement = <VariableDeclarationStatement>this.createKeyword(this.token)
-    statement.declarations = []
-
+    const statement = <DeclareStatement>this.createKeyword(this.token, SyntaxKind.declare_statement)
     const local = this.expect(SyntaxKind.identifier)
 
     if (!isLocal(local)) {
@@ -289,37 +286,40 @@ export class Parser {
     }
 
     if (this.token.kind === SyntaxKind.table_keyword) {
-      const table = <TableDeclaration>this.createKeyword(this.token)
+      const table = <TableDeclaration>this.createKeyword(this.token, SyntaxKind.table_variable_decl)
       // todo:
       // decl.expression = this.parseTableVariableDecl()
-      // DONE
-      statement.declarations = table
+      statement.table = table
 
     }
     else {
+      decl.kind = SyntaxKind.scalar_variable_decl
       decl.type = this.parseType()
 
       if (this.optional(SyntaxKind.equal)) {
         decl.expression = <ValueExpression>this.tryParseAddExpr()
       }
 
-      statement.declarations.push(decl)
+      statement.variables = [decl]
 
       while (this.optional(SyntaxKind.comma_token)) {
-        const next = <VariableDeclaration>{
-          name: this.expect(SyntaxKind.identifier).value,
-          type: this.parseType()
-        }
+
+        const next = <VariableDeclaration>this.createNode(this.token, SyntaxKind.scalar_variable_decl)
+
+        next.name = this.expect(SyntaxKind.identifier).value
+        next.type = this.parseType()
 
         if (this.optional(SyntaxKind.equal)) {
           next.expression = <ValueExpression>this.tryParseAddExpr()
         }
 
-        statement.declarations.push(next)
+        statement.variables.push(next)
         this.moveNext()
       }
     }
 
+    // todo: append this as trailing trivia
+    this.optional(SyntaxKind.semicolon_token)
     return statement
   }
 
@@ -394,7 +394,7 @@ export class Parser {
   }
 
   private parseGo(): SyntaxNode {
-    const statement = <GoStatement>this.createKeyword(this.token)
+    const statement = <GoStatement>this.createKeyword(this.token, SyntaxKind.go_statement)
 
     if (this.match(SyntaxKind.numeric_literal)) {
       statement.count = this.token.value
@@ -409,23 +409,24 @@ export class Parser {
     const set = this.token
     const node = this.createKeyword(set)
     const ident = this.expect(SyntaxKind.identifier)
+    let statement: SetStatement | SetOptionStatement
 
     if (isLocal(ident)) {
-      const statement = <SetStatement>node
+      statement = <SetStatement>node
       statement.name = ident.value
       statement.op = this.parseAssignmentOperation()
       this.moveNext()
       statement.expression = <ValueExpression>this.tryParseAddExpr()
-
-      return statement
     } else {
       // is it really an option?
-      const statement = <SetOptionStatement>node
+      statement = <SetOptionStatement>node
       statement.option = ident
       statement.option_value = this.moveNext()
-
-      return statement
     }
+
+    this.optional(SyntaxKind.semicolon_token)
+
+    return statement
   }
 
   // operator precedence, weird, mul is higher precedence than unary minus?
@@ -551,16 +552,35 @@ export class Parser {
     return ident
   }
 
-  //  precedence sort of bottoms out here.
-  private exprBase(): Expr {
-    // todo: other unary like +/-?
+  private tryParseUnaryExpr() {
+    if (this.token.kind === SyntaxKind.minus_token) {
+      const neg = <UnaryMinusExpression>this.createNode(this.token, SyntaxKind.unary_minus_expr)
+      this.moveNext()
+      neg.expr = this.exprBase()
+      return neg
+    }
+
+    if (this.token.kind === SyntaxKind.plus_token) {
+      const pos = <UnaryPlusExpression>this.createNode(this.token, SyntaxKind.unary_plus_expr)
+      this.moveNext()
+      pos.expr = this.exprBase()
+      return pos
+    }
+
     if (this.token.kind === SyntaxKind.bitwise_not_token) {
       const not = <BitwiseNotExpression>this.createNode(this.token, SyntaxKind.bitwise_not_expr)
-
       this.moveNext()
-
       not.expr = this.exprBase()
       return not
+    }
+  }
+
+  //  precedence sort of bottoms out here.
+  private exprBase(): Expr {
+    const unary = this.tryParseUnaryExpr()
+
+    if (unary) {
+      return unary
     }
 
     if (this.isLiteral()) {
@@ -581,7 +601,6 @@ export class Parser {
     }
 
     if (this.match(SyntaxKind.identifier)) {
-      // todo: extract this to identifierOrExpression
       const start = this.token
       const ident = this.parseIdentifier()
 
@@ -653,7 +672,7 @@ export class Parser {
   }
 
   private parseUseDatabase() {
-    const statement = <UseDatabaseStatement>this.createKeyword(this.token)
+    const statement = <UseDatabaseStatement>this.createKeyword(this.token, SyntaxKind.use_database_statement)
     const name = this.expect(SyntaxKind.identifier)
     statement.name = name.value
 
@@ -721,8 +740,17 @@ export class Parser {
 
     node.columns = this.parseColumnList()
     // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_clause, this.parseInto)
-    node.from = <FromClause>this.parseOptional(SyntaxKind.from_clause, this.parseFrom)
-    // node.where = <WhereClause>this.parseOptional(SyntaxKind.where_clause, this.parseWhere)
+
+    if (this.match(SyntaxKind.from_keyword)) {
+      node.from = this.parseFrom()
+    }
+
+    // where can actually be included without a from
+    // so strange
+    if (this.match(SyntaxKind.where_keyword)) {
+      node.where = this.parseWhere()
+    }
+
     // node.group_by = this.parseOptional(SyntaxKind.group_by)
     // node.order_by = this.parseOptional(SyntaxKind.order_by)
     // node.having = this.parseOptional(SyntaxKind.having_clause)
@@ -734,16 +762,21 @@ export class Parser {
   private parseFrom(): FromClause {
     const from = <FromClause>this.createNode(this.token, SyntaxKind.from_clause)
     this.moveNext()
+
+    // super lazy for now. identifier OR function
+    if (this.match(SyntaxKind.identifier)) {
+      const named = <NamedSource>this.createNode(this.token)
+      named.name = this.parseIdentifier()
+      from.sources = [ named ]
+    }
+
     return from
   }
 
-  private parseWhere(): WhereClause {
-    // todo: createKeyword
-    return <WhereClause>{
-      keyword: this.token,
-      kind: SyntaxKind.where_clause,
-      predicate: this.tryParseOrExpr()
-    }
+  private parseWhere() {
+    const where = <WhereClause>this.createKeyword(this.token, SyntaxKind.where_clause)
+    where.predicate = this.tryParseOrExpr()
+    return where
   }
 
   /**

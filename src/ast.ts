@@ -129,6 +129,14 @@ export interface BitwiseNotExpression extends Expr {
   expr: Expr
 }
 
+export interface UnaryPlusExpression extends Expr {
+  expr: Expr
+}
+
+export interface UnaryMinusExpression extends Expr {
+  expr: Expr
+}
+
 export type ValueExpression =
   | FunctionCallExpression
   | ConstantExpression
@@ -221,10 +229,9 @@ export interface Source extends SyntaxNode {
   with?: string[] // todo: specialized type for table hints
 }
 
-// todo: TableLikeObject?
 export interface NamedSource extends SyntaxNode {
   // table/view/variable/temp_table
-  name: string
+  name: Identifier
 }
 
 export type RowValueExpression =
@@ -274,8 +281,10 @@ export interface StatementBlock {
   statements: Statement[]
 }
 
-export interface VariableDeclarationStatement extends KeywordNode {
-  declarations: TableDeclaration | VariableDeclaration[]
+// can have a table, or variables, but not both
+export interface DeclareStatement extends KeywordNode {
+  table?: TableDeclaration
+  variables?: VariableDeclaration[]
 }
 
 export interface TableDeclaration extends SyntaxNode {

@@ -1,27 +1,23 @@
 import { } from 'mocha'
 import { expect } from 'chai'
 
+import { readFileSync } from 'fs'
+
 import { Parser } from '../src/parser'
 import { SyntaxKind } from '../src/syntax'
 import {
   BinaryExpression,
   SetStatement,
-  VariableDeclarationStatement,
+  DeclareStatement,
   VariableDeclaration,
   SelectStatement,
   ColumnExpression,
-  Expr,
-  ValueExpression,
-  BitwiseNotExpression,
-  IdentifierExpression,
-  LiteralExpression,
-  ParenExpression,
-  FunctionCallExpression,
-  Identifier,
-  SyntaxNode
+  Identifier
 } from '../src/ast'
 
-describe('a statement parser', () => {
+import { printNode } from '../src/visitor'
+
+describe('Parser', () => {
 
   it('returns an array of statements', () => {
     const parser = new Parser()
@@ -52,8 +48,8 @@ describe('a statement parser', () => {
 
     expect(list.length).to.equal(1)
 
-    const statement = <VariableDeclarationStatement>list[0]
-    const decls = <VariableDeclaration[]>statement.declarations
+    const statement = <DeclareStatement>list[0]
+    const decls = <VariableDeclaration[]>statement.variables
 
     expect(decls.length).to.equal(1)
 
@@ -68,8 +64,8 @@ describe('a statement parser', () => {
     const parser = new Parser()
     const list = parser.parse('declare @x int=0,\n     @y varchar(max)')
 
-    const statement = <VariableDeclarationStatement>list[0]
-    const decls = <VariableDeclaration[]>statement.declarations
+    const statement = <DeclareStatement>list[0]
+    const decls = <VariableDeclaration[]>statement.variables
 
     expect(decls.length).to.equal(2)
 
@@ -98,111 +94,14 @@ describe('a statement parser', () => {
     expect(expr.right.kind).to.equal(SyntaxKind.literal_expr)
   })
 
-  const ops: any = {}
-  ops[SyntaxKind.mul_token] = '*'
-  ops[SyntaxKind.div_token] = '/'
-  ops[SyntaxKind.plus_token] = '+'
-  ops[SyntaxKind.minus_token] = '-'
-
-  // todo: make this a visitor
-  const printExpr = (expr: SyntaxNode) => {
-    const write = (str: string) => {
-      process.stdout.write(str)
-    }
-
-    switch (expr.kind) {
-      case SyntaxKind.column_expr: {
-        const col = <ColumnExpression>expr
-        if (col.alias) {
-          write(col.alias.parts.join('.') + ' ')
-        } else {
-          write('\'a ')
-        }
-
-        printExpr(col.expression)
-        break
-      }
-
-      case SyntaxKind.select_statement: {
-        const select = <SelectStatement>expr
-        write('(select')
-
-        write('\n  (cols')
-        select.columns.forEach(c => {
-          write('\n    ')
-          printExpr(c)
-        })
-        write('\n  )')
-
-        write('\n)')
-        break
-      }
-
-      case SyntaxKind.identifier_expr: {
-        const ident = <IdentifierExpression>expr
-        write(ident.identifier.parts.join('.'))
-        break
-      }
-
-      case SyntaxKind.literal_expr: {
-        const literal = <LiteralExpression>expr
-        write('' + literal.value)
-        break
-      }
-
-      case SyntaxKind.binary_expr: {
-        // thought: expressions in a divisor slot which are non-literal
-        // could cause divide by zero, that might be cool to test for
-        const binary = <BinaryExpression>expr
-        write('(' + ops[binary.op.kind] + ' ')
-        printExpr(binary.left)
-        process.stdout.write(' ')
-        printExpr(binary.right)
-        write(')')
-        break
-      }
-
-      case SyntaxKind.bitwise_not_expr: {
-        const unary = <BitwiseNotExpression>expr
-        write('(~ ')
-        printExpr(unary.expr)
-        write(')')
-        break
-      }
-
-      case SyntaxKind.paren_expr: {
-        // thought: useless paren exprs could be a linting rule
-        const paren = <ParenExpression>expr
-        printExpr(paren.expression)
-        break
-      }
-
-      case SyntaxKind.function_call_expr: {
-        const call = <FunctionCallExpression>expr
-        write('(call ' + call.name.parts.join('.'))
-        call.arguments.forEach(e => {
-          write(' ')
-          printExpr(e)
-        })
-        write(')')
-        break
-      }
-
-      default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
-    }
-  }
-
-  it('debug: parses operator precedence', () => {
-    // todo: doesn't support unary +/- properly yet.
-    // todo: function call expressions are broken
-    // todo: some.col wouldn't work either
+  it('debug: parse script', () => {
     const parser = new Parser()
-    const tree = parser.parse('select expr = some_func(1) + ~(2 * 3) / [some].col - 5, 1 + 1 as two')
+    const tree = parser.parse(readFileSync('./test/mssql/quoted_identifier.sql', 'utf8'))
 
-    process.stdout.write('-- full JSON --\n')
-    process.stdout.write(JSON.stringify(tree, undefined, ' '))
-    process.stdout.write('\n-- pretty --\n')
-    printExpr(tree[0])
+    // process.stdout.write('-- full JSON --\n')
+    // process.stdout.write(JSON.stringify(tree, undefined, ' '))
+    // process.stdout.write('\n-- pretty --\n')
+    tree.forEach(printNode)
     process.stdout.write('\n')
   })
 })

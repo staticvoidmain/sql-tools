@@ -218,8 +218,6 @@ describe('Scanner', function () {
   })
 
   it('scans simple identifiers', function () {
-    // The at sign, dollar sign ($), number sign, or underscore.
-    // nothing wrong here...
     const ident = 'foo _bar1 @baz #tbl'
     const scanner = new Scanner(ident)
     const tokens = scanAll(scanner)
@@ -259,17 +257,20 @@ describe('Scanner', function () {
 
   it('scans insane identifiers', function () {
     // this is ACTUALLY a temp table...named #"sometable"
-    const scanner = new Scanner('"#""sometable"""')
+    const scanner = new Scanner('  "#""sometable"""    ')
     const token = scanner.scan()
 
-    // and the name should actually be...
     expect(token.kind).to.equal(SyntaxKind.identifier)
-    // todo: this is passing, but it shouldn't be.
+
+    // not sure how i like the handling of quoted identifiers...
+    expect(token.value).to.equal('"#""sometable"""')
   })
 
+  xit('todo: should stop after the last unescaped double-quote')
+
   xit ('debug: show token stream', function() {
-    const sink = readFileSync('./test/mssql/kitchen_sink.sql', 'utf8')
-    const scanner = new Scanner(sink)
+    const file = readFileSync('./test/mssql/kitchen_sink.sql', 'utf8')
+    const scanner = new Scanner(file)
     const tokens = scanAll(scanner, true)
 
     console.log(tokens.map(tokenToString).join('\r\n'))

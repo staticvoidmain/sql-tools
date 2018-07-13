@@ -10,6 +10,14 @@ function isDigit(charCode: number): boolean {
   return Chars.num_0 <= charCode && charCode <= Chars.num_9
 }
 
+// stash some additional stuff inside the token
+// for later tools
+export enum TokenFlags {
+  UnicodeString = 1,
+  MoneyLiteral = 2,
+  SharedTempTable = 4
+}
+
 /**
  * Basic token state so I don't have to read everything off the parser.
  * though, realistically, that's probably going to happen.
@@ -20,7 +28,7 @@ export class Token {
   kind: SyntaxKind
   value?: any
   flags?: number
-  // todo: remove me
+  // todo: remove debug props
   debug?: string
 
   constructor(kind: SyntaxKind, start: number, end: number) {
@@ -127,7 +135,7 @@ class KeywordLookup {
   }
 }
 
-// todo: data types don't seem to be in this list...
+// primitive data types don't seem to be in this list
 // do we want to do something else with them?
 // maybe in the parser??
 const keywordMap = new KeywordLookup([
@@ -319,11 +327,16 @@ const keywordMap = new KeywordLookup([
   ['writetext', SyntaxKind.writetext_keyword],
 ])
 
+// todo: maybe also the char position
+export type ErrorCallback = (line: number, msg: string) => void
+
 export interface ScannerOptions {
   /**
    * @NotImplemented
    */
   skipTrivia?: boolean
+
+  error?: ErrorCallback
 }
 
 export function binarySearch(array: Array<number>, key: number) {
@@ -348,6 +361,7 @@ export function binarySearch(array: Array<number>, key: number) {
 }
 
 export class Scanner {
+
   private readonly text: string
   private readonly lines: number[]
   private readonly options: any
@@ -360,7 +374,6 @@ export class Scanner {
     this.lines = []
   }
 
-  // todo: broke this at some point.
   private lazyComputeLineNumbers() {
     if (this.lines.length) return
 
@@ -385,12 +398,21 @@ export class Scanner {
     return ~line - 1
   }
 
+  private error(msg: string) {
+    const err = this.options.error
+
+    if (err) {
+      err(this.getLine(this.pos), msg)
+    }
+  }
+
   // advance until we find the first unescaped single quote.
   private scanString(): string {
     const start = ++this.pos
     let ch = this.text.charCodeAt(this.pos)
     // todo: if we hit a newline preceded by a \
-    // then set a flag or something.
+    // then set a flag or something and don't include the
+    // newline token in the string...
     while (true) {
       if (ch === Chars.singleQuote) {
         if (this.peek() !== Chars.singleQuote) {
@@ -407,9 +429,10 @@ export class Scanner {
   }
 
   private scanIdentifier() {
-    // why is this leaving the scanner in a strange state
-    // of skipping over dots...
     let ch = this.text.charCodeAt(this.pos)
+
+    // this is kinda wrong... square braces can't escape other square braces
+    // "s and [] are balanced and end when the last unescaped closing token are encountered.
     let insideQuoteContext = ch === Chars.doubleQuote
     let insideBraceContext = ch === Chars.openBrace
 
@@ -507,7 +530,7 @@ export class Scanner {
   private scanNumber(): Number {
     const start = this.pos
     while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
-
+    // todo: scan exponent notation
     if (this.text.charCodeAt(this.pos) === Chars.period) {
       this.pos++
 
@@ -518,9 +541,7 @@ export class Scanner {
       }
 
       if (!flag) {
-        // todo: assert that there is at least one digit
-        // after the period...
-        // js might correctly parse it...
+        this.error('invalid number specified')
       }
     }
 
@@ -544,6 +565,13 @@ export class Scanner {
    */
   lineOf(token: Token) {
     return this.getLine(token.start)
+  }
+
+  offsetOf(token: Token) {
+    const line = this.getLine(token.start)
+    const lineStart = this.lines[line]
+
+    return '' + line + ',' + (token.start - lineStart)
   }
 
   /**
@@ -783,9 +811,8 @@ export class Scanner {
 
       case Chars.dollar: {
         this.pos++
-        // todo: flag for money literal.
-        flags |= 2
-        // fallthrough
+        flags |= TokenFlags.MoneyLiteral
+        // fallthrough intended
       }
 
       case Chars.num_0:
@@ -831,6 +858,7 @@ export class Scanner {
 
         if (this.peek() === Chars.hash) {
           // mssql shared temp table
+          flags |= TokenFlags.SharedTempTable
           this.pos++
         }
 
@@ -848,7 +876,7 @@ export class Scanner {
           this.pos++
           val = this.scanString()
           kind = SyntaxKind.string_literal
-          flags |= 1  // todo: unicode literal flag
+          flags |= TokenFlags.UnicodeString  // todo: unicode literal flag
 
           break
         }
