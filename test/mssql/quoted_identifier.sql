@@ -5,4 +5,4 @@ select [foo],
        [bar],
        [bazz]
 from [Fizz].Buzz
-where Fizz.Buzz is null
+where Buzz."bar" is not null and foo >= 1 or 1 = 1

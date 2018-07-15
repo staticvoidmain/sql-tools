@@ -97,7 +97,8 @@ export interface CollateNode extends KeywordNode {
 export type CreateTableElement =
 | ColumnDefinition
 | ComputedColumnDefinition
-// ... lots more here... constraints
+| ConstraintDefinition
+// todo: ... lots more here
 
 export interface ColumnDefinition extends SyntaxNode {
   name: Identifier
@@ -111,6 +112,13 @@ export interface ComputedColumnDefinition extends SyntaxNode {
   name: Identifier
   as_keyword: Token
   expression: Expr
+}
+
+// todo: I forget the syntax here.
+export interface ConstraintDefinition extends SyntaxNode {
+  name: Identifier
+  unique?: boolean
+  default?: Expr
 }
 
 export interface ColumnExpression extends Expr {
@@ -242,6 +250,8 @@ export interface Source extends SyntaxNode {
 export interface NamedSource extends SyntaxNode {
   // table/view/variable/temp_table
   name: Identifier
+  as_keyword: Token
+  alias: Identifier
 }
 
 export type RowValueExpression =
@@ -298,8 +308,11 @@ export interface DeclareStatement extends KeywordNode {
   variables?: VariableDeclaration[]
 }
 
-export interface TableDeclaration extends SyntaxNode {
+export interface TableDeclaration extends KeywordNode {
   // todo:
+  table_keyword: Token
+  name: string
+  body: CreateTableElement[]
 }
 
 export interface VariableDeclaration extends SyntaxNode {

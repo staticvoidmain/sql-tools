@@ -112,14 +112,17 @@ export class Parser {
       }
 
       case SyntaxKind.update_keyword: {
+        this.error('not implemented')
         break
       }
 
       case SyntaxKind.drop_keyword: {
+        this.error('not implemented')
         break
       }
 
       case SyntaxKind.delete_keyword: {
+        this.error('not implemented')
         break
       }
 
@@ -158,12 +161,16 @@ export class Parser {
   // todo: come up with a better name for what this is
   private parseColumnDefinitionList() {
     const cols = []
-    while (true) {
+
+    do {
+      // todo: other stuff that's legal inside acreate table
+      // constraint foo on (blah) default (0)
+      const start = this.token
       const name = this.parseIdentifier()
 
       if (this.match(SyntaxKind.as_keyword)) {
         const kind = SyntaxKind.computed_column_definition
-        const col = <ComputedColumnDefinition>this.createNode(this.token, kind)
+        const col = <ComputedColumnDefinition>this.createNode(start, kind)
 
         col.name = name
         col.as_keyword = this.token
@@ -172,19 +179,20 @@ export class Parser {
         col.expression = this.tryParseAddExpr()
         cols.push(col)
       } else {
-        // todo: other stuff that's legal inside a
-        // create table
-        // constraint foo on (blah) default (0)
-      }
+        const col = <ColumnDefinition>this.createNode(start)
+        col.name = name
+        col.type = this.parseType()
+        cols.push(col)
 
-      if (!this.optional(SyntaxKind.comma_token)) break
-    }
+      }
+    } while (this.optional(SyntaxKind.comma_token))
+
     return cols
   }
 
   private parseColumnList(): Array<ColumnNode> {
     const columns: Array<ColumnNode> = []
-    while (true) {
+    do {
       const start = this.token
       const expr = this.tryParseAddExpr()
 
@@ -221,8 +229,8 @@ export class Parser {
         columns.push(col)
       }
 
-      if (!this.optional(SyntaxKind.comma_token)) break
-    }
+    } while (this.optional(SyntaxKind.comma_token))
+
     return columns
   }
 
@@ -291,10 +299,9 @@ export class Parser {
 
     if (this.token.kind === SyntaxKind.table_keyword) {
       const table = <TableDeclaration>this.createKeyword(this.token, SyntaxKind.table_variable_decl)
-      // todo:
-      // decl.expression = this.parseTableVariableDecl()
+      table.name = local.value
+      table.body = this.parseColumnDefinitionList()
       statement.table = table
-
     }
     else {
       decl.kind = SyntaxKind.scalar_variable_decl
@@ -524,7 +531,6 @@ export class Parser {
     return this.tryParseComparisonExpr()
   }
 
-
   private makeNullTest(left: Expr) {
     // feels weird... and it's probably wrong.
     const is = <IsNullTestExpression>this.createNode(this.token, SyntaxKind.null_test_expr)
@@ -744,14 +750,17 @@ export class Parser {
       }
 
       case SyntaxKind.view_keyword: {
+        this.error('"Create View" not implemented')
         break
       }
 
       case SyntaxKind.proc_keyword:
       case SyntaxKind.procedure_keyword:
+        this.error('"create proc" not implemented')
         break
 
       case SyntaxKind.index_keyword:
+        this.error('"create index" not implemented')
         break
     }
 
@@ -759,10 +768,12 @@ export class Parser {
   }
 
   private parseAlterStatement(): AlterStatement {
+    this.error('"Alter" not implemented')
     return <AlterStatement>this.createNode(this.token)
   }
 
   private parseInsertStatement(): InsertStatement {
+    this.error('"Insert" not implemented')
     return <InsertStatement>this.createNode(this.token)
   }
 
@@ -781,7 +792,11 @@ export class Parser {
     }
 
     node.columns = this.parseColumnList()
-    // node.into = <IntoClause>this.parseOptional(SyntaxKind.into_clause, this.parseInto)
+
+    if (this.match(SyntaxKind.into_keyword)) {
+      this.error('"into" not implemented')
+      node.into = undefined
+    }
 
     if (this.match(SyntaxKind.from_keyword)) {
       node.from = this.parseFrom()
@@ -808,11 +823,16 @@ export class Parser {
     // super lazy for now.
     // todo: multiple sources, identifiers, functions etc
     if (this.match(SyntaxKind.identifier)) {
-      const named = <NamedSource>this.createNode(this.token)
+      const named = <NamedSource>this.createNode(this.token, SyntaxKind.identifier)
       named.name = this.parseIdentifier()
+
+      if (this.match(SyntaxKind.as_keyword)) {
+        named.as_keyword = this.expect(SyntaxKind.as_keyword)
+        named.alias = this.parseIdentifier()
+      }
+
       from.sources = [named]
     }
-    this.moveNext()
 
     return from
   }

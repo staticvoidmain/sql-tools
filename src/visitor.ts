@@ -20,7 +20,10 @@ import {
   FromClause,
   DataSource,
   NamedSource,
-  Identifier
+  Identifier,
+  WhereClause,
+  IsNullTestExpression,
+  TableDeclaration
 } from './ast'
 
 export class Visitor {
@@ -29,7 +32,7 @@ export class Visitor {
       case SyntaxKind.select_statement:
         const select = <SelectStatement>node
         this.visitKeyword(select.keyword)
-        // this.visit(
+      // this.visit(
 
       default:
         throw 'Not implemented'
@@ -51,80 +54,147 @@ function formatIdentifier(id: Identifier) {
   return id.parts.join('.')
 }
 
+// add all the binary ops
 const ops: any = {}
 ops[SyntaxKind.mul_token] = '*'
 ops[SyntaxKind.div_token] = '/'
 ops[SyntaxKind.plus_token] = '+'
 ops[SyntaxKind.minus_token] = '-'
+ops[SyntaxKind.and_keyword] = 'and'
+ops[SyntaxKind.or_keyword] = 'or'
+ops[SyntaxKind.in_keyword] = 'in'
+
+ops[SyntaxKind.notEqual] = 'neq'
+ops[SyntaxKind.equal] = 'eq'
+ops[SyntaxKind.greaterThan] = 'gt'
+ops[SyntaxKind.lessThan] = 'lt'
+ops[SyntaxKind.greaterThanEqual] = 'gte'
+ops[SyntaxKind.lessThanEqual] = 'lte'
+
 
 // todo: more assignment ops
 // this doesn't quite fit with the s-expr syntax,
 // but whatever for now.
-ops[SyntaxKind.plusEqualsAssignment] = '+='
-ops[SyntaxKind.minusEqualsAssignment] = '-='
+ops[SyntaxKind.plusEqualsAssignment] = 'plus-equals'
+ops[SyntaxKind.minusEqualsAssignment] = 'minus-equals'
+ops[SyntaxKind.divEqualsAssignment] = 'div-equals'
+ops[SyntaxKind.mulEqualsAssignment] = 'mul-equals'
+ops[SyntaxKind.modEqualsAssignment] = 'mod-equals'
+ops[SyntaxKind.bitwiseXorAssignment] = 'xor-equals'
+ops[SyntaxKind.bitwiseOrAssignment] = 'or-equals'
+ops[SyntaxKind.bitwiseAndAssignment] = 'and-equals'
 
-export function printNode (expr: SyntaxNode) {
-  const write = (str: string) => {
+function spaces(n: number) {
+  let s = ''
+  while (n-- > 0)
+    s += ' '
+  return s
+}
+
+function isInline(kind: SyntaxKind) {
+  return kind === SyntaxKind.identifier_expr || kind === SyntaxKind.literal_expr
+}
+
+export function printNode(node: SyntaxNode, level = 0) {
+
+  const write = (str: string, newline?: boolean) => {
+    if (newline) {
+      const indent = spaces(level)
+      process.stdout.write('\n' + indent)
+    }
+
     process.stdout.write(str)
   }
 
-  switch (expr.kind) {
-    // just noise
+  switch (node.kind) {
+    // mostly noise, skip for now
+    case SyntaxKind.set_option_statement:
     case SyntaxKind.use_database_statement:
     case SyntaxKind.go_statement: {
       break
     }
 
     case SyntaxKind.column_expr: {
-      const col = <ColumnExpression>expr
+      const col = <ColumnExpression>node
       if (col.alias) {
         write(col.alias.parts.join('.') + ' ')
       } else {
         write('a ')
       }
-
-      printNode(col.expression)
+      level++
+      printNode(col.expression, level)
+      level--
       break
     }
 
     case SyntaxKind.select_statement: {
-      const select = <SelectStatement>expr
-      write('(select')
+      const select = <SelectStatement>node
+      write('(select', true)
+      level++
 
-      write('\n  (cols')
+      write('(cols', true)
+      level++
       select.columns.forEach(c => {
-        write('\n    (col \'')
-        printNode(c)
-        write(' )')
+        write('(col \'', true)
+        printNode(c, level)
+        write(')', true)
       })
-      write('\n  )')
+      level--
 
-      write('\n)')
+      write(')', true)
+
+      // write these on the same level as cols
+      if (select.from) {
+        printNode(select.from, level)
+      }
+
+      if (select.where) {
+        printNode(select.where, level)
+      }
+
+      level--
+      write(')', true)
       break
     }
 
     case SyntaxKind.from_clause: {
-      const from = <FromClause>expr
-      // todo: recursion and printNode
+      // todo: recurse, there are other types
+      const from = <FromClause>node
       const sources = <NamedSource[]>from.sources
+      write('(from ' + formatIdentifier(sources[0].name) + ')', true)
+      break
+    }
 
-      write('\n  (from ' + formatIdentifier(sources[0].name))
+    case SyntaxKind.where_clause: {
+      const where = <WhereClause>node
+      write('(where', true)
+      printNode(where.predicate, level + 1)
+      write(')', true)
+      break
+    }
+
+    // not quite a binary op...
+    case SyntaxKind.null_test_expr: {
+      const test = <IsNullTestExpression>node
+      if (test.not_null) {
+        write('(is-not-null ', true)
+      } else {
+        write('(is-null ', true)
+      }
+
+      printNode(test.expr, level)
       write(')')
       break
     }
 
-    case SyntaxKind.null_test_expr: {
-
-    }
-
     case SyntaxKind.identifier_expr: {
-      const ident = <IdentifierExpression>expr
+      const ident = <IdentifierExpression>node
       write(formatIdentifier(ident.identifier))
       break
     }
 
     case SyntaxKind.literal_expr: {
-      const literal = <LiteralExpression>expr
+      const literal = <LiteralExpression>node
       write('' + literal.value)
       break
     }
@@ -132,53 +202,83 @@ export function printNode (expr: SyntaxNode) {
     case SyntaxKind.binary_expr: {
       // thought: expressions in a divisor slot which are non-literal
       // could cause divide by zero, that might be cool to test for
-      const binary = <BinaryExpression>expr
-      write('(' + ops[binary.op.kind] + ' ')
-      printNode(binary.left)
-      process.stdout.write(' ')
-      printNode(binary.right)
-      write(')')
+      const binary = <BinaryExpression>node
+      const isComplex = binary.left.kind === SyntaxKind.binary_expr
+        || binary.right.kind === SyntaxKind.binary_expr
+
+      // this gets a little fiddly, but basically if we're going to indent
+      // things in a uniform way, we need to ensure that things that normally
+      // display inline are indented on a new line.
+      if (isComplex) {
+
+        write('(' + ops[binary.op.kind], true)
+        level++
+
+        const indent = spaces(level)
+
+        if (binary.left.kind !== SyntaxKind.binary_expr) {
+          write('\n' + indent)
+        }
+
+        printNode(binary.left, level)
+
+        if (binary.right.kind !== SyntaxKind.binary_expr) {
+          write('\n' + indent)
+        }
+
+        printNode(binary.right, level)
+        level--
+        write(')', true)
+      }
+      else {
+        // else we can just inline the whole thing
+        write('(' + ops[binary.op.kind] + ' ')
+        printNode(binary.left, level)
+        write(' ')
+        printNode(binary.right, level)
+      }
       break
     }
 
     case SyntaxKind.bitwise_not_expr: {
-      const unary = <BitwiseNotExpression>expr
+      const unary = <BitwiseNotExpression>node
       write('(~ ')
-      printNode(unary.expr)
+      printNode(unary.expr, level)
       write(')')
       break
     }
 
     case SyntaxKind.unary_minus_expr: {
-      const unary = <UnaryMinusExpression>expr
+      const unary = <UnaryMinusExpression>node
       write('(- ')
-      printNode(unary.expr)
+      printNode(unary.expr, level)
       write(')')
       break
     }
 
     case SyntaxKind.unary_plus_expr: {
-      const unary = <UnaryPlusExpression>expr
+      const unary = <UnaryPlusExpression>node
       write('(+ ')
-      printNode(unary.expr)
+      printNode(unary.expr, level)
       write(')')
       break
     }
 
     case SyntaxKind.paren_expr: {
       // thought: useless paren exprs could be a linting rule
-      const paren = <ParenExpression>expr
-      printNode(paren.expression)
+      // but these will also contain select-exprs I guess...
+      const paren = <ParenExpression>node
+      printNode(paren.expression, level)
       break
     }
 
     case SyntaxKind.function_call_expr: {
-      const call = <FunctionCallExpression>expr
+      const call = <FunctionCallExpression>node
       write('(call ' + call.name.parts.join('.'))
       if (call.arguments) {
         call.arguments.forEach(e => {
           write(' ')
-          printNode(e)
+          printNode(e, level)
         })
       }
       write(')')
@@ -186,17 +286,17 @@ export function printNode (expr: SyntaxNode) {
     }
 
     case SyntaxKind.set_statement: {
-      const set = <SetStatement>expr
+      const set = <SetStatement>node
+      const op = ops[set.op.kind]
 
-      write('(set \'' + set.name)
-      write(ops[set.op.kind] + ' ')
-      printNode(set.expression)
+      write(`(${op} ${set.name} `, true)
+      printNode(set.expression, level)
       write(')')
       break
     }
 
     case SyntaxKind.data_type: {
-      const type = <DataType>expr
+      const type = <DataType>node
       write(type.name)
       if (type.args) {
         write('[')
@@ -211,35 +311,49 @@ export function printNode (expr: SyntaxNode) {
     }
 
     case SyntaxKind.scalar_variable_decl: {
-      const scalar = <VariableDeclaration>expr
-      write('\n  (scalar ' + scalar.name + ' ')
-      printNode(scalar.type)
+      const scalar = <VariableDeclaration>node
+      write('(scalar ' + scalar.name + ' ', true)
+      printNode(scalar.type, level)
 
       if (scalar.expression) {
         write(' ')
-        printNode(scalar.expression)
+        printNode(scalar.expression, level)
       }
       write(')')
       break
     }
 
+    case SyntaxKind.table_variable_decl: {
+      const table = <TableDeclaration>node
+      write('(table ' + table.name + ' ', true)
+      level++
+      table.body.forEach((i) => {
+        printNode(i, level)
+      })
+      level--
+      write(')', true)
+      break
+    }
+
     case SyntaxKind.declare_statement: {
-      const declare = <DeclareStatement>expr
-      write('\n(declare')
+      const declare = <DeclareStatement>node
+      write('(declare', true)
 
       if (!declare.table) {
         const vars = <VariableDeclaration[]>declare.variables
         if (vars) {
-          vars.forEach(printNode)
+          level++
+          vars.forEach((n) => printNode(n, level))
+          level--
         }
       } else {
         // not supported
       }
 
-      write('\n)')
+      write(')', true)
       break
     }
 
-    default: throw Error('unexpected kind: ' + SyntaxKind[expr.kind])
+    default: throw Error('unsupported node: ' + SyntaxKind[node.kind])
   }
 }

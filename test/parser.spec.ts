@@ -96,12 +96,13 @@ describe('Parser', () => {
 
   it('debug: parse script', () => {
     const parser = new Parser()
-    const tree = parser.parse(readFileSync('./test/mssql/quoted_identifier.sql', 'utf8'))
+    const path = './test/mssql/complex-select.sql'
+    const file = readFileSync(path, 'utf8')
+    const tree = parser.parse(file, { path: path })
 
     // process.stdout.write('-- full JSON --\n')
     // process.stdout.write(JSON.stringify(tree, undefined, ' '))
     // process.stdout.write('\n-- pretty --\n')
     tree.forEach(printNode)
-    process.stdout.write('\n')
   })
 })

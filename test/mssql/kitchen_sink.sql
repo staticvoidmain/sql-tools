@@ -1,5 +1,5 @@
 declare @foo int = -1000;
-set @foo += 1;
+set @foo *= -1;
 set nocount on
 /*
   @author: jim bob
