@@ -303,6 +303,8 @@ const keywordMap = new KeywordLookup([
   ['tablesample', SyntaxKind.tablesample_keyword],
   ['textsize', SyntaxKind.textsize_keyword],
   ['then', SyntaxKind.then_keyword],
+  // missing from the list of online keywords...
+  ['throw', SyntaxKind.throw_keyword],
   ['to', SyntaxKind.to_keyword],
   ['top', SyntaxKind.top_keyword],
   ['tran', SyntaxKind.tran_keyword],

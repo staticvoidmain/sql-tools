@@ -1,5 +1,5 @@
 
-import { printNode } from './visitor'
+import { printNodes } from './visitor'
 import { Parser } from './parser'
 
 import {
@@ -21,7 +21,4 @@ const tree = parser.parse(file, {
   path: path
 })
 
-for (const stmt of tree) {
-  printNode(stmt)
-  process.stdout.write('\n')
-}
+printNodes(tree)

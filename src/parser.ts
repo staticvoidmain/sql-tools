@@ -50,7 +50,10 @@ import {
   UnaryPlusExpression,
   NamedSource,
   LogicalNotExpression,
-  IsNullTestExpression
+  IsNullTestExpression,
+  CreateProcedureStatement,
+  StatementBlock,
+  Statement
 } from './ast'
 
 export interface ParserError {
@@ -63,18 +66,19 @@ function isLocal(ident: Token) {
   return ident.value[0] === '@'
 }
 
-// todo: speculative lookahead stuff...
 export class Parser {
-
   private settings: any
   private scanner?: Scanner
-  private errors: Array<ParserError> = []
+  // todo: error recovery, right now any error kills the parser.
+  // private errors: Array<ParserError> = []
   private token: Token = EmptyToken
 
-  // parse the next statement in the list.
-  private next(): SyntaxNode | undefined {
-
-    // todo: print, throw, if, while
+  /**
+   * Try to parse the next statement in the list, return undefined if we
+   * don't find the start of a valid statement.
+   */
+  private parseStatement(): Statement | undefined {
+    // todo: nested statement blocks begin
     switch (this.token.kind) {
       case SyntaxKind.EOF:
         return undefined
@@ -126,10 +130,34 @@ export class Parser {
         break
       }
 
-      default: {
-        // todo: should this just moveNext and loop back around?
-        // that's the lazy-man's error handling right there boyz.
-        this.error('unsupported statement ' + SyntaxKind[this.token.kind])
+      case SyntaxKind.print_keyword: {
+        this.error('not implemented')
+        break
+      }
+
+      case SyntaxKind.throw_keyword: {
+        this.error('not implemented')
+        break
+      }
+
+      case SyntaxKind.if_keyword: {
+        this.error('not implemented')
+        break
+      }
+
+      case SyntaxKind.while_keyword: {
+        this.error('not implemented')
+        break
+      }
+
+      case SyntaxKind.goto_keyword: {
+        this.error('not implemented')
+        break
+      }
+
+      case SyntaxKind.deallocate_keyword: {
+        this.error('not implemented')
+        break
       }
     }
   }
@@ -228,7 +256,6 @@ export class Parser {
 
         columns.push(col)
       }
-
     } while (this.optional(SyntaxKind.comma_token))
 
     return columns
@@ -334,7 +361,7 @@ export class Parser {
     return statement
   }
 
-  makeBinaryExpr(left: Expr, parse: Function): any {
+  private makeBinaryExpr(left: Expr, parse: Function): any {
     // todo: fix up the binary expr so that the start/end offsets are right.
     const kind = this.token.kind
     const start = this.token.start
@@ -375,12 +402,15 @@ export class Parser {
   // moves next, and returns the previous token.
   private expect(kind: SyntaxKind) {
     const token = this.token
+    this.assertKind(kind)
+    this.moveNext()
+    return token
+  }
+
+  private assertKind(kind: SyntaxKind) {
     if (this.token.kind !== kind) {
       this.error('Expected ' + SyntaxKind[kind] + ' but found ' + SyntaxKind[this.token.kind])
     }
-
-    this.moveNext()
-    return token
   }
 
   private optional(kind: SyntaxKind) {
@@ -404,7 +434,7 @@ export class Parser {
     }
   }
 
-  private parseGo(): SyntaxNode {
+  private parseGo() {
     const statement = <GoStatement>this.createKeyword(this.token, SyntaxKind.go_statement)
 
     if (this.match(SyntaxKind.numeric_literal)) {
@@ -415,7 +445,7 @@ export class Parser {
     return statement
   }
 
-  private parseSetStatement(): SyntaxNode {
+  private parseSetStatement() {
 
     const set = this.token
     const node = this.createKeyword(set, SyntaxKind.set_statement)
@@ -532,7 +562,6 @@ export class Parser {
   }
 
   private makeNullTest(left: Expr) {
-    // feels weird... and it's probably wrong.
     const is = <IsNullTestExpression>this.createNode(this.token, SyntaxKind.null_test_expr)
     this.moveNext()
     is.expr = left
@@ -556,10 +585,8 @@ export class Parser {
     return expr
   }
 
-  // or higher
   private tryParseAddExpr(): Expr {
     let expr = this.tryParseMultiplicationExpr()
-    // todo: what do we do about unary negation?
     while (this.isAddPrecedence()) {
       expr = this.makeBinaryExpr(expr, this.tryParseMultiplicationExpr)
     }
@@ -591,9 +618,13 @@ export class Parser {
     this.moveNext()
 
     while (this.optional(SyntaxKind.dot_token)) {
-      // expect will advance to the next token
-      ident.parts.push(
-        this.expect(SyntaxKind.identifier).value)
+      if (this.optional(SyntaxKind.mul_token)) {
+        ident.parts.push('*')
+      } else {
+        // expect will advance to the next token
+        const partial = this.expect(SyntaxKind.identifier)
+        ident.parts.push(partial.value)
+      }
     }
 
     // todo: maybe also intern the identifier for easy lookup?
@@ -646,6 +677,19 @@ export class Parser {
       expr.expression = this.tryParseOrExpr()
 
       this.expect(SyntaxKind.closeParen)
+      return expr
+    }
+
+    if (this.optional(SyntaxKind.mul_token)) {
+      // todo: this is really only legal in a few places...
+      // maybe set up a context or something
+      // if (!this.context.select_statement) { error asdfasdf }
+
+      const expr = <IdentifierExpression>this.createNode(this.token, SyntaxKind.identifier_expr)
+      expr.identifier = <Identifier>{
+        parts: ['*']
+      }
+
       return expr
     }
 
@@ -746,18 +790,67 @@ export class Parser {
         this.expect(SyntaxKind.openParen)
         create.body = this.parseColumnDefinitionList()
         this.expect(SyntaxKind.closeParen)
-        break
+        return create
       }
 
       case SyntaxKind.view_keyword: {
         this.error('"Create View" not implemented')
+        // const keyword = this.expect(SyntaxKind.view_keyword)
+        // const ident = this.parseIdentifier()
+        // const statement = {}
         break
       }
 
       case SyntaxKind.proc_keyword:
-      case SyntaxKind.procedure_keyword:
-        this.error('"create proc" not implemented')
-        break
+      case SyntaxKind.procedure_keyword: {
+        // todo: extract me?
+        const node = this.createKeyword(start, SyntaxKind.create_proc_statement)
+        const procedure = <CreateProcedureStatement>node
+        procedure.procedure_keyword = objectType
+
+        this.assertKind(SyntaxKind.identifier)
+
+        procedure.name = this.parseIdentifier()
+
+        if (!this.match(SyntaxKind.as_keyword)) {
+          const parens = this.optional(SyntaxKind.openParen)
+          procedure.arguments = this.parseArgumentDeclarationList()
+          if (parens) {
+            this.expect(SyntaxKind.closeParen)
+          }
+        }
+
+        procedure.as_keyword = this.expect(SyntaxKind.as_keyword)
+
+        const block = procedure.body = <StatementBlock>{}
+        block.statements = []
+        const hasBegin = this.match(SyntaxKind.begin_keyword)
+        if (hasBegin) {
+          block.begin_keyword = this.token
+          this.moveNext()
+        }
+
+        // parse the body block
+        while (true) {
+          if (this.match(SyntaxKind.end_keyword)) {
+            if (hasBegin) {
+              block.end_keyword = this.expect(SyntaxKind.end_keyword)
+              break
+            }
+            // todo: else throw?
+
+          } else {
+            const next = this.parseStatement()
+            if (!next) {
+              break
+            }
+
+            block.statements.push(next)
+          }
+        }
+
+        return procedure
+      }
 
       case SyntaxKind.index_keyword:
         this.error('"create index" not implemented')
@@ -765,6 +858,27 @@ export class Parser {
     }
 
     throw Error('incomplete')
+  }
+
+  private parseArgumentDeclarationList() {
+    const args: VariableDeclaration[] = []
+    // similar to the scalar decl stuff for locals
+    // but there we have to determine that it's NOT a table decl
+    // and by then we've already read past the identifier
+    do {
+      const next = <VariableDeclaration>this.createNode(this.token, SyntaxKind.scalar_variable_decl)
+
+      next.name = this.expect(SyntaxKind.identifier).value
+      next.type = this.parseType()
+
+      if (this.optional(SyntaxKind.equal)) {
+        next.expression = <ValueExpression>this.tryParseAddExpr()
+      }
+
+      args.push(next)
+    } while (this.optional(SyntaxKind.comma_token))
+
+    return args
   }
 
   private parseAlterStatement(): AlterStatement {
@@ -858,8 +972,13 @@ export class Parser {
     this.moveNext()
 
     let node = undefined
-    while (node = this.next()) {
+    while (node = this.parseStatement()) {
       statements.push(node)
+    }
+
+    // todo: error recovery?
+    if (this.token.kind !== SyntaxKind.EOF) {
+      this.error('Unable to parse ' + SyntaxKind[this.token.kind] + ' as a statement. Terminating...')
     }
 
     return statements

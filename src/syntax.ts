@@ -204,6 +204,7 @@ export enum SyntaxKind {
   tablesample_keyword,
   textsize_keyword,
   then_keyword,
+  throw_keyword,
   to_keyword,
   top_keyword,
   tran_keyword,
@@ -231,6 +232,8 @@ export enum SyntaxKind {
   writetext_keyword,
   // </end keywords>
 
+  // todo: it's a bit of a shitshow after this point
+  // do some housekeeping when things settle down
   label,
   identifier,
   comment_block,
@@ -245,6 +248,7 @@ export enum SyntaxKind {
   case_expr,
   when_expr,
   then_expr,
+
   unary_minus_expr,
   unary_plus_expr,
   bitwise_not_expr,
@@ -253,11 +257,12 @@ export enum SyntaxKind {
   logical_not_expr,
   column_expr,
   null_test_expr,
+  // misc
+  all_columns,    // <star>
   // statements
   statement_block,
   scalar_variable_decl,
   table_variable_decl,
-  create_table_statement,
   column_collation,
   if_statement,
   while_statement,
@@ -271,6 +276,7 @@ export enum SyntaxKind {
   declare_statement,
   set_statement,
   set_option_statement,
+  update_statement,
   select_statement,
   into_clause,
   from_clause,
@@ -281,6 +287,15 @@ export enum SyntaxKind {
   begin_transaction_statement,
   commit_transaction_statement,
   rollback_transaction_statement,
+  drop_proc_statement,
+  alter_proc_statement,
+  create_proc_statement,
+  create_table_statement,
+  alter_table_statement,
+  drop_table_statement,
+  create_view_statement,
+  alter_view_statement,
+  drop_view_statement,
   numeric_literal,
   string_literal,
   table_alias,

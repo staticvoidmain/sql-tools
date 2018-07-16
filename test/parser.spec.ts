@@ -15,7 +15,7 @@ import {
   Identifier
 } from '../src/ast'
 
-import { printNode } from '../src/visitor'
+import { printNodes } from '../src/visitor'
 
 describe('Parser', () => {
 
@@ -94,15 +94,17 @@ describe('Parser', () => {
     expect(expr.right.kind).to.equal(SyntaxKind.literal_expr)
   })
 
-  it('debug: parse script', () => {
+  it('debug: parse script and print ast', () => {
     const parser = new Parser()
-    const path = './test/mssql/complex-select.sql'
+    const path = './test/mssql/basic_select.sql'
     const file = readFileSync(path, 'utf8')
-    const tree = parser.parse(file, { path: path })
+    const tree = parser.parse(file, {
+      path: path
+    })
 
     // process.stdout.write('-- full JSON --\n')
     // process.stdout.write(JSON.stringify(tree, undefined, ' '))
     // process.stdout.write('\n-- pretty --\n')
-    tree.forEach(printNode)
+    printNodes(tree)
   })
 })

@@ -24,7 +24,11 @@ export interface Identifier extends SyntaxNode {
   parts: string[]
 }
 
-export type ColumnNode = ColumnExpression | IdentifierExpression
+export type ColumnNode = ColumnExpression | IdentifierExpression | AllColumns
+
+export interface AllColumns extends SyntaxNode {
+  kind: SyntaxKind.all_columns
+}
 
 // todo: these might not matter... since createNode makes it with the token kind baked in...
 export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plus_token }
@@ -165,13 +169,14 @@ export type ValueExpression =
 // todo: table expression with select-top 1 some_col
 // or just select 1
 
+// max 2: precision + scale | length | 'max'
 export interface DataType extends SyntaxNode {
   name: string
-  // max 2: precision + scale | length | 'max'
   args: string[] | 'max'
+  null?: boolean
 }
 
-// hmmm... this is a little screwy
+// todo: convert to union type?
 export interface Expr extends SyntaxNode { }
 
 export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }
@@ -284,7 +289,9 @@ export interface FromClause extends KeywordNode {
 export type Statement =
   | SelectStatement
   | SetStatement
-  | VariableDeclaration
+  | DeclareStatement
+  | CreateStatement
+  | AlterStatement
   | TableDeclaration
   | UseDatabaseStatement
 
@@ -300,6 +307,8 @@ export interface UseDatabaseStatement extends KeywordNode {
 
 export interface StatementBlock {
   statements: Statement[]
+  begin_keyword?: Token
+  end_keyword?: Token
 }
 
 // can have a table, or variables, but not both
@@ -381,6 +390,9 @@ export type AlterStatement =
 
 export type CreateStatement =
 | CreateTableStatement
+| CreateProcedureStatement
+// createview
+// createXYZ
 
 export interface CreateTableStatement extends KeywordNode {
   table_keyword: Token
@@ -401,6 +413,15 @@ export interface AlterFunctionStatement extends KeywordNode {
   arguments: VariableDeclaration[]
   as_keyword: Token
   returns_keyword: Token
+  body: StatementBlock
+}
+
+// create and alter are pretty much the same...
+export interface CreateProcedureStatement extends KeywordNode {
+  procedure_keyword: Token
+  name: Identifier
+  arguments: VariableDeclaration[]
+  as_keyword: Token
   body: StatementBlock
 }
 

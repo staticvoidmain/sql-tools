@@ -268,10 +268,10 @@ describe('Scanner', function () {
 
   xit('todo: should stop after the last unescaped double-quote')
 
-  xit ('debug: show token stream', function() {
-    const file = readFileSync('./test/mssql/kitchen_sink.sql', 'utf8')
+  it ('debug: show token stream', function() {
+    const file = readFileSync('./test/mssql/basic_select.sql', 'utf8')
     const scanner = new Scanner(file)
-    const tokens = scanAll(scanner, true)
+    const tokens = scanAll(scanner, false)
 
     console.log(tokens.map(tokenToString).join('\r\n'))
   })
