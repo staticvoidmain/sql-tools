@@ -53,7 +53,8 @@ import {
   IsNullTestExpression,
   CreateProcedureStatement,
   StatementBlock,
-  Statement
+  Statement,
+  PrintStatement
 } from './ast'
 
 export interface ParserError {
@@ -131,8 +132,9 @@ export class Parser {
       }
 
       case SyntaxKind.print_keyword: {
-        this.error('not implemented')
-        break
+        const print = <PrintStatement>this.createKeyword(this.token, SyntaxKind.print_statement)
+        print.expression = this.tryParseAddExpr()
+        return print
       }
 
       case SyntaxKind.throw_keyword: {
@@ -141,7 +143,7 @@ export class Parser {
       }
 
       case SyntaxKind.if_keyword: {
-        this.error('not implemented')
+        const _if = <>
         break
       }
 
@@ -156,6 +158,7 @@ export class Parser {
       }
 
       case SyntaxKind.deallocate_keyword: {
+        // todo: also close cursor
         this.error('not implemented')
         break
       }
@@ -177,12 +180,15 @@ export class Parser {
   }
 
   private moveNext(): Token {
+
+    this.token = this.scanner!.scan()
+
     // todo: this could capture leading and trailing trivia
     // but for now it straight up ignores it.
-    this.token = this.scanner!.scan()
     while (this.isTrivia()) {
       this.token = this.scanner!.scan()
     }
+
     return this.token
   }
 
@@ -682,8 +688,8 @@ export class Parser {
 
     if (this.optional(SyntaxKind.mul_token)) {
       // todo: this is really only legal in a few places...
+      // select, group by, having
       // maybe set up a context or something
-      // if (!this.context.select_statement) { error asdfasdf }
 
       const expr = <IdentifierExpression>this.createNode(this.token, SyntaxKind.identifier_expr)
       expr.identifier = <Identifier>{

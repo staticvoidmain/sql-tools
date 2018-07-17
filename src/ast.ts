@@ -327,6 +327,12 @@ export interface VariableDeclaration extends SyntaxNode {
   expression?: ValueExpression
 }
 
+export interface IfStatement extends KeywordNode {
+  predicate: Expr
+  then: StatementBlock
+  else?: StatementBlock
+}
+
 export interface WhileStatement extends KeywordNode {
   predicate: Expr
   body: StatementBlock
@@ -432,11 +438,11 @@ export interface AlterProcedureStatement extends KeywordNode {
 
 // throw is weird.
 export interface PrintStatement extends KeywordNode {
-  value: Expr
+  expression: Expr
 }
 
 export interface ReturnStatement extends KeywordNode {
-  value: Expr
+  expression: Expr
 }
 
 export interface BlockComment extends SyntaxNode { kind: SyntaxKind.comment_block }

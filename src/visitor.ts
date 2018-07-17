@@ -73,10 +73,6 @@ ops[SyntaxKind.lessThan] = 'lt'
 ops[SyntaxKind.greaterThanEqual] = 'gte'
 ops[SyntaxKind.lessThanEqual] = 'lte'
 
-
-// todo: more assignment ops
-// this doesn't quite fit with the s-expr syntax,
-// but whatever for now.
 ops[SyntaxKind.plusEqualsAssignment] = 'plus-equals'
 ops[SyntaxKind.minusEqualsAssignment] = 'minus-equals'
 ops[SyntaxKind.divEqualsAssignment] = 'div-equals'
@@ -93,10 +89,17 @@ function spaces(n: number) {
   return s
 }
 
+function simple(kind: SyntaxKind) {
+  return kind === SyntaxKind.literal_expr
+    || kind === SyntaxKind.identifier_expr
+}
 
 export class PrintVisitor {
   private level = 0
-  private last_visit_contained_newline = false
+
+  // let the leaf nodes communicate with their parents
+  // through this flag. When an enclosing paren is popped off.
+  private inline_next_pop = false
 
   private write(str: string, newline?: boolean) {
     if (newline) {
@@ -108,23 +111,26 @@ export class PrintVisitor {
   }
 
   private push(line: string) {
-    this.last_visit_contained_newline = true
     this.write(line, true)
+    // increment level after writing.
     this.level++
+
+    this.inline_next_pop = false
   }
 
-  private pop(line: string) {
-    this.write(line, this.last_visit_contained_newline)
+  private pop(line = ')') {
+    // decrease level first
+    // before writing
     this.level--
+    this.write(line, !this.inline_next_pop)
+    this.inline_next_pop = false
   }
 
   private printNode(node: SyntaxNode) {
-    this.last_visit_contained_newline = false
 
     switch (node.kind) {
       // mostly noise, skip for now
       case SyntaxKind.set_option_statement:
-
       case SyntaxKind.go_statement: {
         break
       }
@@ -143,7 +149,12 @@ export class PrintVisitor {
           this.write('a ')
         }
 
-        this.printNode(col.expression)
+        if (col.expression) {
+          this.printNode(col.expression)
+        } else {
+          this.inline_next_pop = true
+        }
+
         break
       }
 
@@ -160,7 +171,7 @@ export class PrintVisitor {
         if (proc.arguments) {
           this.push('(args ')
           proc.arguments.forEach(a => this.printNode(a))
-          this.pop(')')
+          this.pop()
         }
 
         // always expect a block
@@ -168,8 +179,8 @@ export class PrintVisitor {
 
         proc.body.statements.forEach(s => this.printNode(s))
 
-        this.pop(')')
-        this.pop(')')
+        this.pop()
+        this.pop()
         break
       }
 
@@ -181,12 +192,12 @@ export class PrintVisitor {
         select.columns.forEach(c => {
           this.push('(col \'')
           this.printNode(c)
-          this.pop(')')
+          this.pop()
         })
 
-        this.pop(')')
+        this.pop()
 
-        // this.write these on the same level as cols
+        // emit these on the same level as cols
         if (select.from) {
           this.printNode(select.from)
         }
@@ -195,7 +206,7 @@ export class PrintVisitor {
           this.printNode(select.where)
         }
 
-        this.pop(')')
+        this.pop()
         break
       }
 
@@ -211,33 +222,35 @@ export class PrintVisitor {
         const where = <WhereClause>node
         this.push('(where')
         this.printNode(where.predicate)
-        this.pop(')')
+        this.pop()
         break
       }
 
-      // not quite a binary op...
+      // unary
       case SyntaxKind.null_test_expr: {
         const test = <IsNullTestExpression>node
-        if (test.not_null) {
-          this.push('(is-not-null ')
-        } else {
-          this.push('(is-null ')
-        }
 
+        const tag = test.not_null
+          ? '(is-not-null '
+          : '(is-null '
+
+        this.push(tag)
         this.printNode(test.expr)
-        this.pop(')')
+        this.pop()
         break
       }
 
       case SyntaxKind.identifier_expr: {
         const ident = <IdentifierExpression>node
         this.write(formatIdentifier(ident.identifier))
+        this.inline_next_pop = true
         break
       }
 
       case SyntaxKind.literal_expr: {
         const literal = <LiteralExpression>node
         this.write('' + literal.value)
+        this.inline_next_pop = true
         break
       }
 
@@ -245,35 +258,19 @@ export class PrintVisitor {
         // thought: expressions in a divisor slot which are non-literal
         // could cause divide by zero, that might be cool to test for
         const binary = <BinaryExpression>node
-        const isComplex = binary.left.kind !== SyntaxKind.literal_expr
-          || binary.right.kind !== SyntaxKind.literal_expr
-
-        if (isComplex) {
-          // this gets a little fiddly, but basically if we're going to indent
-          // things in a uniform way, we need to ensure that things that normally
-          // display inline are indented on a new line.
-          this.push('(' + ops[binary.op.kind] + ' ')
-          this.printNode(binary.left)
-          this.write(' ')
-          this.printNode(binary.right)
-          this.pop(')')
-        }
-        else {
-          // else we can just inline the whole thing
-          this.write('(' + ops[binary.op.kind] + ' ')
-          this.printNode(binary.left)
-          this.write(' ')
-          this.printNode(binary.right)
-          this.write(')')
-        }
+        this.push('(' + ops[binary.op.kind] + ' ')
+        this.printNode(binary.left)
+        this.write(' ')
+        this.printNode(binary.right)
+        this.pop()
         break
       }
 
       case SyntaxKind.bitwise_not_expr: {
         const unary = <BitwiseNotExpression>node
-        this.write('(~ ')
+        this.push('(~ ')
         this.printNode(unary.expr)
-        this.write(')')
+        this.pop()
         break
       }
 
@@ -360,7 +357,7 @@ export class PrintVisitor {
           this.printNode(i)
         })
 
-        this.pop(')')
+        this.pop()
         break
       }
 
@@ -379,7 +376,7 @@ export class PrintVisitor {
           // not supported
         }
 
-        this.pop(')')
+        this.pop()
         break
       }
 
