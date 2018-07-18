@@ -306,6 +306,7 @@ export type Statement =
   | DefineLabelStatement
   | WhileStatement
   | IfStatement
+  | TruncateTableStatement
 
   // todo: deallocate, open, close, drop,
 
@@ -393,6 +394,11 @@ export interface DefineLabelStatement extends SyntaxNode {
   name: string
 }
 
+export interface DropStatement extends KeywordNode {
+  objectType: Token
+  target: Identifier
+}
+
 export type InsertStatement =
   | InsertSelectStatement
   | InsertIntoStatement
@@ -404,6 +410,8 @@ export interface ExecuteStatement extends KeywordNode {
 
 export interface InsertIntoStatement extends KeywordNode {
   into_keyword: Token
+  target: Identifier
+  columns?: Array<string>
   values_keyword: Token
   values: Expr[]
 }
@@ -422,6 +430,11 @@ export type CreateStatement =
 | CreateProcedureStatement
 // createview
 // createXYZ
+
+export interface TruncateTableStatement extends KeywordNode {
+  table_keyword: Token
+  table: Identifier
+}
 
 export interface CreateTableStatement extends KeywordNode {
   table_keyword: Token

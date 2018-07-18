@@ -34,7 +34,6 @@ import {
   WhenExpression,
   SimpleCaseExpression
 } from './ast'
-import { BADHINTS } from 'dns';
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   const visitor = new PrintVisitor()
@@ -47,6 +46,7 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
 // todo
 export class Visitor {
   visit(node: SyntaxNode) {
+    // todo: node && doStuff(node)
   }
 
   visitKeyword(token: Token): void { }

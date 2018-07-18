@@ -14,5 +14,8 @@ begin
       else 'ERROR'
     end as result
   else
+  begin
+    print @foo
     select 2 as result
+  end
 end

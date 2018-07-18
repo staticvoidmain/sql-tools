@@ -66,7 +66,10 @@ import {
   DefineLabelStatement,
   SearchedCaseExpression,
   WhenExpression,
-  SimpleCaseExpression
+  SimpleCaseExpression,
+  TruncateTableStatement,
+  DropStatement,
+  InsertIntoStatement
 } from './ast'
 
 export interface ParserError {
@@ -129,13 +132,18 @@ export class Parser {
       }
 
       case SyntaxKind.update_keyword: {
-        this.error('not implemented')
         break
       }
 
       case SyntaxKind.drop_keyword: {
-        this.error('not implemented')
-        break
+        return this.parseDropStatement()
+      }
+
+      case SyntaxKind.truncate_keyword: {
+        const truncate = <TruncateTableStatement>this.createKeyword(this.token, SyntaxKind.truncate_table_statement)
+        truncate.table_keyword = this.expect(SyntaxKind.table_keyword)
+        truncate.table = this.parseIdentifier()
+        return truncate
       }
 
       case SyntaxKind.delete_keyword: {
@@ -994,9 +1002,46 @@ export class Parser {
     return <AlterStatement>this.createNode(this.token)
   }
 
+  // todo: if it's not one of the droppable keywords, this should throw
+  private parseDropStatement() {
+    const statement = <DropStatement>this.createKeyword(this.token, SyntaxKind.drop_statement)
+    statement.objectType = this.token
+    statement.target = this.parseIdentifier()
+    return statement
+  }
+
   private parseInsertStatement(): InsertStatement {
-    this.error('"Insert" not implemented')
-    return <InsertStatement>this.createNode(this.token)
+    const statement = <InsertStatement>this.createKeyword(this.token, SyntaxKind.insert_keyword)
+
+    if (this.match(SyntaxKind.into_keyword)) {
+      const into = <InsertIntoStatement>statement
+      into.into_keyword = this.expect(SyntaxKind.into_keyword)
+      into.target = this.parseIdentifier()
+
+      if (this.optional(SyntaxKind.openParen)) {
+        into.columns = []
+        do {
+          // kinda hacky
+          // just storing the names
+          into.columns.push(this.expect(SyntaxKind.identifier).value)
+        }
+        while (this.optional(SyntaxKind.comma_token))
+
+        this.expect(SyntaxKind.closeParen)
+      }
+
+      into.values_keyword = this.expect(SyntaxKind.values_keyword)
+      into.values = []
+      this.expect(SyntaxKind.openParen)
+      do {
+        into.values.push(this.tryParseAddExpr())
+      }
+      while (this.optional(SyntaxKind.comma_token))
+
+      this.expect(SyntaxKind.closeParen)
+    }
+
+    return statement
   }
 
   private parseSelect() {
