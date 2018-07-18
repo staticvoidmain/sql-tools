@@ -29,8 +29,12 @@ import {
   PrintStatement,
   IfStatement,
   WhileStatement,
-  StatementBlock
+  StatementBlock,
+  SearchedCaseExpression,
+  WhenExpression,
+  SimpleCaseExpression
 } from './ast'
+import { BADHINTS } from 'dns';
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   const visitor = new PrintVisitor()
@@ -265,8 +269,53 @@ export class PrintVisitor {
 
       case SyntaxKind.where_clause: {
         const where = <WhereClause>node
-        this.push('(where')
+        this.push('(where ')
         this.printNode(where.predicate)
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.when_expr: {
+        const when = <WhenExpression>node
+        this.push('(when ')
+        this.printNode(when.when)
+        this.push('(then ')
+
+        this.printNode(when.then)
+        this.pop()
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.simple_case_expr: {
+        const searched = <SimpleCaseExpression>node
+        this.push('(case ')
+
+        this.printNode(searched.input_expression)
+
+        searched.cases.forEach((n) => this.printNode(n))
+
+        if (searched.else) {
+          this.push('(else ')
+          this.printNode(searched.else)
+          this.pop()
+        }
+
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.searched_case_expr: {
+        const searched = <SearchedCaseExpression>node
+        this.push('(case ')
+        searched.cases.forEach((n) => this.printNode(n))
+
+        if (searched.else) {
+          this.push('(else ')
+          this.printNode(searched.else)
+          this.pop()
+        }
+
         this.pop()
         break
       }

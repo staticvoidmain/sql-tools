@@ -247,7 +247,8 @@ export enum SyntaxKind {
   and_expr,
   or_expr,
   paren_expr,
-  case_expr,
+  searched_case_expr,
+  simple_case_expr,
   when_expr,
   then_expr,
 

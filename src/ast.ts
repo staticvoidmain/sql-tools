@@ -146,7 +146,6 @@ export interface LogicalNotExpression extends KeywordNode {
   expr: Expr
 }
 
-
 export interface UnaryPlusExpression extends Expr {
   expr: Expr
 }
@@ -155,6 +154,8 @@ export interface UnaryMinusExpression extends Expr {
   expr: Expr
 }
 
+// todo: figure out why value expression sucks
+// so far it doesn't work some weird bug in the typesystem
 export type ValueExpression =
   | FunctionCallExpression
   | ConstantExpression
@@ -162,6 +163,8 @@ export type ValueExpression =
   | BinaryExpression
   | BitwiseNotExpression
   | IdentifierExpression
+  | UnaryMinusExpression
+  | UnaryPlusExpression
 // todo: table expression with select-top 1 some_col
 // or just select 1
 
@@ -192,14 +195,24 @@ export interface ParenExpression extends Expr {
   expression: Expr
 }
 
-export interface CaseExpression extends Expr, KeywordNode {
+export type CaseExpression =
+| SimpleCaseExpression
+| SearchedCaseExpression
+
+export interface SimpleCaseExpression extends Expr, KeywordNode {
+  input_expression: Expr
   cases: Array<WhenExpression>
-  else: ValueExpression
+  else: Expr
+}
+
+export interface SearchedCaseExpression extends Expr, KeywordNode {
+  cases: Array<WhenExpression>
+  else: Expr
 }
 
 export interface WhenExpression extends Expr, KeywordNode {
   when: Expr
-  then: ValueExpression
+  then: Expr
 }
 
 export interface FunctionCallExpression extends Expr {

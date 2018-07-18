@@ -31,7 +31,7 @@ export class Token {
   value?: any
   flags: TokenFlags
   // todo: remove debug props
-  debug?: string
+  // debug?: string
 
   constructor(kind: SyntaxKind, start: number, end: number) {
     this.kind = kind
@@ -801,7 +801,7 @@ export class Scanner {
         else {
           // todo: unexpected token?
           // how should that be handled?
-          // in the parser?
+          throw new Error('unexpected token')
         }
 
         break
@@ -819,10 +819,9 @@ export class Scanner {
         break
       }
 
-      case Chars.dollar: {
+      case Chars.dollar: { /* fallthrough */
         this.pos++
         flags |= TokenFlags.MoneyLiteral
-        // fallthrough intended
       }
 
       case Chars.num_0:
@@ -881,7 +880,7 @@ export class Scanner {
       //   // todo: mysql hex literal X'
 
       case Chars.n:
-      case Chars.N: {
+      case Chars.N: { /* fallthrough */
         if (this.peek() === Chars.singleQuote) {
           this.pos++
           val = this.scanString()
@@ -890,7 +889,6 @@ export class Scanner {
 
           break
         }
-        // fallthrough intended
       }
 
       default: {
@@ -911,7 +909,7 @@ export class Scanner {
     token.flags = flags
     token.value = val
     // todo: remove me later
-    token.debug = SyntaxKind[kind]
+    // token.debug = SyntaxKind[kind]
 
     return token
   }

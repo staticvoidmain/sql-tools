@@ -1,5 +1,10 @@
-import { Scanner, Token, EmptyToken, TokenFlags } from './scanner'
-import { Chars } from './chars'
+import {
+  Scanner,
+  Token,
+  EmptyToken,
+  TokenFlags
+} from './scanner'
+
 import { SyntaxKind } from './syntax'
 
 import {
@@ -58,7 +63,10 @@ import {
   IfStatement,
   CreateViewStatement,
   WhileStatement,
-  DefineLabelStatement
+  DefineLabelStatement,
+  SearchedCaseExpression,
+  WhenExpression,
+  SimpleCaseExpression
 } from './ast'
 
 export interface ParserError {
@@ -761,7 +769,7 @@ export class Parser {
 
     // a case expression
     if (this.token.kind === SyntaxKind.case_keyword) {
-      this.error('CASE not supported yet')
+      return this.parseCaseExpression()
     }
 
     // todo: asdf IN (1, 2, 3, 4)
@@ -770,7 +778,55 @@ export class Parser {
     return <Expr>this.createNode(this.token)
   }
 
-  // does not call moveNext for you...
+  private parseWhenExpressionList(expr: CaseExpression, when: () => Expr) {
+    do {
+      const element = <WhenExpression>this.createKeyword(this.token, SyntaxKind.when_expr)
+
+      // todo: refactor this so that
+      element.when = this.tryParseOrExpr()
+
+      // todo: capture case of then for the keyword
+      // case analyzer
+      this.expect(SyntaxKind.then_keyword)
+      element.then = when.apply(this)
+
+      expr.cases.push(element)
+    } while (this.match(SyntaxKind.when_keyword))
+
+    if (this.optional(SyntaxKind.else_keyword)) {
+      expr.else = this.tryParseAddExpr()
+    }
+
+    this.expect(SyntaxKind.end_keyword)
+  }
+
+  // todo: implement the "simple" case expr stuff
+  private parseCaseExpression() {
+    const expr = <CaseExpression>this.createKeyword(this.token, SyntaxKind.searched_case_expr)
+
+    // init the cases for both objects
+    expr.cases = []
+
+    if (this.match(SyntaxKind.when_keyword)) {
+      const searched = <SearchedCaseExpression>expr
+      this.parseWhenExpressionList(searched, this.tryParseOrExpr)
+    }
+    else {
+      // these look really similar, however the "simple" only allows arithmetic
+      // exprs and below, whereas the searched supports full boolean exprs
+      const simple = <SimpleCaseExpression>expr
+      simple.kind = SyntaxKind.simple_case_expr
+      simple.input_expression = this.tryParseAddExpr()
+      this.parseWhenExpressionList(simple, this.tryParseAddExpr)
+    }
+
+    return expr
+  }
+
+  /**
+   * creates a simple assignment operator from the current token
+   * but does not call moveNext for you...
+   */
   private parseAssignmentOperation(): AssignmentOperator {
     switch (this.token.kind) {
       case SyntaxKind.equal:
@@ -893,7 +949,8 @@ export class Parser {
           block.end_keyword = this.expect(SyntaxKind.end_keyword)
           break
         }
-        // todo: else throw?
+
+        this.error('Unexpected keyword "end"')
 
       } else {
         const next = this.parseStatement()
