@@ -599,6 +599,11 @@ export class Scanner {
       case Chars.period: {
         // todo: does sql allow naked floats .001?
         kind = SyntaxKind.dot_token
+
+        if (this.peek() == Chars.period) {
+          this.pos++
+          kind = SyntaxKind.dotdot_token
+        }
         break
       }
 

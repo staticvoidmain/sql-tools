@@ -54,7 +54,11 @@ import {
   CreateProcedureStatement,
   StatementBlock,
   Statement,
-  PrintStatement
+  PrintStatement,
+  IfStatement,
+  CreateViewStatement,
+  WhileStatement,
+  DefineLabelStatement
 } from './ast'
 
 export interface ParserError {
@@ -143,13 +147,22 @@ export class Parser {
       }
 
       case SyntaxKind.if_keyword: {
-        const _if = <>
-        break
+        const _if = <IfStatement>this.createKeyword(this.token, SyntaxKind.if_statement)
+        _if.predicate = this.tryParseOrExpr()
+        _if.then = this.parseStatementBlock()
+
+        if (this.match(SyntaxKind.else_keyword)) {
+          _if.else_keyword = this.expect(SyntaxKind.else_keyword)
+          _if.else = this.parseStatementBlock()
+        }
+        return _if
       }
 
       case SyntaxKind.while_keyword: {
-        this.error('not implemented')
-        break
+        const _while = <WhileStatement>this.createKeyword(this.token, SyntaxKind.while_statement)
+        _while.predicate = this.tryParseOrExpr()
+        _while.body = this.parseStatementBlock()
+        return _while
       }
 
       case SyntaxKind.goto_keyword: {
@@ -157,8 +170,27 @@ export class Parser {
         break
       }
 
+      case SyntaxKind.identifier: {
+        const start = this.token
+        const ident = this.parseIdentifier()
+
+        // could be a naked procedure call OR a goto label
+        if (this.match(SyntaxKind.colon_token)) {
+          const label = <DefineLabelStatement>this.createNode(start, SyntaxKind.define_label_statement)
+          label.name = ident.parts[0]
+
+          this.moveNext()
+          return label
+          //
+        }
+        break
+      }
+
+      // TODO: cursor stuff
+      case SyntaxKind.fetch_keyword:
+      case SyntaxKind.open_keyword:
+      case SyntaxKind.close_keyword:
       case SyntaxKind.deallocate_keyword: {
-        // todo: also close cursor
         this.error('not implemented')
         break
       }
@@ -800,16 +832,21 @@ export class Parser {
       }
 
       case SyntaxKind.view_keyword: {
-        this.error('"Create View" not implemented')
-        // const keyword = this.expect(SyntaxKind.view_keyword)
-        // const ident = this.parseIdentifier()
-        // const statement = {}
+        const node = this.createKeyword(start, SyntaxKind.create_view_statement)
+        const procedure = <CreateViewStatement>node
+        procedure.view_keyword = objectType
+
+        this.assertKind(SyntaxKind.identifier)
+
+        procedure.name = this.parseIdentifier()
+        procedure.as_keyword = this.expect(SyntaxKind.as_keyword)
+        procedure.definition = this.parseSelect()
+        this.optional(SyntaxKind.semicolon_token)
         break
       }
 
       case SyntaxKind.proc_keyword:
       case SyntaxKind.procedure_keyword: {
-        // todo: extract me?
         const node = this.createKeyword(start, SyntaxKind.create_proc_statement)
         const procedure = <CreateProcedureStatement>node
         procedure.procedure_keyword = objectType
@@ -827,33 +864,7 @@ export class Parser {
         }
 
         procedure.as_keyword = this.expect(SyntaxKind.as_keyword)
-
-        const block = procedure.body = <StatementBlock>{}
-        block.statements = []
-        const hasBegin = this.match(SyntaxKind.begin_keyword)
-        if (hasBegin) {
-          block.begin_keyword = this.token
-          this.moveNext()
-        }
-
-        // parse the body block
-        while (true) {
-          if (this.match(SyntaxKind.end_keyword)) {
-            if (hasBegin) {
-              block.end_keyword = this.expect(SyntaxKind.end_keyword)
-              break
-            }
-            // todo: else throw?
-
-          } else {
-            const next = this.parseStatement()
-            if (!next) {
-              break
-            }
-
-            block.statements.push(next)
-          }
-        }
+        procedure.body = this.parseStatementBlock(true)
 
         return procedure
       }
@@ -864,6 +875,40 @@ export class Parser {
     }
 
     throw Error('incomplete')
+  }
+
+  private parseStatementBlock(allowMultilineWithoutBeginEnd = false) {
+    const block = <StatementBlock>this.createNode(this.token, SyntaxKind.statement_block)
+    block.statements = []
+    const hasBegin = this.match(SyntaxKind.begin_keyword)
+    if (hasBegin) {
+      block.begin_keyword = this.token
+      this.moveNext()
+    }
+
+    // parse the body block
+    while (true) {
+      if (this.match(SyntaxKind.end_keyword)) {
+        if (hasBegin) {
+          block.end_keyword = this.expect(SyntaxKind.end_keyword)
+          break
+        }
+        // todo: else throw?
+
+      } else {
+        const next = this.parseStatement()
+        if (!next) {
+          break
+        }
+
+        block.statements.push(next)
+
+        if (!hasBegin && !allowMultilineWithoutBeginEnd)
+          break
+      }
+    }
+
+    return block
   }
 
   private parseArgumentDeclarationList() {

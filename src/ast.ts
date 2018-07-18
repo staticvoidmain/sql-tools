@@ -288,8 +288,13 @@ export type Statement =
   | DeclareStatement
   | CreateStatement
   | AlterStatement
-  | TableDeclaration
   | UseDatabaseStatement
+  | GoToStatement
+  | DefineLabelStatement
+  | WhileStatement
+  | IfStatement
+
+  // todo: deallocate, open, close, drop,
 
 export interface KeywordNode extends SyntaxNode {
   keyword: Token
@@ -301,7 +306,7 @@ export interface UseDatabaseStatement extends KeywordNode {
   name: string
 }
 
-export interface StatementBlock {
+export interface StatementBlock extends SyntaxNode {
   statements: Statement[]
   begin_keyword?: Token
   end_keyword?: Token
@@ -330,6 +335,7 @@ export interface VariableDeclaration extends SyntaxNode {
 export interface IfStatement extends KeywordNode {
   predicate: Expr
   then: StatementBlock
+  else_keyword?: Token
   else?: StatementBlock
 }
 
@@ -364,6 +370,14 @@ export interface SelectStatement extends KeywordNode {
 
 export interface GoStatement extends KeywordNode {
   count?: number
+}
+
+export interface GoToStatement extends KeywordNode {
+  label: string
+}
+
+export interface DefineLabelStatement extends SyntaxNode {
+  name: string
 }
 
 export type InsertStatement =
@@ -416,6 +430,15 @@ export interface AlterFunctionStatement extends KeywordNode {
   as_keyword: Token
   returns_keyword: Token
   body: StatementBlock
+}
+
+export interface CreateViewStatement extends KeywordNode {
+  view_keyword: Token
+  name: Identifier
+  as_keyword: Token
+  definition: SelectStatement
+  // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
+  // todo: trailing semicolon
 }
 
 // create and alter are pretty much the same...

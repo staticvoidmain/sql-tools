@@ -25,7 +25,11 @@ import {
   IsNullTestExpression,
   TableDeclaration,
   CreateProcedureStatement,
-  UseDatabaseStatement
+  UseDatabaseStatement,
+  PrintStatement,
+  IfStatement,
+  WhileStatement,
+  StatementBlock
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -66,6 +70,7 @@ ops[SyntaxKind.and_keyword] = 'and'
 ops[SyntaxKind.or_keyword] = 'or'
 ops[SyntaxKind.in_keyword] = 'in'
 
+ops[SyntaxKind.ltGt] = 'neq'
 ops[SyntaxKind.notEqual] = 'neq'
 ops[SyntaxKind.equal] = 'eq'
 ops[SyntaxKind.greaterThan] = 'gt'
@@ -141,6 +146,14 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.print_statement: {
+        const print = <PrintStatement>node
+        this.push('(print ')
+        this.printNode(print.expression)
+        this.pop()
+        break
+      }
+
       case SyntaxKind.column_expr: {
         const col = <ColumnExpression>node
         if (col.alias) {
@@ -159,7 +172,10 @@ export class PrintVisitor {
       }
 
       case SyntaxKind.statement_block: {
-        // todo
+        const block = <StatementBlock>node
+        this.push('(block ')
+        block.statements.forEach(s => this.printNode(s))
+        this.pop()
         break
       }
 
@@ -171,6 +187,8 @@ export class PrintVisitor {
         if (proc.arguments) {
           this.push('(args ')
           proc.arguments.forEach(a => this.printNode(a))
+          // always pops on a newline
+          this.inline_next_pop = false
           this.pop()
         }
 
@@ -180,6 +198,33 @@ export class PrintVisitor {
         proc.body.statements.forEach(s => this.printNode(s))
 
         this.pop()
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.if_statement: {
+
+        const _if = <IfStatement>node
+
+        this.push('(if ')
+        this.printNode(_if.predicate)
+        this.push('(then')
+        this.printNode(_if.then)
+        this.pop()
+        if (_if.else) {
+          this.push('(else ')
+          this.printNode(_if.else)
+          this.pop()
+        }
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.while_statement: {
+        const w = <WhileStatement>node
+        this.push('(while ')
+        this.printNode(w.predicate)
+        this.printNode(w.body)
         this.pop()
         break
       }

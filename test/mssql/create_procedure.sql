@@ -4,6 +4,8 @@ create procedure dbo.do_stuff (
 ) as
 begin
   -- do stuff to the thing
-
-  select 1 as result
+  if @asdf <> 2
+    select 1 + 1 as result
+  else
+    select 2 as result
 end

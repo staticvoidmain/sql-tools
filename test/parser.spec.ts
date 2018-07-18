@@ -96,7 +96,7 @@ describe('Parser', () => {
 
   it('debug: parse script and print ast', () => {
     const parser = new Parser()
-    const path = './test/mssql/basic_select.sql'
+    const path = './test/mssql/create_procedure.sql'
     const file = readFileSync(path, 'utf8')
     const tree = parser.parse(file, {
       path: path

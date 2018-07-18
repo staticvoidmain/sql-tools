@@ -6,23 +6,25 @@ export enum SyntaxKind {
   // tokens
   whitespace,
   newline,
-  openParen,
-  closeParen,
-  openBracket,
-  closeBracket,
+  openParen,             // (
+  closeParen,            // )
+  openBracket,           // [
+  closeBracket,          // ]
 
   // operators
-  equal,                // =
-  ltGt,                 // <>
-  notEqual,             // !=
-  lessThan,             // <
-  greaterThan,          // >
-  notLessThan,          // !<
-  notGreaterThan,       // !>
-  lessThanEqual,        // <=
-  greaterThanEqual,     // >=
+  equal,                 // =
+  ltGt,                  // <>
+  notEqual,              // !=
+  lessThan,              // <
+  greaterThan,           // >
+  notLessThan,           // !<
+  notGreaterThan,        // !>
+  lessThanEqual,         // <=
+  greaterThanEqual,      // >=
   dot_token,             // .
+  dotdot_token,          // ..
   comma_token,           // ,
+  colon_token,           // :
   semicolon_token,       // ;
   minus_token,           // -
   plus_token,            // +
@@ -273,6 +275,7 @@ export enum SyntaxKind {
   use_database_statement,
   go_statement,
   goto_statement,
+  define_label_statement,
   declare_statement,
   set_statement,
   set_option_statement,
