@@ -90,7 +90,7 @@ export interface IdentifierExpression extends Expr {
   identifier: Identifier
 }
 
-export interface CollateNode extends KeywordNode {
+export interface CollateNode extends SyntaxNode {
   collation: Identifier
 }
 
@@ -100,12 +100,38 @@ export type CreateTableElement =
 | ConstraintDefinition
 // todo: ... lots more here
 
+export enum ColumnDefinitionFlags {
+  None,
+  NotForReplication,
+  Sparse,
+  FileStream,
+  HasNullability,
+  HasIdentity,
+  HasCollation,
+  HasDefault,
+}
+
+export interface ColumnConstraint {
+
+}
+
+export interface IdentityDefinition extends SyntaxNode {
+  identity_keyword?: Token
+  seed?: number
+  increment?: number
+}
+
+// todo: is the declare @x table (<column_def>) a subset of the
+// real create table foo ()
 export interface ColumnDefinition extends SyntaxNode {
   name: Identifier
   type: DataType
-  not_keyword?: Token
-  null_keyword?: Token
-  default_keyword?: Token
+  column_flags: ColumnDefinitionFlags
+
+  nullability?: 'null' | 'not-null'
+  identity?: IdentityDefinition
+  columnConstraints?: ColumnConstraint[]
+
 }
 
 export interface ComputedColumnDefinition extends SyntaxNode {
@@ -121,6 +147,9 @@ export interface ConstraintDefinition extends SyntaxNode {
   default?: Expr
 }
 
+/**
+ *
+ */
 export interface ColumnExpression extends Expr {
   expression: Expr
   alias?: Identifier
@@ -138,11 +167,17 @@ export interface IsNullTestExpression extends Expr {
   not_null: boolean
 }
 
+export interface CastExpression extends SyntaxNode, Expr {
+  expr: Expr
+  as_keyword: Token
+  type: DataType
+}
+
 export interface BitwiseNotExpression extends Expr {
   expr: Expr
 }
 
-export interface LogicalNotExpression extends KeywordNode {
+export interface LogicalNotExpression extends SyntaxNode {
   expr: Expr
 }
 
@@ -199,18 +234,18 @@ export type CaseExpression =
 | SimpleCaseExpression
 | SearchedCaseExpression
 
-export interface SimpleCaseExpression extends Expr, KeywordNode {
+export interface SimpleCaseExpression extends Expr, SyntaxNode {
   input_expression: Expr
   cases: Array<WhenExpression>
   else: Expr
 }
 
-export interface SearchedCaseExpression extends Expr, KeywordNode {
+export interface SearchedCaseExpression extends Expr, SyntaxNode {
   cases: Array<WhenExpression>
   else: Expr
 }
 
-export interface WhenExpression extends Expr, KeywordNode {
+export interface WhenExpression extends Expr, SyntaxNode {
   when: Expr
   then: Expr
 }
@@ -220,10 +255,11 @@ export interface FunctionCallExpression extends Expr {
   arguments: Expr[]
 }
 
-export interface WhereClause extends KeywordNode {
+export interface WhereClause extends SyntaxNode {
   predicate: Expr
 }
 
+// TODO: is this everything I want to cover?
 // https://docs.microsoft.com/en-us/sql/t-sql/queries/from-transact-sql?view=sql-server-2017
 export enum JoinType {
   left,
@@ -233,26 +269,27 @@ export enum JoinType {
   cross
 }
 
-export interface JoinTableClause extends SyntaxNode {
+export interface JoinedTable extends SyntaxNode {
   type: JoinType
   source: DataSource
+  alias?: Identifier
   on: Expr
 }
 
-export interface GroupByClause extends KeywordNode {
+export interface GroupByClause extends SyntaxNode {
   grouping: ValueExpression[]
 }
 
-export interface OrderByClause extends KeywordNode {
+export interface OrderByClause extends SyntaxNode {
   ordering: ValueExpression[]
 }
 
 
-export interface HavingClause extends KeywordNode {
+export interface HavingClause extends SyntaxNode {
   predicate: Expr
 }
 
-export interface IntoClause extends KeywordNode {
+export interface IntoClause extends SyntaxNode {
   target: Identifier
 }
 
@@ -264,7 +301,6 @@ export interface Source extends SyntaxNode {
 export interface NamedSource extends SyntaxNode {
   // table/view/variable/temp_table
   name: Identifier
-  as_keyword: Token
   alias: Identifier
 }
 
@@ -277,18 +313,21 @@ export type RowValueExpression =
  * legal in a from clause, apparently.
  * ex: (values (1, 2), (3, 4) ) as Tuple(a, b);
  */
-export interface DerivedTable extends KeywordNode {
+export interface DerivedTable extends SyntaxNode {
   expressions: RowValueExpression[]
 }
 
 // todo: more sources and all that jazz
 export type DataSource =
+  | SelectStatement
+  | Identifier // hack
   | NamedSource
   | FunctionCallExpression
   | DerivedTable
 
-export interface FromClause extends KeywordNode {
+export interface FromClause extends SyntaxNode {
   sources: DataSource[]
+  joins?: JoinedTable[]
 }
 
 // statements
@@ -309,12 +348,7 @@ export type Statement =
   | TruncateTableStatement
 
   // todo: deallocate, open, close, drop,
-
-export interface KeywordNode extends SyntaxNode {
-  keyword: Token
-}
-
-export interface UseDatabaseStatement extends KeywordNode {
+export interface UseDatabaseStatement extends SyntaxNode {
   // todo: maybe later actually factor this into
   // something else...
   name: string
@@ -322,71 +356,68 @@ export interface UseDatabaseStatement extends KeywordNode {
 
 export interface StatementBlock extends SyntaxNode {
   statements: Statement[]
-  begin_keyword?: Token
-  end_keyword?: Token
+  has_begin_end: boolean
 }
 
 // can have a table, or variables, but not both
-export interface DeclareStatement extends KeywordNode {
+export interface DeclareStatement extends SyntaxNode {
   table?: TableDeclaration
   variables?: VariableDeclaration[]
 }
 
-export interface TableDeclaration extends KeywordNode {
-  // todo:
+export interface TableDeclaration extends SyntaxNode {
   table_keyword: Token
-  name: string
+  name: Identifier
   body: CreateTableElement[]
 }
 
+// locals can only consist of a single-part identifier
 export interface VariableDeclaration extends SyntaxNode {
   name: string
-  as: string
+  has_as: boolean
   type: DataType
   expression?: ValueExpression
 }
 
-export interface IfStatement extends KeywordNode {
+export interface IfStatement extends SyntaxNode {
   predicate: Expr
   then: StatementBlock
-  else_keyword?: Token
   else?: StatementBlock
 }
 
-export interface WhileStatement extends KeywordNode {
+export interface WhileStatement extends SyntaxNode {
   predicate: Expr
   body: StatementBlock
 }
 
-export interface SetOptionStatement extends KeywordNode {
+export interface SetOptionStatement extends SyntaxNode {
   option: Token
   option_value: Token
 }
 
-export interface SetStatement extends KeywordNode {
+export interface SetStatement extends SyntaxNode {
   name: string
   op: AssignmentOperator
   expression: ValueExpression
 }
 
-export interface SelectStatement extends KeywordNode {
+export interface SelectStatement extends SyntaxNode {
   top: any
   qualifier: 'all' | 'distinct'
   columns: Array<ColumnNode>
   from?: FromClause
   into?: IntoClause
-  joins?: JoinTableClause[]
   where?: WhereClause
   order_by?: OrderByClause
   group_by?: GroupByClause
   having?: HavingClause
 }
 
-export interface GoStatement extends KeywordNode {
+export interface GoStatement extends SyntaxNode {
   count?: number
 }
 
-export interface GoToStatement extends KeywordNode {
+export interface GoToStatement extends SyntaxNode {
   label: string
 }
 
@@ -394,7 +425,7 @@ export interface DefineLabelStatement extends SyntaxNode {
   name: string
 }
 
-export interface DropStatement extends KeywordNode {
+export interface DropStatement extends SyntaxNode {
   objectType: Token
   target: Identifier
 }
@@ -403,20 +434,19 @@ export type InsertStatement =
   | InsertSelectStatement
   | InsertIntoStatement
 
-export interface ExecuteStatement extends KeywordNode {
+export interface ExecuteStatement extends SyntaxNode {
   procedure: Identifier
   arguments: Expr[]
 }
 
-export interface InsertIntoStatement extends KeywordNode {
-  into_keyword: Token
+export interface InsertIntoStatement extends SyntaxNode {
   target: Identifier
   columns?: Array<string>
   values_keyword: Token
   values: Expr[]
 }
 
-export interface InsertSelectStatement extends KeywordNode {
+export interface InsertSelectStatement extends SyntaxNode {
   insert_keyword: Token
 }
 
@@ -431,44 +461,40 @@ export type CreateStatement =
 // createview
 // createXYZ
 
-export interface TruncateTableStatement extends KeywordNode {
+export interface TruncateTableStatement extends SyntaxNode {
   table_keyword: Token
   table: Identifier
 }
 
-export interface CreateTableStatement extends KeywordNode {
-  table_keyword: Token
-  object: Identifier
+export interface CreateTableStatement extends SyntaxNode {
+  table: Identifier
   body: CreateTableElement[]
   // file group stuff
   // as FileTable blah
 }
 
 // alter table, view
-export interface AlterTableStatement extends KeywordNode {
+export interface AlterTableStatement extends SyntaxNode {
   object: Identifier
 }
 
-export interface AlterFunctionStatement extends KeywordNode {
+export interface AlterFunctionStatement extends SyntaxNode {
   function_keyword: Token
   name: Identifier
   arguments: VariableDeclaration[]
-  as_keyword: Token
-  returns_keyword: Token
   body: StatementBlock
 }
 
-export interface CreateViewStatement extends KeywordNode {
+export interface CreateViewStatement extends SyntaxNode {
   view_keyword: Token
   name: Identifier
-  as_keyword: Token
   definition: SelectStatement
   // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
   // todo: trailing semicolon
 }
 
 // create and alter are pretty much the same...
-export interface CreateProcedureStatement extends KeywordNode {
+export interface CreateProcedureStatement extends SyntaxNode {
   procedure_keyword: Token
   name: Identifier
   arguments: VariableDeclaration[]
@@ -476,21 +502,20 @@ export interface CreateProcedureStatement extends KeywordNode {
   body: StatementBlock
 }
 
-export interface AlterProcedureStatement extends KeywordNode {
+export interface AlterProcedureStatement extends SyntaxNode {
   procedure_keyword: Token
   name: Identifier
   // todo: does this work?
   arguments: VariableDeclaration[]
-  as_keyword: Token
   body: StatementBlock
 }
 
 // throw is weird.
-export interface PrintStatement extends KeywordNode {
+export interface PrintStatement extends SyntaxNode {
   expression: Expr
 }
 
-export interface ReturnStatement extends KeywordNode {
+export interface ReturnStatement extends SyntaxNode {
   expression: Expr
 }
 

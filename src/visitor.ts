@@ -32,7 +32,9 @@ import {
   StatementBlock,
   SearchedCaseExpression,
   WhenExpression,
-  SimpleCaseExpression
+  SimpleCaseExpression,
+  DropStatement,
+  JoinedTable
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -101,6 +103,21 @@ function spaces(n: number) {
 function simple(kind: SyntaxKind) {
   return kind === SyntaxKind.literal_expr
     || kind === SyntaxKind.identifier_expr
+}
+
+function keyword(kind: SyntaxKind) {
+  switch (kind) {
+    case SyntaxKind.table_keyword:
+      return 'table'
+    case SyntaxKind.procedure_keyword:
+      return 'procedure'
+    case SyntaxKind.view_keyword:
+      return 'view'
+    case SyntaxKind.function_keyword:
+      return 'function'
+    default:
+      return 'unknown'
+  }
 }
 
 export class PrintVisitor {
@@ -177,8 +194,21 @@ export class PrintVisitor {
 
       case SyntaxKind.statement_block: {
         const block = <StatementBlock>node
+        // not sure this is necessary...
         this.push('(block ')
         block.statements.forEach(s => this.printNode(s))
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.drop_statement: {
+
+        const drop = <DropStatement>node
+
+        this.push('(drop ')
+        this.write(keyword(drop.objectType.kind))
+        this.write(formatIdentifier(drop.target))
+        this.inline_next_pop = true
         this.pop()
         break
       }
@@ -263,7 +293,34 @@ export class PrintVisitor {
         // todo: recurse, there are other types
         const from = <FromClause>node
         const sources = <NamedSource[]>from.sources
-        this.write('(from ' + formatIdentifier(sources[0].name) + ')', true)
+        // todo: alias?
+        this.push('(from')
+        const alias = sources[0].alias ? sources[0].alias + ' ' : ''
+
+        this.write('(source ' + alias + formatIdentifier(sources[0].name) + ')', true)
+
+        if (from.joins) {
+          from.joins.forEach(n => this.printNode(n))
+        }
+        this.pop()
+
+        break
+      }
+
+      case SyntaxKind.joined_table: {
+        const join = <JoinedTable>node
+        this.push('(join')
+
+        this.printNode(join.source)
+
+        if (join.alias) {
+          this.write('(alias ' + formatIdentifier(join.alias) + ')')
+        }
+
+        this.push('(on ')
+        this.printNode(join.on)
+        this.pop()
+        this.pop()
         break
       }
 

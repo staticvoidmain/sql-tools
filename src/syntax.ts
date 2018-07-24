@@ -260,6 +260,7 @@ export enum SyntaxKind {
   logical_not_expr,
   column_expr,
   null_test_expr,
+  cast_expr,
   // misc
   all_columns,    // <star>
   // statements
@@ -284,6 +285,8 @@ export enum SyntaxKind {
   select_statement,
   into_clause,
   from_clause,
+  join_table_clause,
+  joined_table,
   where_clause,
   group_by_clause,
   order_by_clause,
@@ -304,6 +307,7 @@ export enum SyntaxKind {
   string_literal,
   table_alias,
   column_alias,
+  identity_definition,
   computed_column_definition,
   // todo: all kinds of kinds
 }
