@@ -1234,7 +1234,8 @@ export class Parser {
         this.expect(SyntaxKind.closeParen)
       }
 
-      into.values_keyword = this.expect(SyntaxKind.values_keyword)
+      this.expect(SyntaxKind.values_keyword)
+
       into.values = []
       this.expect(SyntaxKind.openParen)
       do {
@@ -1321,11 +1322,13 @@ export class Parser {
 
         this.assertKind(SyntaxKind.join_keyword)
       } else if (this.optional(SyntaxKind.inner_keyword)) {
-        join.type |= JoinType.inner
+        join.type |= JoinType.explicit_inner
 
         this.assertKind(SyntaxKind.join_keyword)
+      } else if (this.match(SyntaxKind.join_keyword)) {
+        join.type |= JoinType.implicit_inner
       } else {
-        // done parsing joins
+        // no joins, done parsing 'from'
         break
       }
 

@@ -272,7 +272,8 @@ export enum JoinType {
   left,
   right,
   full,
-  inner,
+  explicit_inner,
+  implicit_inner,
   cross
 }
 
@@ -361,7 +362,6 @@ export interface DeclareStatement extends SyntaxNode {
 }
 
 export interface TableDeclaration extends SyntaxNode {
-  table_keyword: Token
   name: Identifier
   body: CreateTableElement[]
 }
@@ -455,7 +455,6 @@ export interface ExecuteProcedureStatement extends SyntaxNode {
 export interface InsertIntoStatement extends SyntaxNode {
   target: Identifier
   columns?: Array<string>
-  values_keyword: Token
   values: Expr[]
 }
 

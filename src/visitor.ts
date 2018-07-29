@@ -44,23 +44,6 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   }
 }
 
-// todo
-export class Visitor {
-  visit(node: SyntaxNode) {
-    // todo: node && doStuff(node)
-  }
-
-  visitKeyword(token: Token): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-  // visitKeyword(keyword: KeywordNode): void { }
-}
-
 function formatIdentifier(id: Identifier) {
   return id.parts.join('.')
 }
@@ -162,7 +145,7 @@ export class PrintVisitor {
 
       case SyntaxKind.use_database_statement: {
         const use = <UseDatabaseStatement>node
-        this.write('(use ' + use.name + ')')
+        this.write('(use ' + use.name + ')', true)
         break
       }
 
