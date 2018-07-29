@@ -95,24 +95,25 @@ export interface CollateNode extends SyntaxNode {
 }
 
 export type CreateTableElement =
-| ColumnDefinition
-| ComputedColumnDefinition
-| ConstraintDefinition
+  | ColumnDefinition
+  | ComputedColumnDefinition
+  | ConstraintDefinition
+  | IndexDefinition
 // todo: ... lots more here
 
 export enum ColumnDefinitionFlags {
-  None,
-  NotForReplication,
-  Sparse,
-  FileStream,
-  HasNullability,
-  HasIdentity,
-  HasCollation,
-  HasDefault,
+  None              = 0,
+  NotForReplication = 1 << 0,
+  Sparse            = 1 << 1,
+  FileStream        = 1 << 2,
+  HasNullability    = 1 << 3,
+  HasIdentity       = 1 << 4,
+  HasCollation      = 1 << 5,
+  HasDefault        = 1 << 6,
 }
 
-export interface ColumnConstraint {
-
+export interface ColumnConstraint extends SyntaxNode {
+  // todo...
 }
 
 export interface IdentityDefinition extends SyntaxNode {
@@ -145,6 +146,12 @@ export interface ConstraintDefinition extends SyntaxNode {
   name: Identifier
   unique?: boolean
   default?: Expr
+  with_checked?: boolean
+}
+
+export interface IndexDefinition extends SyntaxNode {
+  type: 'clustered' | 'nonclustered'
+  columnstore?: boolean
 }
 
 /**
@@ -231,8 +238,8 @@ export interface ParenExpression extends Expr {
 }
 
 export type CaseExpression =
-| SimpleCaseExpression
-| SearchedCaseExpression
+  | SimpleCaseExpression
+  | SearchedCaseExpression
 
 export interface SimpleCaseExpression extends Expr, SyntaxNode {
   input_expression: Expr
@@ -271,8 +278,7 @@ export enum JoinType {
 
 export interface JoinedTable extends SyntaxNode {
   type: JoinType
-  source: DataSource
-  alias?: Identifier
+  source: TableLikeDataSource
   on: Expr
 }
 
@@ -283,7 +289,6 @@ export interface GroupByClause extends SyntaxNode {
 export interface OrderByClause extends SyntaxNode {
   ordering: ValueExpression[]
 }
-
 
 export interface HavingClause extends SyntaxNode {
   predicate: Expr
@@ -298,10 +303,10 @@ export interface Source extends SyntaxNode {
   with?: string[] // todo: specialized type for table hints
 }
 
-export interface NamedSource extends SyntaxNode {
-  // table/view/variable/temp_table
-  name: Identifier
-  alias: Identifier
+// this is lame... factor this out.
+export interface TableLikeDataSource extends SyntaxNode {
+  expr: IdentifierExpression | FunctionCallExpression | SelectStatement
+  alias?: Identifier
 }
 
 export type RowValueExpression =
@@ -317,16 +322,8 @@ export interface DerivedTable extends SyntaxNode {
   expressions: RowValueExpression[]
 }
 
-// todo: more sources and all that jazz
-export type DataSource =
-  | SelectStatement
-  | Identifier // hack
-  | NamedSource
-  | FunctionCallExpression
-  | DerivedTable
-
 export interface FromClause extends SyntaxNode {
-  sources: DataSource[]
+  sources: TableLikeDataSource[]
   joins?: JoinedTable[]
 }
 
@@ -347,10 +344,8 @@ export type Statement =
   | IfStatement
   | TruncateTableStatement
 
-  // todo: deallocate, open, close, drop,
+// todo: deallocate, open, close, drop,
 export interface UseDatabaseStatement extends SyntaxNode {
-  // todo: maybe later actually factor this into
-  // something else...
   name: string
 }
 
@@ -434,9 +429,27 @@ export type InsertStatement =
   | InsertSelectStatement
   | InsertIntoStatement
 
-export interface ExecuteStatement extends SyntaxNode {
+export enum ExecuteStatementFlags {
+  None                = 0,
+  NoExecKeyword       = 1 << 0,
+  HasArgs             = 1 << 1,
+  HasOptions          = 1 << 2,
+  HasReturnVariable   = 1 << 3,
+}
+
+// somewhat rare and a little convoluted...
+// execute ('select * from something') as SomeUser;
+export interface ExecuteStringStatement extends SyntaxNode {
+  query: string
+  format_args?: Expr[]
+  linked_server?: string
+  as_user?: string
+}
+
+export interface ExecuteProcedureStatement extends SyntaxNode {
   procedure: Identifier
   arguments: Expr[]
+  flags: ExecuteStatementFlags
 }
 
 export interface InsertIntoStatement extends SyntaxNode {
@@ -456,8 +469,8 @@ export type AlterStatement =
   | AlterFunctionStatement
 
 export type CreateStatement =
-| CreateTableStatement
-| CreateProcedureStatement
+  | CreateTableStatement
+  | CreateProcedureStatement
 // createview
 // createXYZ
 

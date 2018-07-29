@@ -1,24 +1,33 @@
 
 -- a little parser torture test
-declare @foo int = -1000;
-set @foo *= -1;
-set nocount on
+-- set nocount on
 
-insert into [SomeTable] (foo, bar)
-values ( @foo, case when @foo >= -1 then 1 else 0 end )
+-- declare @foo int = -1000;
+-- set @foo *= -1;
 
-drop procedure asdf.foo
+-- insert into [SomeTable] (foo, bar)
+-- values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
-create table something.whatever (
-  [id] int identity(1, 1),
-  [name] varchar(256),
-  [date] datetime
-);
+-- sp_helptext dbo.object_name_here
+-- exec asdf.do_foo 'bar', 1, @b;
 
--- select *
--- from something s
--- left outer join dbo.table_valued_func(@foo) as e
---   on s.asdf = zzz.the_func(e)
+-- execute ('select * from foo where x = ?', @foo);
+
+-- drop procedure asdf.foo
+
+-- create table dbo.whatever (
+--   [id] int identity(1, 1) not null,
+--   [name] varchar(256) null,
+--   [date] datetime null
+-- );
+
+
+select *
+from something s
+left outer join dbo.table_valued_func(@foo) as e
+  on s.asdf = zzz.the_func(e)
+inner join dbo.other
+  on dbo.other.foo = @foo
 
 -- update ex
 -- set ex.foo /= 10 --divequals

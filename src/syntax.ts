@@ -271,7 +271,8 @@ export enum SyntaxKind {
   if_statement,
   while_statement,
   waitfor_statement,
-  execute_statement,
+  execute_procedure_statement,
+  execute_string_statement,
   print_statement,
   throw_statement,
   use_database_statement,
@@ -281,6 +282,7 @@ export enum SyntaxKind {
   declare_statement,
   set_statement,
   set_option_statement,
+  insert_statement,
   update_statement,
   select_statement,
   into_clause,
@@ -309,5 +311,6 @@ export enum SyntaxKind {
   column_alias,
   identity_definition,
   computed_column_definition,
+  data_source
   // todo: all kinds of kinds
 }

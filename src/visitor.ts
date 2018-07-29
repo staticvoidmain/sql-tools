@@ -18,8 +18,6 @@ import {
   VariableDeclaration,
   DataType,
   FromClause,
-  DataSource,
-  NamedSource,
   Identifier,
   WhereClause,
   IsNullTestExpression,
@@ -34,7 +32,8 @@ import {
   WhenExpression,
   SimpleCaseExpression,
   DropStatement,
-  JoinedTable
+  JoinedTable,
+  TableLikeDataSource
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -292,30 +291,43 @@ export class PrintVisitor {
       case SyntaxKind.from_clause: {
         // todo: recurse, there are other types
         const from = <FromClause>node
-        const sources = <NamedSource[]>from.sources
-        // todo: alias?
-        this.push('(from')
-        const alias = sources[0].alias ? sources[0].alias + ' ' : ''
+        const sources = <TableLikeDataSource[]>from.sources
 
-        this.write('(source ' + alias + formatIdentifier(sources[0].name) + ')', true)
+        this.push('(from')
+
+        for (let i = 0; i < sources.length; i++) {
+          const element = sources[i]
+          this.push('(source ')
+          this.printNode(element)
+          this.pop()
+        }
 
         if (from.joins) {
           from.joins.forEach(n => this.printNode(n))
         }
+
         this.pop()
+
+        break
+      }
+
+      case SyntaxKind.data_source: {
+        const src = <TableLikeDataSource>node
+
+        this.printNode(src.expr)
+
+        if (src.alias) {
+          this.write(' (alias ' + formatIdentifier(src.alias) + ') ')
+        }
 
         break
       }
 
       case SyntaxKind.joined_table: {
         const join = <JoinedTable>node
-        this.push('(join')
+        this.push('(join ')
 
         this.printNode(join.source)
-
-        if (join.alias) {
-          this.write('(alias ' + formatIdentifier(join.alias) + ')')
-        }
 
         this.push('(on ')
         this.printNode(join.on)
@@ -528,6 +540,19 @@ export class PrintVisitor {
         }
 
         this.pop()
+        break
+      }
+
+      case SyntaxKind.insert_statement: {
+        // (insert table_name 'foo 'bar' 'baz
+        //   (values
+        //     'foo
+        //   )
+        //  )
+        this.push('(insert ')
+
+        this.pop()
+
         break
       }
 

@@ -20,18 +20,12 @@ export enum TokenFlags {
   SharedTempTable = 8
 }
 
-/**
- * Basic token state so I don't have to read everything off the parser.
- * though, realistically, that's probably going to happen.
- */
 export class Token {
   start: number
   end: number
   kind: SyntaxKind
   value?: any
   flags: TokenFlags
-  // todo: remove debug props
-  // debug?: string
 
   constructor(kind: SyntaxKind, start: number, end: number) {
     this.kind = kind
@@ -92,6 +86,7 @@ class KeywordLookup {
       for (let j = 0; j < key.length; j++) {
         const a = keyword.charCodeAt(j)
         const b = key.charCodeAt(j)
+        // upper or lower match is fine
         if (a !== b && a !== b + 32) {
           return false
         }
@@ -138,9 +133,6 @@ class KeywordLookup {
   }
 }
 
-// primitive data types don't seem to be in this list
-// do we want to do something else with them?
-// maybe in the parser??
 const keywordMap = new KeywordLookup([
   ['add', SyntaxKind.add_keyword],
   ['all', SyntaxKind.all_keyword],
@@ -333,7 +325,7 @@ const keywordMap = new KeywordLookup([
 ])
 
 // todo: maybe also the char position
-export type ErrorCallback = (line: number, msg: string) => void
+export type ErrorCallback = (line: number, col: number, msg: string) => void
 
 export interface ScannerOptions {
   /**
@@ -565,18 +557,17 @@ export class Scanner {
 
   /**
    * Returns the line of the specified token.
-   * todo: also compute the column offset
    * @param token the token to inspect
    */
   lineOf(token: Token) {
-    return this.getLine(token.start)
+    return this.getLine(token.start) + 1
   }
 
   offsetOf(token: Token) {
     const line = this.getLine(token.start)
     const lineStart = this.lines[line]
 
-    return '' + line + ',' + (token.start - lineStart)
+    return '' + (line + 1) + ', ' + ((token.start - lineStart) + 1)
   }
 
   /**
@@ -664,7 +655,7 @@ export class Scanner {
         break
       }
 
-      // apparently unary + and - can be
+      // unary + and - can be
       // tucked next to each other,
       // they just don't bind.
       case Chars.plus: {
@@ -908,8 +899,6 @@ export class Scanner {
     const token = new Token(kind, start, this.pos++)
     token.flags = flags
     token.value = val
-    // todo: remove me later
-    // token.debug = SyntaxKind[kind]
 
     return token
   }
