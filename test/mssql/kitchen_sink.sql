@@ -5,7 +5,7 @@
 -- declare @foo int = -1000;
 -- set @foo *= -1;
 
--- insert into [SomeTable] (foo, bar)
+insert into [SomeTable] foo, bar)
 -- values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- sp_helptext dbo.object_name_here
@@ -13,13 +13,13 @@
 
 -- execute ('select * from foo where x = ?', @foo);
 
--- drop procedure asdf.foo
+drop procedure asdf.foo
 
--- create table dbo.whatever (
---   [id] int identity(1, 1) not null,
---   [name] varchar(256) null,
---   [date] datetime null
--- );
+create table dbo.whatever (
+  [id] int identity(1, 1) not null,
+  [name] varchar(256) null,
+  [date] datetime null
+);
 
 
 select *
@@ -29,7 +29,7 @@ left outer join dbo.table_valued_func(@foo) as e
 inner join dbo.other
   on dbo.other.foo = @foo
 
--- update ex
--- set ex.foo /= 10 --divequals
--- from [SomeTable] as ex
--- where ex.bar <= @foo and ex.foo is null
+update ex
+set ex.foo /= 10 --divequals
+from [SomeTable] as ex
+where ex.bar <= @foo and ex.foo is null

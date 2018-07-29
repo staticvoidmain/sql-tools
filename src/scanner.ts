@@ -555,19 +555,27 @@ export class Scanner {
       || ch === Chars.carriageReturn)
   }
 
+  getSourceLine(line: number) {
+    this.lazyComputeLineNumbers()
+
+    const begin = this.lines[line]
+    const end = this.lines[line + 1]
+
+    return this.text.substring(begin, end)
+  }
+
   /**
    * Returns the line of the specified token.
    * @param token the token to inspect
    */
   lineOf(token: Token) {
-    return this.getLine(token.start) + 1
+    return this.getLine(token.start)
   }
 
-  offsetOf(token: Token) {
-    const line = this.getLine(token.start)
+  offsetOf(token: Token, line: number) {
     const lineStart = this.lines[line]
 
-    return '' + (line + 1) + ', ' + ((token.start - lineStart) + 1)
+    return (token.start - lineStart)
   }
 
   /**

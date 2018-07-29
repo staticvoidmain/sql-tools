@@ -276,8 +276,11 @@ export class Parser {
   }
 
   private error(err: string) {
-    // todo: get the text line that contains the error.
-    throw new Error(`${this.settings.path} (${this.scanner!.offsetOf(this.token)}) ${err}`)
+    const line = this.scanner!.lineOf(this.token)
+    const col = this.scanner!.offsetOf(this.token, line)
+    const text = this.scanner!.getSourceLine(line)
+
+    throw new Error(`${this.settings.path} (${line + 1}, ${col + 1}) ${err} \n${text}`)
   }
 
   private isTrivia() {

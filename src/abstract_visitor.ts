@@ -41,8 +41,8 @@ import {
  */
 export abstract class Visitor {
   // todo: set options
-
   abstract visitBinaryExpression(node: BinaryExpression): void
+  abstract visitBitwiseNot(node: BitwiseNotExpression): void
   abstract visitBlock(block: StatementBlock): void
   abstract visitColumnExpression(col: ColumnExpression): void
   abstract visitCreateProcedure(node: CreateProcedureStatement): void
@@ -226,7 +226,6 @@ export abstract class Visitor {
         break
       }
 
-      // unary
       case SyntaxKind.null_test_expr: {
         const test = <IsNullTestExpression>node
         this.visitNullTest(test)
@@ -260,7 +259,7 @@ export abstract class Visitor {
 
       case SyntaxKind.bitwise_not_expr: {
         const unary = <BitwiseNotExpression>node
-
+        this.visitBitwiseNot(unary)
         this.visit(unary.expr)
 
         break

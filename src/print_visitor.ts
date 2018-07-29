@@ -102,6 +102,8 @@ function keyword(kind: SyntaxKind) {
   }
 }
 
+// okay so... I don't think the pretty printer can really share
+// the Visitor hierarchy
 export class PrintVisitor {
   private level = 0
 

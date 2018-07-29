@@ -1,5 +1,5 @@
 
-import { printNodes } from './visitor'
+import { printNodes } from './print_visitor'
 import { Parser } from './parser'
 
 import { promisify } from 'util'
