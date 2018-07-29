@@ -276,8 +276,8 @@ export class Parser {
   }
 
   private error(err: string) {
-    const line = this.scanner!.lineOf(this.token)
-    const col = this.scanner!.offsetOf(this.token, line)
+    const line = this.scanner!.lineOf(this.token.start)
+    const col = this.scanner!.offsetOf(this.token.start, line)
     const text = this.scanner!.getSourceLine(line)
 
     throw new Error(`${this.settings.path} (${line + 1}, ${col + 1}) ${err} \n${text}`)
@@ -556,7 +556,7 @@ export class Parser {
 
     this.moveNext()
 
-    return <BinaryExpression>{
+    const binary =  <BinaryExpression>{
       kind: SyntaxKind.binary_expr,
       left: left,
       op: {
@@ -566,6 +566,10 @@ export class Parser {
       },
       right: parse.apply(this)
     }
+
+    binary.end = binary.right.end
+
+    return binary
   }
 
   private createAndMoveNext(token: Token, kind: SyntaxKind): SyntaxNode {
@@ -1384,6 +1388,13 @@ export class Parser {
     return where
   }
 
+  getInfo(node: SyntaxNode): any[] {
+    const line = this.scanner!.lineOf(node.start)
+    const col = this.scanner!.offsetOf(node.start, line)
+    const text = this.scanner!.getSourceSubstring(node.start, node.end)
+
+    return [line, col, text]
+  }
   /**
    * Parse a given sql string into an array of top level statements and their child expressions.
    *

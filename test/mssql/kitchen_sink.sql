@@ -5,8 +5,8 @@
 -- declare @foo int = -1000;
 -- set @foo *= -1;
 
-insert into [SomeTable] foo, bar)
--- values ( @foo, case when @foo >= -1 then 1 else 0 end )
+insert into [SomeTable] (foo, bar)
+values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- sp_helptext dbo.object_name_here
 -- exec asdf.do_foo 'bar', 1, @b;
@@ -21,7 +21,6 @@ create table dbo.whatever (
   [date] datetime null
 );
 
-
 select *
 from something s
 left outer join dbo.table_valued_func(@foo) as e
@@ -29,7 +28,8 @@ left outer join dbo.table_valued_func(@foo) as e
 inner join dbo.other
   on dbo.other.foo = @foo
 
-update ex
-set ex.foo /= 10 --divequals
-from [SomeTable] as ex
-where ex.bar <= @foo and ex.foo is null
+go
+-- update ex
+-- set ex.foo /= 10 --divequals
+-- from [SomeTable] as ex
+-- where ex.bar <= @foo and ex.foo is null

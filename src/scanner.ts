@@ -395,6 +395,7 @@ export class Scanner {
     return ~line - 1
   }
 
+  // todo: this... is wrong.
   private error(msg: string) {
     const err = this.options.error
 
@@ -555,6 +556,7 @@ export class Scanner {
       || ch === Chars.carriageReturn)
   }
 
+
   getSourceLine(line: number) {
     this.lazyComputeLineNumbers()
 
@@ -564,18 +566,24 @@ export class Scanner {
     return this.text.substring(begin, end)
   }
 
+  // callable from the parser
+  // to get the text just for a single node
+  getSourceSubstring(begin: number, end: number) {
+    return this.text.substring(begin, end)
+  }
+
   /**
    * Returns the line of the specified token.
    * @param token the token to inspect
    */
-  lineOf(token: Token) {
-    return this.getLine(token.start)
+  lineOf(start: number) {
+    return this.getLine(start)
   }
 
-  offsetOf(token: Token, line: number) {
+  offsetOf(start: number, line: number) {
     const lineStart = this.lines[line]
 
-    return (token.start - lineStart)
+    return (start - lineStart)
   }
 
   /**

@@ -15,6 +15,10 @@ import {
   statSync
 } from 'fs'
 
+import { SyntaxNode, BinaryExpression, LiteralExpression } from './ast'
+import { Visitor } from './abstract_visitor'
+import { SyntaxKind } from './syntax'
+
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
 
@@ -97,6 +101,53 @@ async function processFile(path: string) {
     path: path
   })
 
-  printNodes(tree)
+  if (operation === 'print') {
+    printNodes(tree)
+  }
+
+  if (operation === 'lint') {
+    const visitor = new ExampleLintVisitor(parser)
+
+    for (const node of tree) {
+      visitor.visit(node)
+    }
+  }
 }
 
+function lint(nodes: ReadonlyArray<SyntaxNode>, parser: Parser) {
+
+}
+
+class ExampleLintVisitor extends Visitor {
+  constructor(private parser: Parser) {
+    super()
+  }
+
+  isNullLiteral(node: SyntaxNode) {
+    if (node.kind === SyntaxKind.literal_expr) {
+      const literal = <LiteralExpression>node
+
+      if (literal.value === 'null') {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  // todo:
+  flagNode(node: SyntaxNode) {
+
+  }
+
+  visitBinaryExpression(node: BinaryExpression) {
+    if (this.isNullLiteral(node.left) || this.isNullLiteral(node.right)) {
+      // okay this leads us into the whole
+      // finish node business, where the node has a start and an end
+      const [line, col, text] = this.parser.getInfo(node)
+
+      console.log(`(${line + 1}, ${col + 1}) ${text}`)
+      console.log('null literal used in binary expr, use "is null" or "is not null"')
+    }
+  }
+}

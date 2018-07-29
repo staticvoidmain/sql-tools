@@ -41,35 +41,35 @@ import {
  */
 export abstract class Visitor {
   // todo: set options
-  abstract visitBinaryExpression(node: BinaryExpression): void
-  abstract visitBitwiseNot(node: BitwiseNotExpression): void
-  abstract visitBlock(block: StatementBlock): void
-  abstract visitColumnExpression(col: ColumnExpression): void
-  abstract visitCreateProcedure(node: CreateProcedureStatement): void
-  abstract visitDataSource(node: TableLikeDataSource): void
-  abstract visitDataType(node: DataType): void
-  abstract visitDeclareLocals(node: DeclareStatement): void
-  abstract visitDeclareTableVariable(node: DeclareStatement): void
-  abstract visitDrop(node: DropStatement): void
-  abstract visitIdentifierExpression(node: IdentifierExpression): void
-  abstract visitIf(node: IfStatement): void
-  abstract visitInsertStatement(node: InsertStatement): void
-  abstract visitLiteralExpression(node: LiteralExpression): void
-  abstract visitNullTest(node: IsNullTestExpression): void
-  abstract visitParenExpression(node: ParenExpression): void
-  abstract visitPrint(print: PrintStatement): void
-  abstract visitScalar(node: VariableDeclaration): void
-  abstract visitSearchedCaseExpression(node: SearchedCaseExpression): void
-  abstract visitSelect(node: SelectStatement): void
-  abstract visitSet(node: SetStatement): void
-  abstract visitSimpleCaseExpression(node: SimpleCaseExpression): void
-  abstract visitTableDeclaration(node: TableDeclaration): void
-  abstract visitUnaryMinus(node: UnaryMinusExpression): void
-  abstract visitUnaryPlus(node: UnaryPlusExpression): void
-  abstract visitUseDatabase(use: UseDatabaseStatement): void
-  abstract visitWhen(node: WhenExpression): void
-  abstract visitWhere(node: WhereClause): void
-  abstract visitWhile(node: WhileStatement): void
+  visitBinaryExpression(node: BinaryExpression): void { }
+  visitBitwiseNot(node: BitwiseNotExpression): void { }
+  visitBlock(block: StatementBlock): void { }
+  visitColumnExpression(col: ColumnExpression): void { }
+  visitCreateProcedure(node: CreateProcedureStatement): void { }
+  visitDataSource(node: TableLikeDataSource): void { }
+  visitDataType(node: DataType): void { }
+  visitDeclareLocals(node: DeclareStatement): void { }
+  visitDeclareTableVariable(node: DeclareStatement): void { }
+  visitDrop(node: DropStatement): void { }
+  visitIdentifierExpression(node: IdentifierExpression): void { }
+  visitIf(node: IfStatement): void { }
+  visitInsertStatement(node: InsertStatement): void { }
+  visitLiteralExpression(node: LiteralExpression): void { }
+  visitNullTest(node: IsNullTestExpression): void { }
+  visitParenExpression(node: ParenExpression): void { }
+  visitPrint(print: PrintStatement): void { }
+  visitScalar(node: VariableDeclaration): void { }
+  visitSearchedCaseExpression(node: SearchedCaseExpression): void { }
+  visitSelect(node: SelectStatement): void { }
+  visitSet(node: SetStatement): void { }
+  visitSimpleCaseExpression(node: SimpleCaseExpression): void { }
+  visitTableDeclaration(node: TableDeclaration): void { }
+  visitUnaryMinus(node: UnaryMinusExpression): void { }
+  visitUnaryPlus(node: UnaryPlusExpression): void { }
+  visitUseDatabase(use: UseDatabaseStatement): void { }
+  visitWhen(node: WhenExpression): void { }
+  visitWhere(node: WhereClause): void { }
+  visitWhile(node: WhileStatement): void { }
 
   visit(node: SyntaxNode | undefined) {
     if (!node) { return }

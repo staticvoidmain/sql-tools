@@ -79,7 +79,7 @@ describe('Scanner', function () {
 
     expect(space.kind).to.equal(SyntaxKind.whitespace)
     expect(eof.kind).to.equal(SyntaxKind.EOF)
-    expect(scanner.lineOf(eof)).to.equal(3)
+    expect(scanner.lineOf(eof.start)).to.equal(3)
   })
 
   it('scans integers', function () {
