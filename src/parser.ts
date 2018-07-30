@@ -363,7 +363,7 @@ export class Parser {
         col.expression = this.tryParseAddExpr()
         cols.push(col)
       } else {
-        const col = <ColumnDefinition>this.createNode(start)
+        const col = <ColumnDefinition>this.createNode(start, SyntaxKind.column_definition)
         col.name = name
         col.type = this.parseType()
 

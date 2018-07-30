@@ -115,6 +115,12 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.create_table_statement: {
+        // todo
+        break
+      }
+
+
       case SyntaxKind.create_proc_statement: {
         const proc = <CreateProcedureStatement>node
 

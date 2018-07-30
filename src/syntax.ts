@@ -310,6 +310,7 @@ export enum SyntaxKind {
   table_alias,
   column_alias,
   identity_definition,
+  column_definition,
   computed_column_definition,
   data_source
   // todo: all kinds of kinds

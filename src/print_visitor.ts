@@ -33,7 +33,9 @@ import {
   SimpleCaseExpression,
   DropStatement,
   JoinedTable,
-  TableLikeDataSource
+  TableLikeDataSource,
+  CreateTableStatement,
+  ColumnDefinition
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -46,6 +48,18 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
 
 function formatIdentifier(id: Identifier) {
   return id.parts.join('.')
+}
+
+function formatDataType(type: DataType) {
+  if (type.args === 'max') {
+    return `(${type.name} max)`
+  }
+  else if (type.args) {
+    const args = type.args.join(' ')
+    return `(${type.name} ${args})`
+  }
+
+  return type.name
 }
 
 // add all the binary ops
@@ -195,6 +209,33 @@ export class PrintVisitor {
         this.write(keyword(drop.objectType.kind))
         this.write(formatIdentifier(drop.target))
         this.inline_next_pop = true
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.computed_column_definition: {
+        this.push('(computed')
+
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.column_definition: {
+        const col = <ColumnDefinition>node
+        this.push('(column')
+        this.write(formatIdentifier(col.name), true)
+        this.write(formatDataType(col.type), true)
+        if (col.nullability) {
+          this.write(col.nullability, true)
+        }
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.create_table_statement: {
+        const ct = <CreateTableStatement>node
+        this.push('(create-table ' + formatIdentifier(ct.table))
+        ct.body.forEach(el => this.printNode(el))
         this.pop()
         break
       }

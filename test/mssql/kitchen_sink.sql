@@ -15,11 +15,11 @@
 
 -- drop procedure asdf.foo
 
--- create table dbo.whatever (
---   [id] int identity(1, 1) not null,
---   [name] varchar(256) null,
---   [date] datetime null
--- );
+create table dbo.whatever (
+  [id] int identity(1, 1) not null,
+  [name] varchar(256) null,
+  [date] datetime null
+);
 
 select *
 from something s
