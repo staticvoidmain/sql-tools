@@ -35,7 +35,8 @@ import {
   JoinedTable,
   TableLikeDataSource,
   CreateTableStatement,
-  ColumnDefinition
+  ColumnDefinition,
+  CreateViewStatement
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -48,18 +49,6 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
 
 function formatIdentifier(id: Identifier) {
   return id.parts.join('.')
-}
-
-function formatDataType(type: DataType) {
-  if (type.args === 'max') {
-    return `(${type.name} max)`
-  }
-  else if (type.args) {
-    const args = type.args.join(' ')
-    return `(${type.name} ${args})`
-  }
-
-  return type.name
 }
 
 // add all the binary ops
@@ -179,8 +168,6 @@ export class PrintVisitor {
         const col = <ColumnExpression>node
         if (col.alias) {
           this.write(col.alias.parts.join('.') + ' ')
-        } else {
-          this.write('a ')
         }
 
         if (col.expression) {
@@ -222,12 +209,15 @@ export class PrintVisitor {
 
       case SyntaxKind.column_definition: {
         const col = <ColumnDefinition>node
-        this.push('(column')
-        this.write(formatIdentifier(col.name), true)
-        this.write(formatDataType(col.type), true)
+        this.push('(column ' + formatIdentifier(col.name) + ' ')
+
+        this.printNode(col.type)
+
         if (col.nullability) {
-          this.write(col.nullability, true)
+          this.write(' ' + col.nullability)
         }
+
+        this.inline_next_pop = true
         this.pop()
         break
       }
@@ -240,10 +230,18 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.create_view_statement: {
+        const view = <CreateViewStatement>node
+        this.push('(create-view ' + formatIdentifier(view.name))
+        this.printNode(view.definition)
+        this.pop()
+        break
+      }
+
       case SyntaxKind.create_proc_statement: {
         const proc = <CreateProcedureStatement>node
 
-        this.push('(proc ' + formatIdentifier(proc.name))
+        this.push('(create-proc ' + formatIdentifier(proc.name))
 
         if (proc.arguments) {
           this.push('(args ')
@@ -296,7 +294,7 @@ export class PrintVisitor {
         this.push('(cols')
 
         select.columns.forEach(c => {
-          this.push('(col \'')
+          this.push('(col ')
           this.printNode(c)
           this.pop()
         })

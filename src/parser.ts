@@ -89,7 +89,7 @@ export interface ParserError {
  */
 function isLegalFunctionName(kind: SyntaxKind) {
   return kind === SyntaxKind.left_keyword
-  || kind === SyntaxKind.right_keyword
+    || kind === SyntaxKind.right_keyword
 }
 
 function isLocal(ident: Token) {
@@ -422,36 +422,22 @@ export class Parser {
     do {
       const start = this.token
       const expr = this.tryParseAddExpr()
-
-      if (expr.kind === SyntaxKind.identifier_expr) {
+      const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
+      // todo: if it's an @local = expr that should get a different type as well.
+      if (expr.kind === SyntaxKind.identifier_expr && this.match(SyntaxKind.equal)) {
         const identifier = <IdentifierExpression>expr
+        this.moveNext()
+        col.alias = identifier.identifier
+        col.expression = this.tryParseAddExpr()
 
-        if (this.optional(SyntaxKind.equal)) {
-          // todo: if it's an @local = expr that should get a different type as well.
-          // even though that's not recommended
-          const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
-          col.alias = identifier.identifier
-          col.expression = this.tryParseAddExpr()
-          col.collation = this.tryParseCollation()
-
-          columns.push(col)
-        } else {
-          // just push the identifier standalone
-          columns.push(identifier)
-        }
+        columns.push(col)
       } else {
-
-        const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
         col.expression = expr
-        col.collation = this.tryParseCollation()
 
-        if (this.optional(SyntaxKind.as_keyword)) {
+        this.optional(SyntaxKind.as_keyword)
+
+        if (this.match(SyntaxKind.identifier)) {
           col.alias = this.parseIdentifier()
-        }
-        else {
-          if (this.optional(SyntaxKind.identifier)) {
-            col.alias = this.parseIdentifier()
-          }
         }
 
         columns.push(col)
@@ -565,7 +551,7 @@ export class Parser {
 
     this.moveNext()
 
-    const binary =  <BinaryExpression>{
+    const binary = <BinaryExpression>{
       kind: SyntaxKind.binary_expr,
       left: left,
       op: {
@@ -884,8 +870,8 @@ export class Parser {
       return expr
     }
 
-     // a case expression
-     if (this.token.kind === SyntaxKind.case_keyword) {
+    // a case expression
+    if (this.token.kind === SyntaxKind.case_keyword) {
       return this.parseCaseExpression()
     }
 
@@ -1125,16 +1111,17 @@ export class Parser {
 
       case SyntaxKind.view_keyword: {
         const node = this.createAndMoveNext(start, SyntaxKind.create_view_statement)
-        const procedure = <CreateViewStatement>node
-        procedure.view_keyword = objectType
+        const view = <CreateViewStatement>node
 
         this.assertKind(SyntaxKind.identifier)
 
-        procedure.name = this.parseIdentifier()
+        view.name = this.parseIdentifier()
 
         this.expect(SyntaxKind.as_keyword)
-        procedure.definition = this.parseSelect()
+        view.definition = this.parseSelect()
         this.optional(SyntaxKind.semicolon_token)
+
+        return view
         break
       }
 
@@ -1167,7 +1154,7 @@ export class Parser {
         break
     }
 
-    throw Error('incomplete')
+    throw new Error('this should be unreachable')
   }
 
   private parseStatementBlock(allowMultilineWithoutBeginEnd = false) {

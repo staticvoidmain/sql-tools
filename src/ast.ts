@@ -483,8 +483,9 @@ export type AlterStatement =
 export type CreateStatement =
   | CreateTableStatement
   | CreateProcedureStatement
-// createview
-// createXYZ
+  | CreateViewStatement
+  // | CreateFunctionStatement
+  // | CreateDatabaseStatement
 
 export interface TruncateTableStatement extends SyntaxNode {
   table_keyword: Token
@@ -511,7 +512,6 @@ export interface AlterFunctionStatement extends SyntaxNode {
 }
 
 export interface CreateViewStatement extends SyntaxNode {
-  view_keyword: Token
   name: Identifier
   definition: SelectStatement
   // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
