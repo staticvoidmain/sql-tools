@@ -4,5 +4,5 @@ go
 select a.b, b.c
 from SomeTable as a
 join OtherTable b
-on b.id = a.id
+on a.id !> a.id
 where a.something <> null

@@ -51,9 +51,11 @@ export abstract class Visitor {
   visitDeclareLocals(node: DeclareStatement): void { }
   visitDeclareTableVariable(node: DeclareStatement): void { }
   visitDrop(node: DropStatement): void { }
+  visitFrom(node: FromClause): void { }
   visitIdentifierExpression(node: IdentifierExpression): void { }
   visitIf(node: IfStatement): void { }
   visitInsertStatement(node: InsertStatement): void { }
+  visitJoin(node: JoinedTable): void { }
   visitLiteralExpression(node: LiteralExpression): void { }
   visitNullTest(node: IsNullTestExpression): void { }
   visitParenExpression(node: ParenExpression): void { }
@@ -161,6 +163,9 @@ export abstract class Visitor {
 
       case SyntaxKind.from_clause: {
         const from = <FromClause>node
+
+        this.visitFrom(from)
+
         const sources = <TableLikeDataSource[]>from.sources
 
         for (let i = 0; i < sources.length; i++) {
@@ -183,8 +188,8 @@ export abstract class Visitor {
 
       case SyntaxKind.joined_table: {
         const join = <JoinedTable>node
-
-        this.visitDataSource(join.source)
+        this.visitJoin(join)
+        this.visit(join.source)
         this.visit(join.on)
         break
       }

@@ -567,6 +567,7 @@ export class Parser {
       right: parse.apply(this)
     }
 
+    binary.start = binary.left.start
     binary.end = binary.right.end
 
     return binary
@@ -803,10 +804,13 @@ export class Parser {
 
     while (this.optional(SyntaxKind.dot_token)) {
       if (this.optional(SyntaxKind.mul_token)) {
+        // todo: this should probably also end the identifier
+        ident.end = this.token.end
         ident.parts.push('*')
       } else {
         // expect will advance to the next token
         const partial = this.expect(SyntaxKind.identifier)
+        ident.end = partial.end
         ident.parts.push(partial.value)
       }
     }
@@ -885,6 +889,7 @@ export class Parser {
         expr.expr = this.tryParseAddExpr()
         expr.as_keyword = this.expect(SyntaxKind.as_keyword)
         expr.type = this.parseType()
+        expr.end = this.token.end
         this.expect(SyntaxKind.closeParen)
         return expr
       }
@@ -903,6 +908,7 @@ export class Parser {
           }
         }
 
+        expr.end = this.token.end
         this.expect(SyntaxKind.closeParen)
         return expr
       } else {
@@ -910,7 +916,7 @@ export class Parser {
         // todo: should this move next?
         const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
         expr.identifier = ident
-        expr.end = this.token.end
+        expr.end = ident.end
         return expr
       }
     }
@@ -1388,13 +1394,18 @@ export class Parser {
     return where
   }
 
+  /**
+   * gets the file, line, column, and text span covering this node,
+   * and its children
+   */
   getInfo(node: SyntaxNode): any[] {
     const line = this.scanner!.lineOf(node.start)
     const col = this.scanner!.offsetOf(node.start, line)
-    const text = this.scanner!.getSourceSubstring(node.start, node.end)
+    const text = this.scanner!.getSourceSubstring(node.start, node.end + 1)
 
-    return [line, col, text]
+    return [this.settings.path, line, col, text]
   }
+
   /**
    * Parse a given sql string into an array of top level statements and their child expressions.
    *

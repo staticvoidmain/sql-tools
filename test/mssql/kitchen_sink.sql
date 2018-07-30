@@ -5,21 +5,21 @@
 -- declare @foo int = -1000;
 -- set @foo *= -1;
 
-insert into [SomeTable] (foo, bar)
-values ( @foo, case when @foo >= -1 then 1 else 0 end )
+-- insert into [SomeTable] (foo, bar)
+-- values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- sp_helptext dbo.object_name_here
 -- exec asdf.do_foo 'bar', 1, @b;
 
 -- execute ('select * from foo where x = ?', @foo);
 
-drop procedure asdf.foo
+-- drop procedure asdf.foo
 
-create table dbo.whatever (
-  [id] int identity(1, 1) not null,
-  [name] varchar(256) null,
-  [date] datetime null
-);
+-- create table dbo.whatever (
+--   [id] int identity(1, 1) not null,
+--   [name] varchar(256) null,
+--   [date] datetime null
+-- );
 
 select *
 from something s

@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 
@@ -80,15 +80,9 @@ async function processDirectory(dir: string, pattern: RegExp) {
 
       if (stat.isFile()) {
         if (pattern.test(child)) {
-          console.log('\n\n## parsing: ' + path)
-
           await processFile(path)
         }
       }
-      // else if (stat.isDirectory()) {
-      //   // todo: does it match the pattern?
-      //   processDirectory(element, true)
-      // }
     }
   }
 }
@@ -114,8 +108,66 @@ async function processFile(path: string) {
   }
 }
 
-function lint(nodes: ReadonlyArray<SyntaxNode>, parser: Parser) {
+// todo: start pulling these out into utils
+function isNullLiteral(node: SyntaxNode) {
+  if (node.kind === SyntaxKind.literal_expr) {
+    const literal = <LiteralExpression>node
 
+    if (literal.value === 'null') {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isComparison(op: BinaryOperator) {
+  switch (op.kind) {
+    case SyntaxKind.equal:
+    case SyntaxKind.lessThan:
+    case SyntaxKind.lessThanEqual:
+    case SyntaxKind.notEqual:
+    case SyntaxKind.ltGt:
+    case SyntaxKind.greaterThan:
+    case SyntaxKind.greaterThanEqual:
+    case SyntaxKind.notLessThan:
+    case SyntaxKind.notGreaterThan:
+      return true
+  }
+
+  return false
+}
+
+// this is not deep equality,
+// and we aren't trying to solve SAT
+function exprEquals(left: Expr, right: Expr) {
+  if (left.kind !== right.kind) {
+    return false
+  }
+
+  if (left.kind === SyntaxKind.literal_expr) {
+    return (<LiteralExpression>left).value === (<LiteralExpression>right).value
+  }
+
+  if (left.kind === SyntaxKind.identifier_expr) {
+    // todo: match identifiers more thoughtfully
+    // through an alias... could be a fully qualified
+    // table name kind of thing.
+    const leftIdent = (<IdentifierExpression>left).identifier
+    const rightIdent = (<IdentifierExpression>right).identifier
+
+    if (leftIdent.parts.length !== rightIdent.parts.length) {
+      return false
+    }
+
+    for (let i = 0; i < leftIdent.parts.length; i++) {
+      if (leftIdent.parts[i] !== rightIdent.parts[i]) {
+        return false
+      }
+    }
+
+    return true
+  }
 }
 
 class ExampleLintVisitor extends Visitor {
@@ -123,31 +175,56 @@ class ExampleLintVisitor extends Visitor {
     super()
   }
 
-  isNullLiteral(node: SyntaxNode) {
-    if (node.kind === SyntaxKind.literal_expr) {
-      const literal = <LiteralExpression>node
+  /**
+   * display a warning
+   */
+  warning(node: SyntaxNode, message: string, underlineNode?: SyntaxNode) {
+    let space = '    '
+    const [file, line, col, text] = this.parser.getInfo(node)
+    console.log(`${file}:${line + 1}:${col + 1} - warning ${message}\n`)
+    console.log(space + text)
 
-      if (literal.value === 'null') {
-        return true
+    // either underline the whole thing
+    // or a smaller subset.
+    underlineNode = underlineNode || node
+
+    let underline = '~'
+    const width = underlineNode.end - underlineNode.start
+
+    if (width > 0) {
+      for (let i = 0; i < width; i++) {
+        underline += '~'
       }
     }
 
-    return false
+    const offsetLeft = underlineNode.start - node.start
+    for (let j = 0; j < offsetLeft; j++) {
+      space += ' '
+    }
+
+    console.log(space + underline)
+    console.log('\n')
   }
 
-  // todo:
-  flagNode(node: SyntaxNode) {
+  visitWhere(node: WhereClause) {
+    // todo: look for SARG-able
+  }
 
+  visitJoin(node: JoinedTable) {
+    // todo: recurse down and look for function calls.
+
+    if (node.on) {
+
+    }
   }
 
   visitBinaryExpression(node: BinaryExpression) {
-    if (this.isNullLiteral(node.left) || this.isNullLiteral(node.right)) {
-      // okay this leads us into the whole
-      // finish node business, where the node has a start and an end
-      const [line, col, text] = this.parser.getInfo(node)
-
-      console.log(`(${line + 1}, ${col + 1}) ${text}`)
-      console.log('null literal used in binary expr, use "is null" or "is not null"')
+    if (isNullLiteral(node.left) || isNullLiteral(node.right)) {
+      this.warning(node, 'null literal used in comparison, use "is null" or "is not null" instead', node.op)
+    } else {
+      if (isComparison(node.op) && exprEquals(node.left, node.right)) {
+        this.warning(node, 'value compared with itself, result will always be constant')
+      }
     }
   }
 }

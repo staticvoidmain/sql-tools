@@ -36,6 +36,7 @@ export interface BitwiseAndOperator extends SyntaxNode { kind: SyntaxKind.bitwis
 
 export interface EqualsOperator extends SyntaxNode { kind: SyntaxKind.equal }
 export interface NotEqualsOperator extends SyntaxNode { kind: SyntaxKind.notEqual }
+export interface AnsiNotEqualsOperator extends SyntaxNode { kind: SyntaxKind.ltGt }
 export interface OrOperator extends SyntaxNode { kind: SyntaxKind.or_keyword }
 export interface AndOperator extends SyntaxNode { kind: SyntaxKind.and_keyword }
 export interface GreaterThanOperator extends SyntaxNode { kind: SyntaxKind.greaterThan }
@@ -44,6 +45,8 @@ export interface GreaterThanEqualOperator extends SyntaxNode { kind: SyntaxKind.
 export interface LessThanEqualOperator extends SyntaxNode { kind: SyntaxKind.lessThanEqual }
 export interface LikeOperator extends SyntaxNode { kind: SyntaxKind.like_keyword }
 export interface InOperator extends SyntaxNode { kind: SyntaxKind.in_keyword }
+export interface NotGreaterThanOperator extends SyntaxNode { kind: SyntaxKind.notGreaterThan }
+export interface NotLessThanOperator extends SyntaxNode { kind: SyntaxKind.notLessThan }
 // todo: exists is a weird one...
 // export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
 export interface NotOperator extends SyntaxNode { kind: SyntaxKind.not_keyword }
@@ -57,6 +60,7 @@ export type BinaryOperator =
   | DivideOperator
   | EqualsOperator
   | NotEqualsOperator
+  | AnsiNotEqualsOperator
   | OrOperator
   | AndOperator
   | GreaterThanOperator
@@ -64,6 +68,8 @@ export type BinaryOperator =
   | GreaterThanEqualOperator
   | LessThanEqualOperator
   | LikeOperator
+  | NotLessThanOperator
+  | NotGreaterThanOperator
 
 // overkill?
 export interface PlusEqualsOperator extends SyntaxNode { kind: SyntaxKind.plusEqualsAssignment }
