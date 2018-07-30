@@ -161,13 +161,20 @@ export interface IndexDefinition extends SyntaxNode {
 }
 
 /**
- *
+ * todo: document
  */
 export interface ColumnExpression extends Expr {
   expression: Expr
   alias?: Identifier
   collation?: CollateNode
 }
+
+export type UnaryExpression =
+| UnaryMinusExpression
+| UnaryPlusExpression
+| BitwiseNotExpression
+| LogicalNotExpression
+| IsNullTestExpression
 
 export interface BinaryExpression extends Expr {
   left: Expr

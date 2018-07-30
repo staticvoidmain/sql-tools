@@ -83,6 +83,15 @@ export interface ParserError {
   line: number
 }
 
+/**
+ * reserved words that can be used as functions...
+ * @param kind the kind of the token
+ */
+function isLegalFunctionName(kind: SyntaxKind) {
+  return kind === SyntaxKind.left_keyword
+  || kind === SyntaxKind.right_keyword
+}
+
 function isLocal(ident: Token) {
   // todo: starts with @ or [@ or "@
   // todo: maybe a flag in the scanner...
@@ -611,19 +620,6 @@ export class Parser {
     return false
   }
 
-  private parseExpected(kind: SyntaxKind, cb: Function) {
-    if (this.token.kind === kind) {
-      return cb(this.createNode(this.token))
-    }
-    this.error('Expected ' + SyntaxKind[kind] + ' but found ' + SyntaxKind[this.token.kind])
-  }
-
-  private parseOptional(kind: SyntaxKind, cb: Function) {
-    if (this.token.kind === kind) {
-      return cb(this.createNode(this.token))
-    }
-  }
-
   private parseGo() {
     const statement = <GoStatement>this.createAndMoveNext(this.token, SyntaxKind.go_statement)
 
@@ -783,35 +779,42 @@ export class Parser {
   }
 
   private tryParseMultiplicationExpr(): Expr {
-    let expr = this.exprBase()
+    let expr = this.parseBaseExpr()
 
     while (this.isMultiplyPrecedence()) {
-      expr = this.makeBinaryExpr(expr, this.exprBase)
+      expr = this.makeBinaryExpr(expr, this.parseBaseExpr)
     }
 
     return expr
   }
 
+  // advances to next token
+  private createSinglePartIdentifier(token: Token) {
+    const ident = <Identifier>this.createAndMoveNext(token, SyntaxKind.identifier)
+    ident.parts = [
+      token.value
+    ]
+    return ident
+  }
+
   private parseIdentifier(): Identifier {
     this.assertKind(SyntaxKind.identifier)
 
-    const ident = <Identifier>this.createNode(this.token, SyntaxKind.identifier)
-    ident.parts = [
-      this.token.value
-    ]
-
-    this.moveNext()
+    const ident = this.createSinglePartIdentifier(this.token)
 
     while (this.optional(SyntaxKind.dot_token)) {
       if (this.optional(SyntaxKind.mul_token)) {
         // todo: this should probably also end the identifier
-        ident.end = this.token.end
         ident.parts.push('*')
+        ident.end = this.token.end
+
+        // todo: if there's a dot throw an error
+        // foo.a.* is legal, foo.*.a is not
       } else {
         // expect will advance to the next token
         const partial = this.expect(SyntaxKind.identifier)
-        ident.end = partial.end
         ident.parts.push(partial.value)
+        ident.end = partial.end
       }
     }
 
@@ -823,25 +826,28 @@ export class Parser {
   private tryParseUnaryExpr() {
     if (this.token.kind === SyntaxKind.minus_token) {
       const neg = <UnaryMinusExpression>this.createAndMoveNext(this.token, SyntaxKind.unary_minus_expr)
-      neg.expr = this.exprBase()
+      neg.expr = this.parseBaseExpr()
+      neg.end = neg.expr.end
       return neg
     }
 
     if (this.token.kind === SyntaxKind.plus_token) {
       const pos = <UnaryPlusExpression>this.createAndMoveNext(this.token, SyntaxKind.unary_plus_expr)
-      pos.expr = this.exprBase()
+      pos.expr = this.parseBaseExpr()
+      pos.end = pos.expr.end
       return pos
     }
 
     if (this.token.kind === SyntaxKind.bitwise_not_token) {
       const not = <BitwiseNotExpression>this.createAndMoveNext(this.token, SyntaxKind.bitwise_not_expr)
-      not.expr = this.exprBase()
+      not.expr = this.parseBaseExpr()
+      not.end = not.expr.end
       return not
     }
   }
 
   //  precedence sort of bottoms out here.
-  private exprBase(): Expr {
+  private parseBaseExpr(): Expr {
     const unary = this.tryParseUnaryExpr()
 
     if (unary) {
@@ -860,28 +866,43 @@ export class Parser {
       // exprs... do they have to be constant?
       const expr = <ParenExpression>this.createAndMoveNext(this.token, SyntaxKind.paren_expr)
       expr.expression = this.tryParseOrExpr()
-
+      expr.end = this.token.end
       this.expect(SyntaxKind.closeParen)
       return expr
     }
+
+    const start = this.token
 
     if (this.match(SyntaxKind.mul_token)) {
       // todo: this is really only legal in a few places...
       // select, group by, having
       // maybe set up a context or something
-
-      const expr = <IdentifierExpression>this.createAndMoveNext(this.token, SyntaxKind.identifier_expr)
-      expr.identifier = <Identifier>{
-        parts: ['*']
-      }
+      const ident = this.createSinglePartIdentifier(this.token)
+      const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
+      expr.identifier = ident
 
       return expr
     }
 
-    if (this.match(SyntaxKind.identifier)) {
-      const start = this.token
-      const ident = this.parseIdentifier()
+     // a case expression
+     if (this.token.kind === SyntaxKind.case_keyword) {
+      return this.parseCaseExpression()
+    }
 
+    let ident = undefined
+    if (this.match(SyntaxKind.identifier)) {
+      ident = this.parseIdentifier()
+    }
+
+    if (isLegalFunctionName(this.token.kind)) {
+      ident = this.createSinglePartIdentifier(this.token)
+
+      // MUST be used immediately as a function
+      this.assertKind(SyntaxKind.openParen)
+    }
+
+    if (ident) {
+      // special syntax
       // cast(@x as SomeType)
       if (isCast(ident)) {
         const expr = <CastExpression>this.createAndMoveNext(start, SyntaxKind.cast_expr)
@@ -901,11 +922,10 @@ export class Parser {
         expr.name = ident
 
         if (!this.match(SyntaxKind.closeParen)) {
-          while (true) {
+          do {
+            // collect all function arg expressions
             expr.arguments.push(this.tryParseAddExpr())
-
-            if (!this.match(SyntaxKind.comma_token)) break
-          }
+          } while (this.optional(SyntaxKind.comma_token))
         }
 
         expr.end = this.token.end
@@ -919,11 +939,6 @@ export class Parser {
         expr.end = ident.end
         return expr
       }
-    }
-
-    // a case expression
-    if (this.token.kind === SyntaxKind.case_keyword) {
-      return this.parseCaseExpression()
     }
 
     this.error(SyntaxKind[this.token.kind] + ' cannot start an expr')

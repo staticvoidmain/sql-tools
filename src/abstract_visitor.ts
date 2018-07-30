@@ -166,12 +166,7 @@ export abstract class Visitor {
 
         this.visitFrom(from)
 
-        const sources = <TableLikeDataSource[]>from.sources
-
-        for (let i = 0; i < sources.length; i++) {
-          const element = sources[i]
-          this.visit(element)
-        }
+        from.sources.forEach(s => this.visit(s))
 
         if (from.joins) {
           from.joins.forEach(n => this.visit(n))

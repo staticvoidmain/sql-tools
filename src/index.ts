@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 
@@ -31,9 +31,7 @@ if (!args) {
 
 const pathOrFile = args[0]
 
-// todo: support multiple debugging ops,
-// like a linting visitor
-const operation = args[1] || 'print'
+const operation = args[1] || '--print'
 
 if (pathOrFile.indexOf('*') == -1) {
   const path = normalize(join(process.cwd(), pathOrFile))
@@ -95,11 +93,11 @@ async function processFile(path: string) {
     path: path
   })
 
-  if (operation === 'print') {
+  if (operation === '--print') {
     printNodes(tree)
   }
 
-  if (operation === 'lint') {
+  if (operation === '--lint') {
     const visitor = new ExampleLintVisitor(parser)
 
     for (const node of tree) {
@@ -108,6 +106,7 @@ async function processFile(path: string) {
   }
 }
 
+// # Utils
 // todo: start pulling these out into utils
 function isNullLiteral(node: SyntaxNode) {
   if (node.kind === SyntaxKind.literal_expr) {
@@ -136,6 +135,15 @@ function isComparison(op: BinaryOperator) {
   }
 
   return false
+}
+
+function isUnary(expr: Expr) {
+  const kind = expr.kind
+  return kind === SyntaxKind.unary_minus_expr
+    || kind === SyntaxKind.unary_plus_expr
+    || kind === SyntaxKind.bitwise_not_expr
+    || kind === SyntaxKind.logical_not_expr
+    || kind === SyntaxKind.null_test_expr
 }
 
 // this is not deep equality,
@@ -170,13 +178,46 @@ function exprEquals(left: Expr, right: Expr) {
   }
 }
 
+function walkExpr(expr: Expr, cb: (e: Expr) => void) {
+  cb(expr)
+
+  if (expr.kind === SyntaxKind.binary_expr) {
+    const binary = <BinaryExpression>expr
+
+    walkExpr(binary.left, cb)
+    walkExpr(binary.right, cb)
+    return
+  }
+
+  if (isUnary(expr)) {
+    const unary = <UnaryExpression>expr
+
+    walkExpr(unary.expr, cb)
+    return
+  }
+
+  if (expr.kind === SyntaxKind.function_call_expr) {
+    const call = <FunctionCallExpression>expr
+
+    if (call.arguments) {
+      call.arguments.forEach(arg => walkExpr(arg, cb))
+    }
+    return
+  }
+
+  // todo: visit these exprs
+  if (expr.kind === SyntaxKind.searched_case_expr) { }
+  if (expr.kind === SyntaxKind.simple_case_expr) { }
+}
+
 class ExampleLintVisitor extends Visitor {
   constructor(private parser: Parser) {
     super()
   }
 
   /**
-   * display a warning
+   * display a warning for the current node, optionally underlining a child
+   * node to provide more clarity
    */
   warning(node: SyntaxNode, message: string, underlineNode?: SyntaxNode) {
     let space = '    '
@@ -207,15 +248,23 @@ class ExampleLintVisitor extends Visitor {
   }
 
   visitWhere(node: WhereClause) {
-    // todo: look for SARG-able
+    walkExpr(node.predicate, (e: Expr) => {
+      if (e.kind === SyntaxKind.function_call_expr) {
+        // todo: no args or constant args skips this warning
+        this.warning(e, 'function call will prevent search optimization')
+      }
+    })
   }
 
   visitJoin(node: JoinedTable) {
-    // todo: recurse down and look for function calls.
-
-    if (node.on) {
-
-    }
+    walkExpr(node.on, (e: Expr) => {
+      // todo: are case exprs sargable?
+      // simple vs searched? does that make a difference?
+      if (e.kind === SyntaxKind.function_call_expr) {
+        // todo: args could be constant
+        this.warning(e, 'function call will prevent search optimization')
+      }
+    })
   }
 
   visitBinaryExpression(node: BinaryExpression) {
@@ -226,5 +275,7 @@ class ExampleLintVisitor extends Visitor {
         this.warning(node, 'value compared with itself, result will always be constant')
       }
     }
+
+    // todo: like other than 'startsWith%'
   }
 }

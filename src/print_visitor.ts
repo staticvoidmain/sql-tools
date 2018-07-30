@@ -65,6 +65,8 @@ ops[SyntaxKind.greaterThan] = 'gt'
 ops[SyntaxKind.lessThan] = 'lt'
 ops[SyntaxKind.greaterThanEqual] = 'gte'
 ops[SyntaxKind.lessThanEqual] = 'lte'
+ops[SyntaxKind.notGreaterThan] = 'ngt'
+ops[SyntaxKind.notLessThan] = 'nlt'
 
 ops[SyntaxKind.plusEqualsAssignment] = 'plus-equals'
 ops[SyntaxKind.minusEqualsAssignment] = 'minus-equals'
