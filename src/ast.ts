@@ -138,7 +138,8 @@ export interface ColumnDefinition extends SyntaxNode {
   nullability?: 'null' | 'not-null'
   identity?: IdentityDefinition
   columnConstraints?: ColumnConstraint[]
-
+  collation?: CollateNode
+  default?: Expr
 }
 
 export interface ComputedColumnDefinition extends SyntaxNode {
@@ -160,12 +161,12 @@ export interface IndexDefinition extends SyntaxNode {
 }
 
 /**
- * todo: document
+ * todo:
  */
 export interface ColumnExpression extends Expr {
   expression: Expr
   alias?: Identifier
-  collation?: CollateNode
+  style: 'alias_equals_expr' | 'expr_as_alias' | 'expr_only'
 }
 
 export type UnaryExpression =

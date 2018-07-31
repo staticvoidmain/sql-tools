@@ -140,6 +140,9 @@ export class Parser {
   // todo: error recovery, right now any error kills the parser.
   // private errors: Array<ParserError> = []
   private token: Token = EmptyToken
+  // todo: capture trivia
+  private leadingTriviaBuffer: Array<Token> = []
+  private trailingTriviaBuffer: Array<Token> = []
   private keywords: Array<Token> = []
 
   /**
@@ -271,7 +274,7 @@ export class Parser {
         break
       }
 
-      // todo: transaction stuff
+      // TODO: transaction stuff
       case SyntaxKind.begin_keyword:
       case SyntaxKind.commit_keyword:
       case SyntaxKind.rollback_keyword: {
@@ -368,10 +371,9 @@ export class Parser {
 
         do {
           // column_def optionals
-
           // todo: ensure that these aren't double specified
 
-          // identity
+          // identity: todo: extract
           // --------
           if (this.match(SyntaxKind.identity_keyword)) {
 
@@ -393,6 +395,16 @@ export class Parser {
             }
           }
 
+          // collate
+          // -------
+          col.collation = this.tryParseCollation()
+
+          if (col.collation) {
+            col.column_flags |= ColumnDefinitionFlags.HasCollation
+          }
+
+          // not null / not for replication
+          // ------------------------------
           const not = this.optional(SyntaxKind.not_keyword)
 
           // todo: not for replication
@@ -405,7 +417,11 @@ export class Parser {
             col.column_flags |= ColumnDefinitionFlags.HasNullability
           }
 
-          // todo: default(expr)
+          // default(expr)
+          // -------------
+          if (this.optional(SyntaxKind.default_keyword)) {
+            col.default = this.tryParseAddExpr()
+          }
         }
         while (!(this.match(SyntaxKind.comma_token) || this.match(SyntaxKind.closeParen)))
 
@@ -426,16 +442,19 @@ export class Parser {
       if (expr.kind === SyntaxKind.identifier_expr && this.match(SyntaxKind.equal)) {
         const identifier = <IdentifierExpression>expr
         this.moveNext()
+        col.style = 'alias_equals_expr'
         col.alias = identifier.identifier
         col.expression = this.tryParseAddExpr()
 
         columns.push(col)
       } else {
         col.expression = expr
+        col.style = 'expr_only'
 
         this.optional(SyntaxKind.as_keyword)
 
         if (this.match(SyntaxKind.identifier)) {
+          col.style = 'expr_as_alias'
           col.alias = this.parseIdentifier()
         }
 
@@ -446,6 +465,7 @@ export class Parser {
     return columns
   }
 
+  // todo: parse this for createtable
   private tryParseCollation(): CollateNode | undefined {
     if (this.match(SyntaxKind.collate_keyword)) {
       const collate = <CollateNode>this.createAndMoveNext(this.token, SyntaxKind.column_collation)
@@ -1390,6 +1410,13 @@ export class Parser {
     const where = <WhereClause>this.createAndMoveNext(this.token, SyntaxKind.where_clause)
     where.predicate = this.tryParseOrExpr()
     return where
+  }
+
+  /**
+   * Report all keyword tokens gathered
+   */
+  getKeywords(): ReadonlyArray<Token> {
+    return this.keywords
   }
 
   /**

@@ -18,6 +18,8 @@ import {
 import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
+import { Token } from './scanner';
+import { Chars } from './chars';
 
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
@@ -94,7 +96,9 @@ async function processFile(path: string) {
   })
 
   if (operation === '--print') {
+    console.log("# " + path);
     printNodes(tree)
+    console.log('\n')
   }
 
   if (operation === '--lint') {
@@ -102,6 +106,11 @@ async function processFile(path: string) {
 
     for (const node of tree) {
       visitor.visit(node)
+    }
+
+    // do some casing stuff
+    for (const key of parser.getKeywords()) {
+      visitor.visitKeyword(key)
     }
   }
 }
@@ -178,6 +187,14 @@ function exprEquals(left: Expr, right: Expr) {
   }
 }
 
+function isUpperChar(n: number) {
+  return Chars.A <= n && n <= Chars.Z
+}
+
+function isLowerChar(n: number) {
+  return Chars.a <= n && n <= Chars.a
+}
+
 function walkExpr(expr: Expr, cb: (e: Expr) => void) {
   cb(expr)
 
@@ -219,7 +236,7 @@ class ExampleLintVisitor extends Visitor {
    * display a warning for the current node, optionally underlining a child
    * node to provide more clarity
    */
-  warning(node: SyntaxNode, message: string, underlineNode?: SyntaxNode) {
+  warning(node: SyntaxNode | Token, message: string, underlineNode?: SyntaxNode | Token) {
     let space = '    '
     const [file, line, col, text] = this.parser.getInfo(node)
     console.log(`${file}:${line + 1}:${col + 1} - warning ${message}\n`)
@@ -248,9 +265,10 @@ class ExampleLintVisitor extends Visitor {
   }
 
   visitWhere(node: WhereClause) {
+    // TODO: technically ANY expr that mutates a column value
+    // will not be sargable
     walkExpr(node.predicate, (e: Expr) => {
       if (e.kind === SyntaxKind.function_call_expr) {
-        // todo: no args or constant args skips this warning
         this.warning(e, 'function call will prevent search optimization')
       }
     })
@@ -259,9 +277,10 @@ class ExampleLintVisitor extends Visitor {
   visitJoin(node: JoinedTable) {
     walkExpr(node.on, (e: Expr) => {
       // todo: are case exprs sargable?
-      // simple vs searched? does that make a difference?
+      // simple vs searched? assume searched are more likely
+      // to contain funky stuff.
+      // todo: args could be constant
       if (e.kind === SyntaxKind.function_call_expr) {
-        // todo: args could be constant
         this.warning(e, 'function call will prevent search optimization')
       }
     })
@@ -277,5 +296,17 @@ class ExampleLintVisitor extends Visitor {
     }
 
     // todo: like other than 'startsWith%'
+  }
+
+  visitKeyword(token: Token) {
+    const val = <string>token.value
+
+    for (let i = 0; i < val.length; i++) {
+      // todo: reverse this for the crazy UPPER nerds
+      if (isUpperChar(val.charCodeAt(i))) {
+        this.warning(token, 'identifiers should be lower case')
+        break
+      }
+    }
   }
 }

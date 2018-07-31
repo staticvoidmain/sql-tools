@@ -48,28 +48,27 @@ import { Token } from './scanner'
  * visitor and implementing the required methods.
  */
 export abstract class Visitor {
-
-  // for identifier casing stuff
-  visitIdentifier(node: Identifier): void { }
-  // for keyword casing rules
-  visitKeyword(token: Token): void { }
-
-  // todo: set options
   visitBinaryExpression(node: BinaryExpression): void { }
   visitBitwiseNot(node: BitwiseNotExpression): void { }
   visitBlock(block: StatementBlock): void { }
+  visitColumnDefinition(node: ColumnDefinition): void { }
   visitColumnExpression(col: ColumnExpression): void { }
+  visitComputedColumnDefinition(node: ComputedColumnDefinition): void { }
   visitCreateProcedure(node: CreateProcedureStatement): void { }
+  visitCreateTable(node: CreateTableStatement): void { }
+  visitCreateView(node: CreateViewStatement): void { }
   visitDataSource(node: TableLikeDataSource): void { }
   visitDataType(node: DataType): void { }
   visitDeclareLocals(node: DeclareStatement): void { }
   visitDeclareTableVariable(node: DeclareStatement): void { }
   visitDrop(node: DropStatement): void { }
   visitFrom(node: FromClause): void { }
+  visitIdentifier(node: Identifier): void { }
   visitIdentifierExpression(node: IdentifierExpression): void { }
   visitIf(node: IfStatement): void { }
   visitInsertStatement(node: InsertStatement): void { }
   visitJoin(node: JoinedTable): void { }
+  visitKeyword(token: Token): void { }
   visitLiteralExpression(node: LiteralExpression): void { }
   visitNullTest(node: IsNullTestExpression): void { }
   visitParenExpression(node: ParenExpression): void { }
@@ -78,6 +77,7 @@ export abstract class Visitor {
   visitSearchedCaseExpression(node: SearchedCaseExpression): void { }
   visitSelect(node: SelectStatement): void { }
   visitSet(node: SetStatement): void { }
+  visitSetOption(node: SetOptionStatement): void { }
   visitSimpleCaseExpression(node: SimpleCaseExpression): void { }
   visitTableDeclaration(node: TableDeclaration): void { }
   visitUnaryMinus(node: UnaryMinusExpression): void { }
@@ -119,7 +119,7 @@ export abstract class Visitor {
 
       case SyntaxKind.computed_column_definition: {
         const computed = <ComputedColumnDefinition>node
-        this.visitComputedColumnDefinition('(computed')
+        this.visitComputedColumnDefinition(computed)
         this.visit(computed.expression)
         this.visit(computed.name)
         break
