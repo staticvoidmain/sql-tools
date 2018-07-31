@@ -16,11 +16,18 @@ export interface ParserError {
   message: string
 }
 
+// this is probably not the way to do this...
+export enum GrammarExtensionFlags {
+  None,
+
+}
+
 export interface ParserOptions {
   path?: string
   skipTrivia?: boolean
   skipKeywordTracking?: boolean
   error?: ErrorCallback
+  extensions?: GrammarExtensionFlags
 }
 
 export interface TextRange {

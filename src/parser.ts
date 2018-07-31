@@ -1120,6 +1120,11 @@ export class Parser {
 
   private parseCreateStatement(): CreateStatement {
     const start = this.token
+
+    // if
+
+
+
     const objectType = this.moveNext()
 
     switch (objectType.kind) {
@@ -1127,6 +1132,11 @@ export class Parser {
         const create = <CreateTableStatement>this.createAndMoveNext(start, SyntaxKind.create_table_statement)
 
         create.name = this.parseIdentifier()
+
+        if (this.options.extensions & CTAS) {
+          // TODO: create table foo (with) as select ()
+        }
+
 
         this.expect(SyntaxKind.openParen)
         create.body = this.parseColumnDefinitionList()

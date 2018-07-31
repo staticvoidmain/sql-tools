@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -264,10 +264,35 @@ function walkExpr(expr: Expr, cb: (e: Expr) => void) {
     return
   }
 
-  // todo: visit these exprs
-  if (expr.kind === SyntaxKind.searched_case_expr) { }
-  if (expr.kind === SyntaxKind.simple_case_expr) { }
+  if (expr.kind === SyntaxKind.searched_case_expr) {
+    const searched = <SearchedCaseExpression>expr
+
+    searched.cases.forEach(c => {
+      walkExpr(c.when, cb)
+      walkExpr(c.then, cb)
+    })
+
+    walkExpr(searched.else, cb)
+    return
+  }
+
+  if (expr.kind === SyntaxKind.simple_case_expr) {
+    const simple = <SimpleCaseExpression>expr
+    walkExpr(simple.input_expression, cb)
+
+    simple.cases.forEach(c => {
+      walkExpr(c.when, cb)
+      walkExpr(c.then, cb)
+    })
+
+    walkExpr(simple.else, cb)
+    return
+   }
 }
+
+type Span =
+| SyntaxNode
+| Token
 
 class ExampleLintVisitor extends Visitor {
   constructor(private parser: Parser) {
@@ -278,15 +303,11 @@ class ExampleLintVisitor extends Visitor {
    * display a warning for the current node, optionally underlining a child
    * node to provide more clarity
    */
-  warning(node: SyntaxNode | Token, message: string, underlineNode?: SyntaxNode | Token) {
+  warning(node: Span, message: string, underlineNode = node) {
     let space = '    '
     const [file, line, col, text] = this.parser.getInfo(node)
     console.log(`${file}:${line + 1}:${col + 1} - warning ${message}\n`)
     console.log(space + text)
-
-    // either underline the whole thing
-    // or a smaller subset.
-    underlineNode = underlineNode || node
 
     let underline = '~'
     const width = underlineNode.end - underlineNode.start
