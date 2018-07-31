@@ -597,8 +597,7 @@ export class Parser {
     return {
       start: token.start,
       end: token.end,
-      kind: kind || token.kind,
-      debug: SyntaxKind[kind || token.kind]
+      kind: kind || token.kind
     }
   }
 

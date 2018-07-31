@@ -13,9 +13,6 @@ export interface TextRange {
 
 export interface SyntaxNode extends TextRange {
   kind: SyntaxKind
-
-  // todo: remove me
-  debug?: string
 }
 
 // one two or three part name
