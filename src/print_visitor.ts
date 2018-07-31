@@ -36,7 +36,8 @@ import {
   TableLikeDataSource,
   CreateTableStatement,
   ColumnDefinition,
-  CreateViewStatement
+  CreateViewStatement,
+  ComputedColumnDefinition
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -201,8 +202,11 @@ export class PrintVisitor {
       }
 
       case SyntaxKind.computed_column_definition: {
-        this.push('(computed')
 
+        const computed = <ComputedColumnDefinition>node
+        this.push('(computed')
+        this.printNode(computed.expression)
+        this.printNode(computed.name)
         this.pop()
         break
       }
@@ -223,9 +227,9 @@ export class PrintVisitor {
       }
 
       case SyntaxKind.create_table_statement: {
-        const ct = <CreateTableStatement>node
-        this.push('(create-table ' + formatIdentifier(ct.table))
-        ct.body.forEach(el => this.printNode(el))
+        const table = <CreateTableStatement>node
+        this.push('(create-table ' + formatIdentifier(table.name))
+        table.body.forEach(el => this.printNode(el))
         this.pop()
         break
       }

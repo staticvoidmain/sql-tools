@@ -32,14 +32,28 @@ import {
   DropStatement,
   JoinedTable,
   TableLikeDataSource,
-  InsertStatement
+  InsertStatement,
+  Identifier,
+  ColumnDefinition,
+  ComputedColumnDefinition,
+  CreateTableStatement,
+  CreateViewStatement,
+  SetOptionStatement
 } from './ast'
+
+import { Token } from './scanner'
 
 /**
  * This visitor will allow rules to be evaluated simply by extending this base
  * visitor and implementing the required methods.
  */
 export abstract class Visitor {
+
+  // for identifier casing stuff
+  visitIdentifier(node: Identifier): void { }
+  // for keyword casing rules
+  visitKeyword(token: Token): void { }
+
   // todo: set options
   visitBinaryExpression(node: BinaryExpression): void { }
   visitBitwiseNot(node: BitwiseNotExpression): void { }
@@ -96,6 +110,21 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.column_definition: {
+        const col = <ColumnDefinition>node
+        this.visitColumnDefinition(col)
+        this.visit(col.name)
+        break
+      }
+
+      case SyntaxKind.computed_column_definition: {
+        const computed = <ComputedColumnDefinition>node
+        this.visitComputedColumnDefinition('(computed')
+        this.visit(computed.expression)
+        this.visit(computed.name)
+        break
+      }
+
       case SyntaxKind.column_expr: {
         const col = <ColumnExpression>node
         this.visitColumnExpression(col)
@@ -116,10 +145,19 @@ export abstract class Visitor {
       }
 
       case SyntaxKind.create_table_statement: {
-        // todo
+        const table = <CreateTableStatement>node
+        this.visitCreateTable(table)
+        this.visit(table.name)
         break
       }
 
+      case SyntaxKind.create_view_statement: {
+        const view = <CreateViewStatement>node
+        this.visitCreateView(view)
+        this.visit(view.name)
+        this.visit(view.definition)
+        break
+      }
 
       case SyntaxKind.create_proc_statement: {
         const proc = <CreateProcedureStatement>node
@@ -139,9 +177,7 @@ export abstract class Visitor {
         this.visitIf(_if)
         this.visit(_if.predicate)
         this.visit(_if.then)
-        if (_if.else) {
-          this.visit(_if.else)
-        }
+        this.visit(_if.else)
         break
       }
 
@@ -303,6 +339,12 @@ export abstract class Visitor {
           })
         }
 
+        break
+      }
+
+      case SyntaxKind.set_option_statement: {
+        const set = <SetOptionStatement>node
+        this.visitSetOption(set)
         break
       }
 

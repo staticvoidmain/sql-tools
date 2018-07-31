@@ -193,7 +193,7 @@ export class Parser {
 
       case SyntaxKind.truncate_keyword: {
         const truncate = <TruncateTableStatement>this.createAndMoveNext(this.token, SyntaxKind.truncate_table_statement)
-        truncate.table_keyword = this.expect(SyntaxKind.table_keyword)
+        this.expect(SyntaxKind.table_keyword)
         truncate.table = this.parseIdentifier()
         return truncate
       }
@@ -357,7 +357,6 @@ export class Parser {
         const col = <ComputedColumnDefinition>this.createNode(start, kind)
 
         col.name = name
-        col.as_keyword = this.token
         this.moveNext()
 
         col.expression = this.tryParseAddExpr()
@@ -894,7 +893,9 @@ export class Parser {
         const expr = <CastExpression>this.createAndMoveNext(start, SyntaxKind.cast_expr)
         this.expect(SyntaxKind.openParen)
         expr.expr = this.tryParseAddExpr()
-        expr.as_keyword = this.expect(SyntaxKind.as_keyword)
+
+        // as
+        this.expect(SyntaxKind.as_keyword)
         expr.type = this.parseType()
         expr.end = this.token.end
         this.expect(SyntaxKind.closeParen)
@@ -962,11 +963,8 @@ export class Parser {
     do {
       const element = <WhenExpression>this.createAndMoveNext(this.token, SyntaxKind.when_expr)
 
-      // todo: refactor this so that
       element.when = this.tryParseOrExpr()
 
-      // todo: capture case of then for the keyword
-      // case analyzer
       this.expect(SyntaxKind.then_keyword)
       element.then = when.apply(this)
 
@@ -980,7 +978,6 @@ export class Parser {
     this.expect(SyntaxKind.end_keyword)
   }
 
-  // todo: implement the "simple" case expr stuff
   private parseCaseExpression() {
     const expr = <CaseExpression>this.createAndMoveNext(this.token, SyntaxKind.searched_case_expr)
 
@@ -1099,7 +1096,7 @@ export class Parser {
       case SyntaxKind.table_keyword: {
         const create = <CreateTableStatement>this.createAndMoveNext(start, SyntaxKind.create_table_statement)
 
-        create.table = this.parseIdentifier()
+        create.name = this.parseIdentifier()
 
         this.expect(SyntaxKind.openParen)
         create.body = this.parseColumnDefinitionList()
@@ -1129,7 +1126,6 @@ export class Parser {
       case SyntaxKind.procedure_keyword: {
         const node = this.createAndMoveNext(start, SyntaxKind.create_proc_statement)
         const procedure = <CreateProcedureStatement>node
-        procedure.procedure_keyword = objectType
 
         this.assertKind(SyntaxKind.identifier)
 
@@ -1143,7 +1139,7 @@ export class Parser {
           }
         }
 
-        procedure.as_keyword = this.expect(SyntaxKind.as_keyword)
+        this.expect(SyntaxKind.as_keyword)
         procedure.body = this.parseStatementBlock(true)
 
         return procedure

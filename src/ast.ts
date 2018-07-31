@@ -143,7 +143,6 @@ export interface ColumnDefinition extends SyntaxNode {
 
 export interface ComputedColumnDefinition extends SyntaxNode {
   name: Identifier
-  as_keyword: Token
   expression: Expr
 }
 
@@ -189,7 +188,6 @@ export interface IsNullTestExpression extends Expr {
 
 export interface CastExpression extends SyntaxNode, Expr {
   expr: Expr
-  as_keyword: Token
   type: DataType
 }
 
@@ -472,7 +470,6 @@ export interface InsertIntoStatement extends SyntaxNode {
 }
 
 export interface InsertSelectStatement extends SyntaxNode {
-  insert_keyword: Token
 }
 
 export type AlterStatement =
@@ -488,12 +485,11 @@ export type CreateStatement =
   // | CreateDatabaseStatement
 
 export interface TruncateTableStatement extends SyntaxNode {
-  table_keyword: Token
   table: Identifier
 }
 
 export interface CreateTableStatement extends SyntaxNode {
-  table: Identifier
+  name: Identifier
   body: CreateTableElement[]
   // file group stuff
   // as FileTable blah
@@ -505,7 +501,6 @@ export interface AlterTableStatement extends SyntaxNode {
 }
 
 export interface AlterFunctionStatement extends SyntaxNode {
-  function_keyword: Token
   name: Identifier
   arguments: VariableDeclaration[]
   body: StatementBlock
@@ -520,15 +515,12 @@ export interface CreateViewStatement extends SyntaxNode {
 
 // create and alter are pretty much the same...
 export interface CreateProcedureStatement extends SyntaxNode {
-  procedure_keyword: Token
   name: Identifier
   arguments: VariableDeclaration[]
-  as_keyword: Token
   body: StatementBlock
 }
 
 export interface AlterProcedureStatement extends SyntaxNode {
-  procedure_keyword: Token
   name: Identifier
   // todo: does this work?
   arguments: VariableDeclaration[]
