@@ -20,16 +20,16 @@ import { printNodes } from '../src/print_visitor'
 describe('Parser', () => {
 
   it('returns an array of statements', () => {
-    const parser = new Parser()
-    const list = parser.parse('use MyDb\n go\n')
+    const parser = new Parser('use MyDb\n go\n')
+    const list = parser.parse()
 
     expect(list).to.be.an('array')
     expect(list.length).to.equal(2)
   })
 
   it('parses set statements', function () {
-    const parser = new Parser()
-    const list = parser.parse('set @x = 1 + 2')
+    const parser = new Parser('set @x = 1 + 2')
+    const list = parser.parse()
     expect(list.length).to.equal(1)
 
     const statement = <SetStatement>list[0]
@@ -43,8 +43,8 @@ describe('Parser', () => {
   })
 
   it('parses declare statements', () => {
-    const parser = new Parser()
-    const list = parser.parse('declare @x int = 0')
+    const parser = new Parser('declare @x int = 0')
+    const list = parser.parse()
 
     expect(list.length).to.equal(1)
 
@@ -61,8 +61,8 @@ describe('Parser', () => {
   })
 
   it('parses multi-declares', () => {
-    const parser = new Parser()
-    const list = parser.parse('declare @x int=0,\n     @y varchar(max)')
+    const parser = new Parser('declare @x int=0,\n     @y varchar(max)')
+    const list = parser.parse()
 
     const statement = <DeclareStatement>list[0]
     const decls = <VariableDeclaration[]>statement.variables
@@ -80,8 +80,8 @@ describe('Parser', () => {
   xit('parses multiple variable decls')
 
   it('parses select statements', () => {
-    const parser = new Parser()
-    const list = parser.parse('select sum = 1 + 1')
+    const parser = new Parser('select sum = 1 + 1')
+    const list = parser.parse()
 
     const select = <SelectStatement>list[0]
     const col = <ColumnExpression>select.columns[0]
@@ -95,16 +95,14 @@ describe('Parser', () => {
   })
 
   it('debug: parse script and print ast', () => {
-    const parser = new Parser()
     const path = './test/mssql/kitchen_sink.sql'
     const file = readFileSync(path, 'utf8')
-    const tree = parser.parse(file, {
+    const parser = new Parser(file, {
       path: path
     })
 
-    // process.stdout.write('-- full JSON --\n')
-    // process.stdout.write(JSON.stringify(tree, undefined, ' '))
-    // process.stdout.write('\n-- pretty --\n')
+    const tree = parser.parse()
+
     printNodes(tree)
   })
 })

@@ -75,13 +75,9 @@ import {
   JoinType,
   ExecuteStatementFlags,
   ExecuteStringStatement,
-  TableLikeDataSource
+  TableLikeDataSource,
+  ParserOptions
 } from './ast'
-
-export interface ParserError {
-  message: string
-  line: number
-}
 
 /**
  * reserved words that can be used as functions...
@@ -135,8 +131,8 @@ function isCast(ident: Identifier) {
 }
 
 export class Parser {
-  private settings: any
-  private scanner?: Scanner
+  private readonly options: ParserOptions
+  private readonly scanner: Scanner
   // todo: error recovery, right now any error kills the parser.
   // private errors: Array<ParserError> = []
   private token: Token = EmptyToken
@@ -144,6 +140,11 @@ export class Parser {
   private leadingTriviaBuffer: Array<Token> = []
   private trailingTriviaBuffer: Array<Token> = []
   private keywords: Array<Token> = []
+
+  constructor(script: string, info?: any) {
+    this.options = Object.assign({ skipTrivia: true }, info)
+    this.scanner = new Scanner(script, this.options)
+  }
 
   /**
    * Try to parse the next statement in the list, return undefined if we
@@ -287,12 +288,22 @@ export class Parser {
     return this.token.kind === kind
   }
 
-  private error(err: string) {
+  private error(message: string) {
     const line = this.scanner!.lineOf(this.token.start)
     const col = this.scanner!.offsetOf(this.token.start, line)
     const text = this.scanner!.getSourceLine(line)
+    const err =  this.options.error
 
-    throw new Error(`${this.settings.path} (${line + 1}, ${col + 1}) ${err} \n${text}`)
+    if (err) {
+      err({
+        file: this.options.path,
+        line: line,
+        col: col,
+        message: message
+      })
+    } else {
+      throw new Error(`${this.options.path} (${line + 1}, ${col + 1}) ${message} \n${text}`)
+    }
   }
 
   private isTrivia() {
@@ -1077,9 +1088,9 @@ export class Parser {
       const kind = SyntaxKind.execute_procedure_statement
       const node = this.createAndMoveNext(this.token, kind)
       const exec = <ExecuteProcedureStatement>node
+      exec.procedure = this.parseIdentifier()
 
-
-
+      this.finishExecuteProcedureStatement(exec)
 
       return exec
     }
@@ -1427,7 +1438,7 @@ export class Parser {
     const col = this.scanner!.offsetOf(node.start, line)
     const text = this.scanner!.getSourceSubstring(node.start, node.end + 1)
 
-    return [this.settings.path, line, col, text]
+    return [this.options.path, line, col, text]
   }
 
   /**
@@ -1436,9 +1447,7 @@ export class Parser {
    * @param script the script to parse.
    * @returns a list of statements within the script.
    */
-  parse(script: string, info?: any): Array<SyntaxNode> {
-    this.settings = Object.assign({ skipTrivia: true }, info)
-    this.scanner = new Scanner(script, this.settings)
+  parse(): Array<SyntaxNode> {
     const statements: Array<SyntaxNode> = []
 
     this.moveNext()

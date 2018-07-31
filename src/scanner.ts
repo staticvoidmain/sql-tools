@@ -1,6 +1,9 @@
 import { Chars } from './chars'
 import { SyntaxKind } from './syntax'
 
+// todo: namespace for all the common stuff?
+import { ParserOptions } from './ast'
+
 function isLetter(ch: number): boolean {
   return (Chars.A <= ch && ch <= Chars.Z)
     || (Chars.a <= ch && ch <= Chars.z)
@@ -324,18 +327,6 @@ const keywordMap = new KeywordLookup([
   ['writetext', SyntaxKind.writetext_keyword],
 ])
 
-// todo: maybe also the char position
-export type ErrorCallback = (line: number, col: number, msg: string) => void
-
-export interface ScannerOptions {
-  /**
-   * @NotImplemented
-   */
-  skipTrivia?: boolean
-
-  error?: ErrorCallback
-}
-
 export function binarySearch(array: Array<number>, key: number) {
   let low = 0
   let high = array.length - 1
@@ -361,11 +352,11 @@ export class Scanner {
 
   private readonly text: string
   private readonly lines: number[]
-  private readonly options: any
+  private readonly options: ParserOptions
   private pos: number
 
-  constructor(text: string, options?: ScannerOptions) {
-    this.options = options
+  constructor(text: string, options?: ParserOptions) {
+    this.options = options || {}
     this.text = text
     this.pos = 0
     this.lines = []
@@ -395,12 +386,18 @@ export class Scanner {
     return ~line - 1
   }
 
-  // todo: this... is wrong.
   private error(msg: string) {
     const err = this.options.error
 
     if (err) {
-      err(this.getLine(this.pos), msg)
+      const line = this.getLine(this.pos)
+
+      err({
+        file: this.options.path,
+        line: line,
+        col: this.offsetOf(this.pos, line),
+        message: msg
+      })
     }
   }
 

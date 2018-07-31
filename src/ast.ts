@@ -6,6 +6,23 @@ import {
 
 import { Token } from './scanner'
 
+// todo: maybe also the char position
+export type ErrorCallback = (error: ParserError) => void
+
+export interface ParserError {
+  file?: string
+  line: number
+  col: number
+  message: string
+}
+
+export interface ParserOptions {
+  path?: string
+  skipTrivia?: boolean
+  skipKeywordTracking?: boolean
+  error?: ErrorCallback
+}
+
 export interface TextRange {
   start: number
   end: number

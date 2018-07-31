@@ -18,8 +18,8 @@ import {
 import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
-import { Token } from './scanner';
-import { Chars } from './chars';
+import { Token } from './scanner'
+import { Chars } from './chars'
 
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
@@ -35,8 +35,10 @@ const pathOrFile = args[0]
 
 const operation = args[1] || '--print'
 
-if (pathOrFile.indexOf('*') == -1) {
-  const path = normalize(join(process.cwd(), pathOrFile))
+if (pathOrFile.indexOf('*') === -1) {
+  const path = pathOrFile.startsWith('.')
+    ? normalize(join(process.cwd(), pathOrFile))
+    : pathOrFile
 
   processFile(path)
 } else {
@@ -75,7 +77,7 @@ async function processDirectory(dir: string, pattern: RegExp) {
   if (contents) {
     for (let i = 0; i < contents.length; i++) {
       const child = contents[i]
-      const path = join(dir, child)
+      const path = normalize(join(dir, child))
       const stat = statSync(path)
 
       if (stat.isFile()) {
@@ -87,16 +89,56 @@ async function processDirectory(dir: string, pattern: RegExp) {
   }
 }
 
+function detectEncoding(buffer: Buffer) {
+
+  // not handling utf32 because who uses that shit?
+  const bom: any = {
+    'utf-8-bom': [239, 187, 191], // EF BB BF
+    'utf-16be': [254, 255],       // FE FF
+    'utf-16le': [255, 254]        // FF FE
+  }
+
+  for (const key in bom) {
+    const val = bom[key]
+    const len = val.length
+    let match = true
+    for (let i = 0; i < len; i++) {
+      if (val[i] !== buffer[i]) {
+        match = false
+        break
+      }
+    }
+
+    if (match) {
+      return key
+    }
+  }
+
+  const hasUnicode = buffer.some((c) => {
+    return c > 127
+  })
+
+  if (hasUnicode) {
+    return 'utf-8'
+  } else {
+    return 'latin1'
+  }
+}
+
 async function processFile(path: string) {
-  const file = await readFileAsync(path, 'utf8')
-  const parser = new Parser()
-  const tree = parser.parse(file, {
+  // todo: other encodings...
+  const buff = await readFileAsync(path)
+  const enc = detectEncoding(buff)
+
+  const parser = new Parser(buff.toString(enc), {
     skipTrivia: true,
     path: path
   })
 
+  const tree = parser.parse()
+
   if (operation === '--print') {
-    console.log("# " + path);
+    console.log('# ' + path)
     printNodes(tree)
     console.log('\n')
   }
