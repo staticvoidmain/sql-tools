@@ -5,6 +5,7 @@ import {
 } from './syntax'
 
 import { Token } from './scanner'
+import { FeatureFlags } from './features'
 
 // todo: maybe also the char position
 export type ErrorCallback = (error: ParserError) => void
@@ -16,18 +17,12 @@ export interface ParserError {
   message: string
 }
 
-// this is probably not the way to do this...
-export enum GrammarExtensionFlags {
-  None,
-
-}
-
 export interface ParserOptions {
   path?: string
   skipTrivia?: boolean
   skipKeywordTracking?: boolean
   error?: ErrorCallback
-  extensions?: GrammarExtensionFlags
+  features?: FeatureFlags
 }
 
 export interface TextRange {
@@ -68,11 +63,14 @@ export interface LikeOperator extends SyntaxNode { kind: SyntaxKind.like_keyword
 export interface InOperator extends SyntaxNode { kind: SyntaxKind.in_keyword }
 export interface NotGreaterThanOperator extends SyntaxNode { kind: SyntaxKind.notGreaterThan }
 export interface NotLessThanOperator extends SyntaxNode { kind: SyntaxKind.notLessThan }
-// todo: exists is a weird one...
+// todo: this is likely going to take some kind of special syntax in the parser
+// to support exists, in, any, all etc.
 // export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
 export interface NotOperator extends SyntaxNode { kind: SyntaxKind.not_keyword }
 
 export interface DefaultLiteral extends SyntaxNode { kind: SyntaxKind.default_keyword }
+
+// TODO: TernaryOperator expr between expr_a and expr_b
 
 export type BinaryOperator =
   | PlusOperator
@@ -92,7 +90,6 @@ export type BinaryOperator =
   | NotLessThanOperator
   | NotGreaterThanOperator
 
-// overkill?
 export interface PlusEqualsOperator extends SyntaxNode { kind: SyntaxKind.plusEqualsAssignment }
 export interface MinusEqualsOperator extends SyntaxNode { kind: SyntaxKind.minusEqualsAssignment }
 export interface MultiplyEqualsOperator extends SyntaxNode { kind: SyntaxKind.mulEqualsAssignment }

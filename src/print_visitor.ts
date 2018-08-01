@@ -71,6 +71,7 @@ ops[SyntaxKind.greaterThanEqual] = 'gte'
 ops[SyntaxKind.lessThanEqual] = 'lte'
 ops[SyntaxKind.notGreaterThan] = 'ngt'
 ops[SyntaxKind.notLessThan] = 'nlt'
+ops[SyntaxKind.like_keyword] = 'like'
 
 ops[SyntaxKind.plusEqualsAssignment] = 'plus-equals'
 ops[SyntaxKind.minusEqualsAssignment] = 'minus-equals'

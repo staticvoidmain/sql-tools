@@ -456,6 +456,7 @@ export class Parser {
         col.style = 'alias_equals_expr'
         col.alias = identifier.identifier
         col.expression = this.tryParseAddExpr()
+        col.end = col.expression.end
 
         columns.push(col)
       } else {
@@ -467,6 +468,7 @@ export class Parser {
         if (this.match(SyntaxKind.identifier)) {
           col.style = 'expr_as_alias'
           col.alias = this.parseIdentifier()
+          col.end = col.alias.end
         }
 
         columns.push(col)
@@ -476,7 +478,7 @@ export class Parser {
     return columns
   }
 
-  // todo: parse this for createtable
+  // called by createTable
   private tryParseCollation(): CollateNode | undefined {
     if (this.match(SyntaxKind.collate_keyword)) {
       const collate = <CollateNode>this.createAndMoveNext(this.token, SyntaxKind.column_collation)
@@ -568,13 +570,11 @@ export class Parser {
       }
     }
 
-    // todo: append this as trailing trivia
     this.optional(SyntaxKind.semicolon_token)
     return statement
   }
 
   private makeBinaryExpr(left: Expr, parse: Function): any {
-    // todo: fix up the binary expr so that the start/end offsets are right.
     const kind = this.token.kind
     const start = this.token.start
     const end = this.token.end
@@ -680,26 +680,12 @@ export class Parser {
 
   // operator precedence docs are strange, mul binds tighter than unary minus
   // that doesn't seem right... so I did it the way that makes sense.
-  /*
-    0 unary stuff: parens, literals, case exprs, function_call exprs
-    1	~ (Bitwise NOT)
-    2	* (Multiplication), / (Division), % (Modulus)
-    3	+ (Positive), - (Negative), + (Addition), + (Concatenation), - (Subtraction), & (Bitwise AND), ^ (Bitwise Exclusive OR), | (Bitwise OR)
-    4	=, >, <, >=, <=, <>, !=, !>, !< (Comparison operators)
-    5	NOT
-    6	AND
-    7	ALL, ANY, BETWEEN, IN, LIKE, OR, SOME
-    8	= (Assignment)
-  */
-
 
   // 7
   private isOrPrecedence() {
-    // todo: more any,all,some,in
+    // todo: more any,all,some,in...
     const kind = this.token.kind
     return kind === SyntaxKind.or_keyword
-      || kind === SyntaxKind.between_keyword
-      || kind === SyntaxKind.like_keyword
   }
 
   // 6 this.token.kind === SyntaxKind.and_keyword
@@ -721,6 +707,8 @@ export class Parser {
       || kind === SyntaxKind.bitwise_and_token
       || kind === SyntaxKind.bitwise_or_token
       || kind === SyntaxKind.bitwise_xor_token
+      || kind === SyntaxKind.between_keyword
+      || kind === SyntaxKind.like_keyword
   }
 
   // 2
@@ -751,7 +739,6 @@ export class Parser {
   }
 
   private tryParseNotExpr(): Expr {
-    // todo: this needs more testing I think...
     if (this.match(SyntaxKind.not_keyword)) {
       const not = <LogicalNotExpression>this.createAndMoveNext(this.token, SyntaxKind.logical_not_expr)
       not.expr = this.tryParseComparisonExpr()
@@ -861,7 +848,7 @@ export class Parser {
     }
   }
 
-  //  precedence sort of bottoms out here.
+  // precedence sort of bottoms out here.
   private parseBaseExpr(): Expr {
     const unary = this.tryParseUnaryExpr()
 
@@ -917,7 +904,7 @@ export class Parser {
     }
 
     if (ident) {
-      // special syntax
+      // ** special syntax **
       // cast(@x as SomeType)
       if (isCast(ident)) {
         const expr = <CastExpression>this.createAndMoveNext(start, SyntaxKind.cast_expr)
@@ -1104,7 +1091,7 @@ export class Parser {
       exec_string.format_args = []
 
       do {
-        // todo: variable or literals only?
+        // todo: what's the rule here? variable or literals only?
         exec_string.format_args.push(this.tryParseAddExpr())
       } while (this.match(SyntaxKind.comma_token))
     }
@@ -1121,11 +1108,9 @@ export class Parser {
   private parseCreateStatement(): CreateStatement {
     const start = this.token
 
-    // if
-
-
-
     const objectType = this.moveNext()
+    // todo: flag check
+    // todo: create REMOTE table as select
 
     switch (objectType.kind) {
       case SyntaxKind.table_keyword: {
@@ -1133,10 +1118,12 @@ export class Parser {
 
         create.name = this.parseIdentifier()
 
-        if (this.options.extensions & CTAS) {
-          // TODO: create table foo (with) as select ()
-        }
-
+        // if (this.options.features & FeatureFlags.CreateTableAsSelect) {
+        // TODO:
+        //   create table foo
+        //   with(clustered columnstore index asfd)
+        //   as (select asdf)
+        // }
 
         this.expect(SyntaxKind.openParen)
         create.body = this.parseColumnDefinitionList()
@@ -1261,6 +1248,7 @@ export class Parser {
     statement.objectType = this.token
 
     this.moveNext()
+    // todo: "if exists"
     statement.target = this.parseIdentifier()
 
     return statement

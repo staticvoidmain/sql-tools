@@ -9,7 +9,7 @@
   "scripts": {
     "test": "mocha ./dist/test",
     "lint": "node ./dist/src/index.js ./test/mssql/select_with_join.sql --lint",
-    "print": "node ./dist/src/index.js ./test/mssql/*.sql --print"
+    "print": "node ./dist/src/index.js ./test/mssql/select_with_join.sql --print"
   },
   "devDependencies": {
     "@types/chai": "^4.1.4",

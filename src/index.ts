@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -157,6 +157,12 @@ async function processFile(path: string) {
   }
 }
 
+// todo: visit select, if there are joins or multiple sources
+// require a two part name.
+
+// todo: visit select, warn if same column selected multiple times
+// with different aliases, probably a typo
+
 // # Utils
 // todo: start pulling these out into utils
 function isNullLiteral(node: SyntaxNode) {
@@ -287,12 +293,17 @@ function walkExpr(expr: Expr, cb: (e: Expr) => void) {
 
     walkExpr(simple.else, cb)
     return
-   }
+  }
+}
+
+function hasLeadingPrefix(pattern: string) {
+  // should start with something other than %, _, or [
+  return /^[^_\[%]+/.test(pattern)
 }
 
 type Span =
-| SyntaxNode
-| Token
+  | SyntaxNode
+  | Token
 
 class ExampleLintVisitor extends Visitor {
   constructor(private parser: Parser) {
@@ -337,6 +348,12 @@ class ExampleLintVisitor extends Visitor {
     })
   }
 
+  visitColumnExpression(node: ColumnExpression) {
+    if (node.style === 'alias_equals_expr') {
+      this.warning(node, '"alias = expression" syntax is deprecated, use "expression as alias" instead.')
+    }
+  }
+
   visitJoin(node: JoinedTable) {
     walkExpr(node.on, (e: Expr) => {
       // todo: are case exprs sargable?
@@ -358,7 +375,23 @@ class ExampleLintVisitor extends Visitor {
       }
     }
 
-    // todo: like other than 'startsWith%'
+    if (node.op.kind === SyntaxKind.like_keyword) {
+      if (node.right.kind === SyntaxKind.literal_expr) {
+        const literal = <LiteralExpression>node.right
+        const pattern = <string>literal.value
+
+        // todo: is like just wrong....?
+        // print this out...
+        if (!hasLeadingPrefix(pattern)) {
+          this.warning(node, 'perf - patterns which do not begin with a prefix cannot benefit from indexes')
+        }
+        // no wildcard what's the point?
+        // otherwildcard kinds?
+      } else {
+        // you're doing something weird...
+        // and I do NOT like it...
+      }
+    }
   }
 
   visitKeyword(token: Token) {
