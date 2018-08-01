@@ -314,10 +314,20 @@ class ExampleLintVisitor extends Visitor {
    * display a warning for the current node, optionally underlining a child
    * node to provide more clarity
    */
-  warning(node: Span, message: string, underlineNode = node) {
+  private warning(message: string, node: Span, underlineNode = node, category = ' ') {
+    this.emit(message, node, underlineNode, 'warning', category)
+  }
+
+  private info(message: string, node: Span, underlineNode = node, category = ' ') {
+    this.emit(message, node, underlineNode, 'info', category)
+  }
+
+  private emit(message: string, node: Span, underlineNode = node, severity = 'warning', category = ' ') {
     let space = '    '
     const [file, line, col, text] = this.parser.getInfo(node)
-    console.log(`${file}:${line + 1}:${col + 1} - warning ${message}\n`)
+
+    // todo: message = chalk.color(message) based on severity
+    console.log(`${file}:${line + 1}:${col + 1} - ${severity} -${category}${message}\n`)
     console.log(space + text)
 
     let underline = '~'
@@ -334,23 +344,25 @@ class ExampleLintVisitor extends Visitor {
       space += ' '
     }
 
+    // todo: chalk.red(underline)
     console.log(space + underline)
     console.log('\n')
   }
 
   visitWhere(node: WhereClause) {
     // TODO: technically ANY expr that mutates a column value
-    // will not be sargable
+    // will not be sargable, not just function calls
+    // abc + 1 = 'foo1' would break it
     walkExpr(node.predicate, (e: Expr) => {
       if (e.kind === SyntaxKind.function_call_expr) {
-        this.warning(e, 'function call will prevent search optimization')
+        this.warning('function call will prevent search optimization', e)
       }
     })
   }
 
   visitColumnExpression(node: ColumnExpression) {
     if (node.style === 'alias_equals_expr') {
-      this.warning(node, '"alias = expression" syntax is deprecated, use "expression as alias" instead.')
+      this.warning('"alias = expression" syntax is deprecated, use "expression as alias" instead.', node)
     }
   }
 
@@ -361,17 +373,17 @@ class ExampleLintVisitor extends Visitor {
       // to contain funky stuff.
       // todo: args could be constant
       if (e.kind === SyntaxKind.function_call_expr) {
-        this.warning(e, 'function call will prevent search optimization')
+        this.warning('function call will prevent search optimization', e)
       }
     })
   }
 
   visitBinaryExpression(node: BinaryExpression) {
     if (isNullLiteral(node.left) || isNullLiteral(node.right)) {
-      this.warning(node, 'null literal used in comparison, use "is null" or "is not null" instead', node.op)
+      this.warning('null literal used in comparison, use "is null" or "is not null" instead', node, node.op)
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
-        this.warning(node, 'value compared with itself, result will always be constant')
+        this.warning('value compared with itself, result will always be constant', node)
       }
     }
 
@@ -383,7 +395,7 @@ class ExampleLintVisitor extends Visitor {
         // todo: is like just wrong....?
         // print this out...
         if (!hasLeadingPrefix(pattern)) {
-          this.warning(node, 'perf - patterns which do not begin with a prefix cannot benefit from indexes')
+          this.warning('patterns which do not begin with a prefix cannot benefit from indexes', node)
         }
         // no wildcard what's the point?
         // otherwildcard kinds?
@@ -400,7 +412,7 @@ class ExampleLintVisitor extends Visitor {
     for (let i = 0; i < val.length; i++) {
       // todo: reverse this for the crazy UPPER nerds
       if (isUpperChar(val.charCodeAt(i))) {
-        this.warning(token, 'identifiers should be lower case')
+        this.info('identifiers should be lower case', token)
         break
       }
     }
