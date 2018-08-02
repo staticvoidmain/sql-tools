@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -157,11 +157,7 @@ async function processFile(path: string) {
   }
 }
 
-// todo: visit select, if there are joins or multiple sources
-// require a two part name.
 
-// todo: visit select, warn if same column selected multiple times
-// with different aliases, probably a typo
 
 // # Utils
 // todo: start pulling these out into utils
@@ -347,6 +343,37 @@ class ExampleLintVisitor extends Visitor {
     // todo: chalk.red(underline)
     console.log(space + underline)
     console.log('\n')
+  }
+
+
+
+  visitSelect(node: SelectStatement) {
+
+    if (node.from) {
+      if (node.from.joins) {
+        node.from.joins.forEach(join => {
+          if (!join.source.alias) {
+            this.warning('joined sources should have an alias', join)
+          }
+        })
+      }
+
+      if (node.from.sources.length > 1 || node.from.joins) {
+        // if there are joins OR multiple sources
+        // require a two part name.
+        node.columns.forEach(col => {
+          walkExpr(col, (expr) => {
+            if (expr.kind === SyntaxKind.identifier_expr) {
+              const ident = <IdentifierExpression>expr
+
+              if (ident.identifier.parts.length < 2) {
+                this.warning('use a two-part name for queries involving more than one table', ident)
+              }
+            }
+          })
+        })
+      }
+    }
   }
 
   visitWhere(node: WhereClause) {
