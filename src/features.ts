@@ -1,13 +1,13 @@
 export enum FeatureFlags {
-  None,
-  CreateTableAsSelect,
-  CreateRemoteTableAsSelect,
-  DropIfExists,
+  None = 0,
+  CreateTableAsSelect = 1 << 0,
+  CreateRemoteTableAsSelect = 1 << 1,
+  DropIfExists = 1 << 2,
 
   // non mssql stuff
   // for maybe later...
-  HexLiterals,
-  CreateIfNotExist,
+  HexLiterals = 1 << 3,
+  CreateIfNotExist = 1 << 4,
 }
 
 export type Edition =
@@ -15,7 +15,7 @@ export type Edition =
   | 'azure-data-warehouse'
   | 'parallel-data-warehouse'
 
-export function getFlagsForEdition(edition: Edition, version: string) {
+export function getFlagsForEdition(edition: string, version: string) {
   let flags = FeatureFlags.None
 
   if (edition === 'parallel-data-warehouse') {

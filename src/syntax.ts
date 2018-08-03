@@ -163,6 +163,7 @@ export enum SyntaxKind {
   order_keyword,
   outer_keyword,
   over_keyword,
+  partition_keyword,
   percent_keyword,
   pivot_keyword,
   plan_keyword,
@@ -261,6 +262,7 @@ export enum SyntaxKind {
   column_expr,
   null_test_expr,
   cast_expr,
+  select_expr,
   // misc
   all_columns,    // <star>
   // statements
@@ -293,6 +295,8 @@ export enum SyntaxKind {
   group_by_clause,
   order_by_clause,
   having_clause,
+  over_clause,
+  partition_by_clause,
   begin_transaction_statement,
   commit_transaction_statement,
   rollback_transaction_statement,
@@ -300,7 +304,10 @@ export enum SyntaxKind {
   alter_proc_statement,
   create_proc_statement,
   create_table_statement,
+  // dw extension
+  create_table_as_select_statement,
   alter_table_statement,
+  delete_statement,
   truncate_table_statement,
   update_table_statement,
   create_view_statement,

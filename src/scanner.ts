@@ -255,6 +255,7 @@ const keywordMap = new KeywordLookup([
   ['order', SyntaxKind.order_keyword],
   ['outer', SyntaxKind.outer_keyword],
   ['over', SyntaxKind.over_keyword],
+  ['partition', SyntaxKind.partition_keyword],
   ['percent', SyntaxKind.percent_keyword],
   ['pivot', SyntaxKind.pivot_keyword],
   ['plan', SyntaxKind.plan_keyword],
@@ -349,7 +350,6 @@ export function binarySearch(array: Array<number>, key: number) {
 }
 
 export class Scanner {
-
   private readonly text: string
   private readonly lines: number[]
   private readonly options: ParserOptions
@@ -428,24 +428,17 @@ export class Scanner {
 
     // this is kinda wrong... square braces can't escape other square braces
     // "s and [] are balanced and end when the last unescaped closing token are encountered.
-    let insideQuoteContext = ch === Chars.doubleQuote
-    let insideBraceContext = ch === Chars.openBrace
+    const insideQuoteContext = ch === Chars.doubleQuote
+    const insideBraceContext = ch === Chars.openBrace
 
     // all idents are at least one character long.
     const start = this.pos++
 
     while (ch = this.text.charCodeAt(this.pos)) {
-      // todo: stupid double quote escape stuff...
-      if (ch === Chars.doubleQuote) {
-        insideQuoteContext = !insideQuoteContext
+      if ((ch === Chars.doubleQuote && insideQuoteContext)
+        || (ch === Chars.closeBrace && insideBraceContext)) {
         this.pos++
-        continue
-      }
-
-      if (ch === Chars.closeBrace) {
-        insideBraceContext = !insideBraceContext
-        this.pos++
-        continue
+        break
       }
 
       if (insideQuoteContext || insideBraceContext) {

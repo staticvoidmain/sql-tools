@@ -1,20 +1,28 @@
 
 -- a little parser torture test
--- set nocount on
+set nocount on
 
--- declare @foo int = -1000;
--- set @foo *= -1;
+declare @foo int, @bar datetime
+set @foo *= -1
 
 -- insert into [SomeTable] (foo, bar)
 -- values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- sp_helptext dbo.object_name_here
--- exec asdf.do_foo 'bar', 1, @b;
+print 'cast expressions'
+select isnull(cast([foo]as int),-1) as bar
+from something
 
+
+print 'exec proc'
+exec asdf.do_foo 'bar', 1, @b
+
+
+-- todo
 -- execute ('select * from foo where x = ?', @foo);
 
 -- drop procedure asdf.foo
-
+print 'create table'
 create table dbo.whatever (
   [id] int identity(1, 1) not null,
   [name] varchar(256) null,
@@ -23,10 +31,13 @@ create table dbo.whatever (
 
 select *
 from something s
-left outer join dbo.table_valued_func(@foo) as e
+left join dbo.table_valued_func(@foo) as e
   on s.asdf = zzz.the_func(e)
-inner join dbo.other
+left join dbo.other
   on dbo.other.foo = @foo
+where s.number in (1, 2, 3)
+and s.foo not like 'asdf%'
+
 
 go
 -- update ex

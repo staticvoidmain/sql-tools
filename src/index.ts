@@ -1,6 +1,6 @@
 
 import { printNodes } from './print_visitor'
-import { Parser } from './parser'
+import { Parser, ParserException } from './parser'
 
 import { promisify } from 'util'
 
@@ -20,6 +20,7 @@ import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
 import { Chars } from './chars'
+import { getFlagsForEdition } from './features'
 
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
@@ -32,8 +33,8 @@ if (!args) {
 }
 
 const pathOrFile = args[0]
-
 const operation = args[1] || '--print'
+const edition = args[2] || 'sql-server'
 
 if (pathOrFile.indexOf('*') === -1) {
   const path = pathOrFile.startsWith('.')
@@ -89,75 +90,75 @@ async function processDirectory(dir: string, pattern: RegExp) {
   }
 }
 
-function detectEncoding(buffer: Buffer) {
+function bufferToString(buffer: Buffer) {
+  let len = buffer.length
 
-  // not handling utf32 because who uses that shit?
-  const bom: any = {
-    'utf-8-bom': [239, 187, 191], // EF BB BF
-    'utf-16be': [254, 255],       // FE FF
-    'utf-16le': [255, 254]        // FF FE
-  }
-
-  for (const key in bom) {
-    const val = bom[key]
-    const len = val.length
-    let match = true
-    for (let i = 0; i < len; i++) {
-      if (val[i] !== buffer[i]) {
-        match = false
-        break
+  if (len >= 2) {
+    // funky big-endian conversion.
+    if (buffer[0] === 0xFE && buffer[1] === 0xFF) {
+      len &= -2
+      for (let i = 0; i < len; i += 2) {
+        const temp = buffer[i]
+        buffer[i] = buffer[i + 1]
+        buffer[i + 1] = temp
       }
+
+      return buffer.toString('utf16le', 2)
     }
 
-    if (match) {
-      return key
+    if (buffer[0] === 0xFF && buffer[1] === 0xFE) {
+      return buffer.toString('utf16le', 2)
+    }
+
+    if (len >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+      return buffer.toString('utf8', 3)
     }
   }
 
-  const hasUnicode = buffer.some((c) => {
-    return c > 127
-  })
-
-  if (hasUnicode) {
-    return 'utf-8'
-  } else {
-    return 'latin1'
-  }
+  return buffer.toString('utf8')
 }
 
 async function processFile(path: string) {
-  // todo: other encodings...
   const buff = await readFileAsync(path)
-  const enc = detectEncoding(buff)
+  const text = bufferToString(buff)
 
-  const parser = new Parser(buff.toString(enc), {
+  const parser = new Parser(text, {
     skipTrivia: true,
-    path: path
+    path: path,
+    features: getFlagsForEdition(edition, '2016'), // hack: fix this later
   })
 
-  const tree = parser.parse()
+  try {
+    const tree = parser.parse()
 
-  if (operation === '--print') {
-    console.log('# ' + path)
-    printNodes(tree)
-    console.log('\n')
-  }
-
-  if (operation === '--lint') {
-    const visitor = new ExampleLintVisitor(parser)
-
-    for (const node of tree) {
-      visitor.visit(node)
+    if (operation === '--print') {
+      console.log('# ' + path)
+      // todo: just list the ones we can parse correctly
+      // printNodes(tree)
+      console.log('\n')
     }
 
-    // do some casing stuff
-    for (const key of parser.getKeywords()) {
-      visitor.visitKeyword(key)
+    if (operation === '--lint') {
+      const visitor = new ExampleLintVisitor(parser)
+
+      for (const node of tree) {
+        visitor.visit(node)
+      }
+
+      // do some casing stuff
+      for (const key of parser.getKeywords()) {
+        visitor.visitKeyword(key)
+      }
+    }
+  }
+  catch (e) {
+    if (e instanceof ParserException) {
+      const ex = <ParserException>e
+      printNodes(ex.statements)
+      console.log(ex.innerException)
     }
   }
 }
-
-
 
 // # Utils
 // todo: start pulling these out into utils

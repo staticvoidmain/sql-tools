@@ -65,10 +65,17 @@ export interface NotGreaterThanOperator extends SyntaxNode { kind: SyntaxKind.no
 export interface NotLessThanOperator extends SyntaxNode { kind: SyntaxKind.notLessThan }
 // todo: this is likely going to take some kind of special syntax in the parser
 // to support exists, in, any, all etc.
-// export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
+export interface ExistsOperator extends SyntaxNode { kind: SyntaxKind.exists_keyword }
+
 export interface NotOperator extends SyntaxNode { kind: SyntaxKind.not_keyword }
 
 export interface DefaultLiteral extends SyntaxNode { kind: SyntaxKind.default_keyword }
+
+
+// some/any act like unary operators
+// but they can only be used as the RHS of a comparison
+export interface SomeOperator extends SyntaxNode { kind: SyntaxKind.some_keyword }
+export interface AnyOperator extends SyntaxNode { kind: SyntaxKind.any_keyword }
 
 // TODO: TernaryOperator expr between expr_a and expr_b
 
@@ -112,6 +119,10 @@ export type AssignmentOperator =
 
 export interface IdentifierExpression extends Expr {
   identifier: Identifier
+}
+
+export interface SelectExpression extends Expr {
+  select: SelectStatement
 }
 
 export interface CollateNode extends SyntaxNode {
@@ -290,6 +301,15 @@ export interface WhenExpression extends Expr, SyntaxNode {
 export interface FunctionCallExpression extends Expr {
   name: Identifier
   arguments: Expr[]
+  over?: OverClause
+}
+
+export interface OverClause {
+  partition?: PartitionByClause
+  // technically not optional
+  // but to ease initialization
+  // I'm marking it this way
+  order_by?: OrderByClause
 }
 
 export interface WhereClause extends SyntaxNode {
@@ -314,11 +334,15 @@ export interface JoinedTable extends SyntaxNode {
 }
 
 export interface GroupByClause extends SyntaxNode {
-  grouping: ValueExpression[]
+  grouping: Expr[]
+}
+
+export interface PartitionByClause extends SyntaxNode {
+  expressions: Expr[]
 }
 
 export interface OrderByClause extends SyntaxNode {
-  ordering: ValueExpression[]
+  ordering: Expr[]
 }
 
 export interface HavingClause extends SyntaxNode {
@@ -436,6 +460,7 @@ export interface SelectStatement extends SyntaxNode {
   order_by?: OrderByClause
   group_by?: GroupByClause
   having?: HavingClause
+  unions?: SelectStatement[]
 }
 
 export interface GoStatement extends SyntaxNode {
@@ -454,10 +479,6 @@ export interface DropStatement extends SyntaxNode {
   objectType: Token
   target: Identifier
 }
-
-export type InsertStatement =
-  | InsertSelectStatement
-  | InsertIntoStatement
 
 export enum ExecuteStatementFlags {
   None                = 0,
@@ -482,13 +503,12 @@ export interface ExecuteProcedureStatement extends SyntaxNode {
   flags: ExecuteStatementFlags
 }
 
-export interface InsertIntoStatement extends SyntaxNode {
+// union type, values range OR select, never both.
+export interface InsertStatement extends SyntaxNode {
   target: Identifier
   columns?: Array<string>
-  values: Expr[]
-}
-
-export interface InsertSelectStatement extends SyntaxNode {
+  values?: Expr[]
+  select?: SelectStatement
 }
 
 export type AlterStatement =
@@ -507,11 +527,26 @@ export interface TruncateTableStatement extends SyntaxNode {
   table: Identifier
 }
 
+export interface DeleteStatement extends SyntaxNode {
+  target: Identifier
+  from?: FromClause
+  where?: WhereClause
+  // optional
+  top?: Expr
+  top_percent?: boolean
+}
+
 export interface CreateTableStatement extends SyntaxNode {
   name: Identifier
   body: CreateTableElement[]
   // file group stuff
   // as FileTable blah
+}
+
+// data warehouse extension
+export interface CreateTableAsSelectStatement extends SyntaxNode {
+  name: Identifier
+  definition: SelectStatement
 }
 
 // alter table, view

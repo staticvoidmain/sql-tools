@@ -37,7 +37,13 @@ import {
   CreateTableStatement,
   ColumnDefinition,
   CreateViewStatement,
-  ComputedColumnDefinition
+  ComputedColumnDefinition,
+  ExecuteProcedureStatement,
+  SelectExpression,
+  DeleteStatement,
+  CastExpression,
+  CreateTableAsSelectStatement,
+  InsertStatement
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -143,12 +149,19 @@ export class PrintVisitor {
     this.inline_next_pop = false
   }
 
-  private printNode(node: SyntaxNode) {
+  private printNode(node: SyntaxNode | undefined) {
+    if (!node) return
 
     switch (node.kind) {
       // mostly noise, skip for now
       case SyntaxKind.set_option_statement:
       case SyntaxKind.go_statement: {
+        break
+      }
+
+      case SyntaxKind.identifier: {
+        const ident = <Identifier>node
+        this.write(formatIdentifier(ident))
         break
       }
 
@@ -163,6 +176,21 @@ export class PrintVisitor {
         this.push('(print ')
         this.printNode(print.expression)
         this.pop()
+        break
+      }
+
+      case SyntaxKind.execute_procedure_statement: {
+        const exec = <ExecuteProcedureStatement>node
+        this.push('(exec ')
+        this.printNode(exec.procedure)
+        if (exec.arguments) {
+          this.write(' ')
+          exec.arguments.forEach(e => {
+            this.write(' ')
+            this.printNode(e)
+          })
+        }
+        this.pop(')')
         break
       }
 
@@ -205,7 +233,7 @@ export class PrintVisitor {
       case SyntaxKind.computed_column_definition: {
 
         const computed = <ComputedColumnDefinition>node
-        this.push('(computed')
+        this.push('(computed ')
         this.printNode(computed.expression)
         this.printNode(computed.name)
         this.pop()
@@ -214,8 +242,9 @@ export class PrintVisitor {
 
       case SyntaxKind.column_definition: {
         const col = <ColumnDefinition>node
-        this.push('(column ' + formatIdentifier(col.name) + ' ')
-
+        this.push('(column ')
+        this.printNode(col.name)
+        this.write(' ')
         this.printNode(col.type)
 
         if (col.nullability) {
@@ -229,8 +258,18 @@ export class PrintVisitor {
 
       case SyntaxKind.create_table_statement: {
         const table = <CreateTableStatement>node
-        this.push('(create-table ' + formatIdentifier(table.name))
+        this.push('(create-table ')
+        this.printNode(table.name)
         table.body.forEach(el => this.printNode(el))
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.create_table_as_select_statement: {
+        const table = <CreateTableAsSelectStatement>node
+        this.push('(ctas ')
+        this.printNode(table.name)
+        this.printNode(table.definition)
         this.pop()
         break
       }
@@ -266,6 +305,17 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.delete_statement: {
+        const del = <DeleteStatement>node
+
+        this.push('(delete ')
+        this.printNode(del.target)
+        this.printNode(del.from)
+        this.printNode(del.where)
+        this.pop()
+        break
+      }
+
       case SyntaxKind.if_statement: {
 
         const _if = <IfStatement>node
@@ -292,6 +342,14 @@ export class PrintVisitor {
         this.pop()
         break
       }
+
+      case SyntaxKind.select_expr: {
+        const expr = <SelectExpression>node
+        this.printNode(expr.select)
+        break
+      }
+
+
 
       case SyntaxKind.select_statement: {
         const select = <SelectStatement>node
@@ -443,7 +501,14 @@ export class PrintVisitor {
 
       case SyntaxKind.literal_expr: {
         const literal = <LiteralExpression>node
-        this.write('' + literal.value)
+
+        if (typeof literal.value === 'string') {
+          this.write('\'' + literal.value + '\'')
+        }
+        else {
+          this.write('' + literal.value)
+        }
+
         this.inline_next_pop = true
         break
       }
@@ -501,17 +566,29 @@ export class PrintVisitor {
             this.printNode(e)
           })
         }
-        this.write(')')
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.cast_expr: {
+        const cast = <CastExpression>node
+        this.push('(cast ')
+        this.printNode(cast.expr)
+        this.write(' ')
+        this.printNode(cast.type)
+        this.pop(')')
         break
       }
 
       case SyntaxKind.set_statement: {
         const set = <SetStatement>node
-        const op = ops[set.op.kind]
+        const op = set.op.kind === SyntaxKind.equal
+         ? 'set'
+         : ops[set.op.kind]
 
-        this.write(`(${op} ${set.name} `, true)
+        this.push(`(${op} ${set.name} `)
         this.printNode(set.expression)
-        this.write(')')
+        this.pop()
         break
       }
 
@@ -575,12 +652,20 @@ export class PrintVisitor {
       }
 
       case SyntaxKind.insert_statement: {
-        // (insert table_name 'foo 'bar' 'baz
-        //   (values
-        //     'foo
-        //   )
-        //  )
+
+        const insert = <InsertStatement>node
+
         this.push('(insert ')
+
+        this.printNode(insert.target)
+
+        if (insert.values) {
+          insert.values.forEach(v => {
+            this.printNode(v)
+          })
+        } else {
+          this.printNode(insert.select)
+        }
 
         this.pop()
 
