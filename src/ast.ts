@@ -77,7 +77,36 @@ export interface DefaultLiteral extends SyntaxNode { kind: SyntaxKind.default_ke
 export interface SomeOperator extends SyntaxNode { kind: SyntaxKind.some_keyword }
 export interface AnyOperator extends SyntaxNode { kind: SyntaxKind.any_keyword }
 
-// TODO: TernaryOperator expr between expr_a and expr_b
+// https://docs.microsoft.com/en-us/sql/t-sql/language-elements/expressions-transact-sql?view=sql-server-2017
+
+export interface LogicalOperator extends SyntaxNode {
+  not: boolean
+}
+
+export interface ExistsExpression extends LogicalOperator {
+  subquery: SelectStatement
+}
+
+export interface InExpression extends LogicalOperator {
+  kind: SyntaxKind.in_expr
+  left: Expr
+  expressions?: Expr[]
+  subquery: SelectStatement
+}
+
+export interface LikeExpression extends LogicalOperator {
+  kind: SyntaxKind.like_expr
+  left: Expr
+  pattern: Token
+  escape: Token
+}
+
+export interface BetweenExpression extends LogicalOperator {
+  kind: SyntaxKind.between_expr
+  test_expression: Expr
+  begin_expression: Expr
+  end_expression: Expr
+}
 
 export type BinaryOperator =
   | PlusOperator
@@ -152,7 +181,6 @@ export interface ColumnConstraint extends SyntaxNode {
 }
 
 export interface IdentityDefinition extends SyntaxNode {
-  identity_keyword?: Token
   seed?: number
   increment?: number
 }

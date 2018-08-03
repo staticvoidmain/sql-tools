@@ -262,6 +262,9 @@ export enum SyntaxKind {
   column_expr,
   null_test_expr,
   cast_expr,
+  between_expr,
+  like_expr,
+  in_expr,
   select_expr,
   // misc
   all_columns,    // <star>

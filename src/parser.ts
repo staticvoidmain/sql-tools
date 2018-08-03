@@ -82,7 +82,10 @@ import {
   OverClause,
   PartitionByClause,
   OrderByClause,
-  GroupByClause
+  GroupByClause,
+  BetweenExpression,
+  InExpression,
+  LikeExpression
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -176,16 +179,15 @@ export class ParserException extends Error {
   constructor(
     public innerException: any,
     public statements: Statement[]) {
-      super(innerException)
-    }
+    super(innerException)
+  }
 }
 
 export class Parser {
   private readonly options: ParserOptions
   private readonly scanner: Scanner
-  // todo: error recovery, right now any error kills the parser.
-  // private errors: Array<ParserError> = []
   private token: Token = EmptyToken
+
   // todo: capture trivia
   private leadingTriviaBuffer: Array<Token> = []
   private trailingTriviaBuffer: Array<Token> = []
@@ -762,29 +764,84 @@ export class Parser {
     return statement
   }
 
-  // operator precedence docs are strange, mul binds tighter than unary minus
-  // that doesn't seem right... so I did it the way that makes sense.
+  private tryParseSpecialExpression(left: Expr) {
+    let not = false
+    if (this.match(SyntaxKind.not_keyword)) {
+      not = true
+    }
+
+    // todo: exists? some / any here??
+    const kind = this.token.kind
+
+    if (kind === SyntaxKind.in_keyword) {
+      const expr = <InExpression>this.createNode(this.token, SyntaxKind.in_expr)
+      expr.not = not
+
+      this.expect(SyntaxKind.openParen)
+
+      if (this.match(SyntaxKind.select_expr)) {
+        expr.subquery = this.parseSelect()
+      } else {
+        expr.expressions = []
+        do {
+          expr.expressions.push(this.tryParseAddExpr())
+        } while (this.optional(SyntaxKind.comma_token))
+      }
+
+      expr.end = this.token.end
+      this.expect(SyntaxKind.closeParen)
+
+      return expr
+    } else if (kind === SyntaxKind.between_keyword) {
+      const between = <BetweenExpression>this.createAndMoveNext(this.token, SyntaxKind.between_expr)
+      between.not = not
+      between.test_expression = left
+
+      between.begin_expression = this.tryParseAddExpr()
+
+      this.expect(SyntaxKind.and_keyword)
+      between.end_expression = this.tryParseAddExpr()
+      between.end = between.end_expression.end
+
+      return between
+    } else if (kind === SyntaxKind.like_keyword) {
+      const like = <LikeExpression>this.createAndMoveNext(this.token, SyntaxKind.like_expr)
+      like.not = not
+      like.left = left
+      like.pattern = this.expect(SyntaxKind.string_literal)
+
+      if (this.optional(SyntaxKind.escape_keyword)) {
+        like.escape = this.expect(SyntaxKind.string_literal)
+      }
+
+      return like
+    }
+
+    if (not) {
+      const not = <LogicalNotExpression>this.createAndMoveNext(this.token, SyntaxKind.logical_not_expr)
+      not.expr = this.tryParseComparisonExpr()
+      return not
+    }
+  }
 
   // 7
   private isOrPrecedence() {
-    // todo: more any,all,some,in...
     const kind = this.token.kind
     return kind === SyntaxKind.or_keyword
+      // todo: these behave strangely
+      || kind === SyntaxKind.some_keyword
+      || kind === SyntaxKind.all_keyword
+      || kind === SyntaxKind.any_keyword
   }
 
-  // 6 this.token.kind === SyntaxKind.and_keyword
-  // 5 this.token.kind === SyntaxKind.not_keyword
+  // 6 SyntaxKind.and_keyword
+  // 5 SyntaxKind.not_keyword
 
   // 4
   private isComparisonPrecedence() {
     const kind = this.token.kind
     return (kind >= SyntaxKind.equal
       && kind <= SyntaxKind.greaterThanEqual)
-      || kind === SyntaxKind.is_keyword
-      || kind === SyntaxKind.between_keyword
-      || kind === SyntaxKind.like_keyword
-      || kind === SyntaxKind.exists_keyword
-      || kind === SyntaxKind.in_keyword
   }
 
   // 3
@@ -817,19 +874,24 @@ export class Parser {
   }
 
   private tryParseAndExpr(): Expr {
-    let expr = this.tryParseNotExpr()
+
+    let expr = this.tryParseComparisonExpr()
+    // hijack the precedence for
+    // between like and in
+    const special = this.tryParseSpecialExpression(expr)
+
+    if (special) {
+      expr = special
+    }
+
     while (this.match(SyntaxKind.and_keyword)) {
-      expr = this.makeBinaryExpr(expr, this.tryParseNotExpr)
+      expr = this.makeBinaryExpr(expr, this.tryParseComparisonExpr)
     }
     return expr
   }
 
   private tryParseNotExpr(): Expr {
-    if (this.match(SyntaxKind.not_keyword)) {
-      const not = <LogicalNotExpression>this.createAndMoveNext(this.token, SyntaxKind.logical_not_expr)
-      not.expr = this.tryParseComparisonExpr()
-      return not
-    }
+
 
     return this.tryParseComparisonExpr()
   }
@@ -846,6 +908,7 @@ export class Parser {
   private tryParseComparisonExpr(): Expr {
     let expr = this.tryParseAddExpr()
 
+    // comparisons and is null / is not null
     while (this.isComparisonPrecedence()) {
       if (this.match(SyntaxKind.is_keyword)) {
         expr = this.makeNullTest(expr)
@@ -1630,7 +1693,7 @@ export class Parser {
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const expr  = this.tryParseAddExpr()
+      const expr = this.tryParseAddExpr()
       groupBy.grouping.push(expr)
       groupBy.end = expr.end
     } while (this.optional(SyntaxKind.comma_token))
@@ -1646,7 +1709,7 @@ export class Parser {
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const expr  = this.tryParseAddExpr()
+      const expr = this.tryParseAddExpr()
       orderBy.ordering.push(expr)
       orderBy.end = expr.end
     } while (this.optional(SyntaxKind.comma_token))

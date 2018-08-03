@@ -26,7 +26,7 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
-        "./test/mssql/select_with_join.sql",
+        "./test/mssql/kitchen_sink.sql",
         "--lint"
       ],
       "cwd": "${workspaceFolder}"
