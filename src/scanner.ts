@@ -20,7 +20,11 @@ export enum TokenFlags {
   Keyword = 1,
   UnicodeString = 2,
   MoneyLiteral = 4,
-  SharedTempTable = 8
+  SharedTempTable = 8,
+  // this is now my least favorite thing
+  // so I'm gonna make it my mission
+  // to destroy it.
+  InnerTokenWhitespace = 16
 }
 
 export class Token {
@@ -387,6 +391,11 @@ export class Scanner {
     return ~line - 1
   }
 
+  private illegal(char: number) {
+    const token = String.fromCharCode(char)
+    this.error('Illegal token: "' + token + '"')
+  }
+
   private error(msg: string) {
     const err = this.options.error
 
@@ -541,6 +550,7 @@ export class Scanner {
     return parseFloat(this.text.substring(start, this.pos--))
   }
 
+
   private isSpace() {
     const ch = this.text.charCodeAt(this.pos)
 
@@ -550,6 +560,15 @@ export class Scanner {
       || ch === Chars.carriageReturn)
   }
 
+  // todo: do while?
+  private consumeWhitespace() {
+    while (this.isSpace()) {
+      this.pos++
+    }
+    // to account for the last
+    // pos++ so I don't have to do it later.
+    this.pos--
+  }
 
   getSourceLine(line: number) {
     this.lazyComputeLineNumbers()
@@ -621,6 +640,18 @@ export class Scanner {
         break
       }
 
+      case Chars.colon: {
+        // todo: probably legal whitespace
+        if (this.peek() === Chars.colon) {
+          this.pos++
+          kind = SyntaxKind.double_colon_token
+        } else {
+          this.illegal(this.peek())
+        }
+
+        break
+      }
+
       case Chars.semi: {
         kind = SyntaxKind.semicolon_token
         break
@@ -647,12 +678,7 @@ export class Scanner {
       case Chars.newline:
       case Chars.tab:
       case Chars.space: {
-        while (this.isSpace()) {
-          this.pos++
-        }
-        // to account for the last
-        // pos++ so I don't have to do it later.
-        this.pos--
+        this.consumeWhitespace()
         kind = SyntaxKind.whitespace
         break
       }
@@ -807,9 +833,7 @@ export class Scanner {
           kind = SyntaxKind.notGreaterThan
         }
         else {
-          // todo: unexpected token?
-          // how should that be handled?
-          this.error('unexpected token !' + String.fromCharCode(next))
+          this.illegal(next)
         }
 
         break
@@ -841,10 +865,12 @@ export class Scanner {
       case Chars.num_6:
       case Chars.num_7:
       case Chars.num_8:
-      case Chars.num_9:
+      case Chars.num_9: {
+        // SURELY no inner whitespace allowed here
         val = this.scanNumber()
         kind = SyntaxKind.numeric_literal
         break
+      }
 
       case Chars.singleQuote: {
         val = this.scanString()

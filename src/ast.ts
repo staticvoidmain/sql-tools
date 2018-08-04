@@ -22,6 +22,7 @@ export interface ParserOptions {
   skipTrivia?: boolean
   skipKeywordTracking?: boolean
   error?: ErrorCallback
+  debug?: boolean
   features?: FeatureFlags
 }
 

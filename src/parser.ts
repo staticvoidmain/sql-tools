@@ -107,6 +107,11 @@ function isLegalFunctionName(kind: SyntaxKind) {
     || kind === SyntaxKind.nullif_keyword
 }
 
+function isStatementKind(kind: SyntaxKind) {
+  return kind < SyntaxKind.while_statement
+  && kind > SyntaxKind.alter_proc_statement
+}
+
 function isLocal(ident: Token) {
   const val = <string>ident.value
 
@@ -183,14 +188,20 @@ function supportsOverClause(ident: Identifier) {
   return false
 }
 
+// todo: zero unnecessary allocations!
 function isCast(ident: Identifier) {
   return ident.parts.length === 1
-    && ident.parts[0] === 'cast'
+    && ident.parts[0].toLocaleLowerCase() === 'cast'
+}
+
+// todo: zero unnecessary allocations!
+function isConvert(ident: Identifier) {
+  return ident.parts.length === 1
+    && ident.parts[0].toLocaleLowerCase() === 'convert'
 }
 
 // wrapper with the current parser state
 export class ParserException extends Error {
-
   constructor(
     public innerException: any,
     public statements: Statement[]) {
@@ -203,6 +214,8 @@ export class Parser {
   private readonly options: ParserOptions
   private readonly scanner: Scanner
   private token: Token = EmptyToken
+
+  private debugNodeList: Array<Token> = []
 
   // todo: capture trivia
   private leadingTriviaBuffer: Array<Token> = []
@@ -222,6 +235,8 @@ export class Parser {
 
     const exprs = this.tryParseCommonTableExpressions()
 
+    // todo: for easier debugging only capture the "NEXT" statement
+    // instead of ALL the nodes?
     switch (this.token.kind) {
       case SyntaxKind.EOF:
         return undefined
@@ -317,6 +332,7 @@ export class Parser {
         this.moveNext()
 
         this.parseIdentifier()
+        this.optional(SyntaxKind.double_colon_token)
         this.parseIdentifier()
         this.expect(SyntaxKind.to_keyword)
         this.parseIdentifier()
@@ -724,11 +740,17 @@ export class Parser {
   }
 
   private createNode(token: Token, kind?: SyntaxKind): SyntaxNode {
-    return {
+    const node = {
       start: token.start,
       end: token.end,
       kind: kind || token.kind
     }
+
+    if (this.options.debug) {
+      this.debugNodeList.push(node)
+    }
+
+    return node
   }
 
   // asserts that the current token matches the specified kind
@@ -1434,6 +1456,8 @@ export class Parser {
             // parens?
             const ctas = <CreateTableAsSelectStatement>this.createAndMoveNext(start, SyntaxKind.create_table_as_select_statement)
             const exprs = this.tryParseCommonTableExpressions()
+
+            // this is ACTUALLY... a block of selects?
             ctas.definition = this.parseSelect(exprs)
 
             this.optional(SyntaxKind.semicolon_token)
