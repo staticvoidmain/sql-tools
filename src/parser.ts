@@ -86,7 +86,8 @@ import {
   BetweenExpression,
   InExpression,
   LikeExpression,
-  LiteralKind
+  LiteralKind,
+  OrderExpression
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -163,6 +164,15 @@ function supportsOverClause(ident: Identifier) {
     case 'dense_rank':
     case 'row_number':
     case 'ntile':
+
+    // analytical
+    case 'cume_dist':
+    case 'first_value':
+    case 'lag':
+    case 'last_value':
+    case 'lead':
+    case 'percentile_cont':
+    case 'percentile_disc':
       return true
   }
 
@@ -1722,13 +1732,22 @@ export class Parser {
     this.assertKind(SyntaxKind.order_keyword)
 
     const orderBy = <OrderByClause>this.createAndMoveNext(this.token, SyntaxKind.order_by_clause)
-    orderBy.ordering = []
+    orderBy.orderings = []
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const expr = this.tryParseScalarExpression()
-      orderBy.ordering.push(expr)
-      orderBy.end = expr.end
+      const orderExpr = <OrderExpression>this.createNode(this.token)
+      orderExpr.expr = this.tryParseScalarExpression()
+
+      const asc = this.match(SyntaxKind.asc_keyword)
+      const desc = this.match(SyntaxKind.desc_keyword)
+      if (asc || desc) {
+        orderExpr.direction = asc ? 'asc' : 'desc'
+        this.moveNext()
+      }
+
+      orderBy.orderings.push(orderExpr)
+      orderBy.end = orderExpr.end
     } while (this.optional(SyntaxKind.comma_token))
 
     return orderBy

@@ -375,8 +375,13 @@ export interface PartitionByClause extends SyntaxNode {
   expressions: Expr[]
 }
 
+export interface OrderExpression extends Expr {
+  expr: Expr
+  direction: 'asc' | 'desc' | undefined
+}
+
 export interface OrderByClause extends SyntaxNode {
-  ordering: Expr[]
+  orderings: OrderExpression[]
 }
 
 export interface HavingClause extends SyntaxNode {
