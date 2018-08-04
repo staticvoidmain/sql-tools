@@ -255,6 +255,12 @@ describe('Scanner', function () {
     ])
   })
 
+  it('you gotta be kidding me... whitespace between tokens', function() {
+    const scanner = new Scanner('! =')
+    const tokens = scanAll(scanner)
+    assertTokenKinds(tokens, [ SyntaxKind.notEqual ])
+  })
+
   xit('scans insane identifiers', function () {
     // todo: this is a stupid edge case
     // that I probably won't find in the wild.

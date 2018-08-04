@@ -1464,7 +1464,6 @@ export class Parser {
       case SyntaxKind.statistics_keyword: {
         // STUB
         const stats = <CreateStatisticsStatement>this.createAndMoveNext(this.token, SyntaxKind.create_statistics_statement)
-        this.moveNext()
         stats.name = this.parseIdentifier()
 
         this.expect(SyntaxKind.on_keyword)
@@ -1649,7 +1648,7 @@ export class Parser {
       node.having = this.parseHaving()
     }
 
-    // todo: full-text index support????
+    // todo: full-text index support
     // (node.contains freetext etc.)
 
     const unions = []

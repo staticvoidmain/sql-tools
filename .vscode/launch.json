@@ -26,8 +26,9 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
-        "./test/mssql/kitchen_sink.sql",
-        "--lint"
+        "C:/datadev/SQL/APS/ODS/ODS DB/Procedures/*.dsql",
+        "--print",
+        "parallel-data-warehouse"
       ],
       "cwd": "${workspaceFolder}"
     }

@@ -399,6 +399,9 @@ export class Scanner {
         message: msg
       })
     }
+    else {
+      throw new Error(msg)
+    }
   }
 
   // advance until we find the first unescaped single quote.
@@ -799,14 +802,13 @@ export class Scanner {
           kind = SyntaxKind.notEqual
         } else if (next === Chars.lessThan) {
           kind = SyntaxKind.notLessThan
-
         } else if (next === Chars.greaterThan) {
           kind = SyntaxKind.notGreaterThan
         }
         else {
           // todo: unexpected token?
           // how should that be handled?
-          throw new Error('unexpected token')
+          this.error('unexpected token !' + String.fromCharCode(next))
         }
 
         break
