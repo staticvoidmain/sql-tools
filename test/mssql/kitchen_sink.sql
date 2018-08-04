@@ -37,7 +37,7 @@ left join dbo.other
   on dbo.other.foo = @foo
 where s.number in (1, 2, 3)
 and s.foo not like 'asdf%'
-
+order by s.foo desc, s.bar asc
 
 go
 -- update ex
