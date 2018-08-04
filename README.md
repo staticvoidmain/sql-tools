@@ -6,11 +6,15 @@ and I plan to extend it later for other vendors.
 The long-term vision for this project is to integrate with my other datbase management project
 and provide a sql linter / analyzer / code fix provider.
 
+# Status
 - [x] scan huge list of sql tokens
 - [x] math ops / comparisons / case expressions / function calls
-- [x] select / from / where / group by / having
-- [x] create...
+- [x] select / from / where / order by / group by / having
+- [ ] create
   - [x] table / view / proc / statistics
+  - [ ] with (options...)
+  - [ ] contraints inside create-table
+  - [ ] functions
   - [ ] about a billion more types
 - [ ] update *
 - [x] delete
@@ -24,8 +28,14 @@ and provide a sql linter / analyzer / code fix provider.
   - [x] index
   - [ ] like 100 more dropppable objects
 - [x] in / exists / like / not
+- [ ] any / all / some
 - [x] AST pretty-printer
 - [x] example linter / analyzer with some decent starter rules
+- [ ] fulltext search
+- [ ] cursors
+- [ ] Warehouse Features
+  - [x] Create Table As Select (buggy)
+  - [ ] Create remote table as select
 
 # Contributing
 
