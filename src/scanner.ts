@@ -270,6 +270,7 @@ const keywordMap = new KeywordLookup([
   ['readtext', SyntaxKind.readtext_keyword],
   ['reconfigure', SyntaxKind.reconfigure_keyword],
   ['references', SyntaxKind.references_keyword],
+  ['rename', SyntaxKind.rename_keyword],
   ['replication', SyntaxKind.replication_keyword],
   ['restore', SyntaxKind.restore_keyword],
   ['restrict', SyntaxKind.restrict_keyword],

@@ -29,6 +29,8 @@ create table dbo.whatever (
   [date] datetime null
 );
 
+
+with cte as (select 1)
 select *
 from something s
 left join dbo.table_valued_func(@foo) as e

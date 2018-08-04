@@ -160,6 +160,7 @@ async function processFile(path: string) {
       const ex = <ParserException>e
       console.log(ex.innerException.message)
     }
+    else console.log(e)
   }
 }
 

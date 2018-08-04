@@ -89,7 +89,8 @@ import {
   LiteralKind,
   OrderExpression,
   CreateStatisticsStatement,
-  HavingClause
+  HavingClause,
+  ExistsExpression
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -309,6 +310,18 @@ export class Parser {
       case SyntaxKind.throw_keyword: {
         this.error('not implemented')
         break
+      }
+
+      case SyntaxKind.rename_keyword: {
+        const placeholder: any = {}
+        this.moveNext()
+
+        this.parseIdentifier()
+        this.parseIdentifier()
+        this.expect(SyntaxKind.to_keyword)
+        this.parseIdentifier()
+        this.optional(SyntaxKind.semicolon_token)
+        return placeholder
       }
 
       case SyntaxKind.if_keyword: {
@@ -787,6 +800,16 @@ export class Parser {
   private tryParseLogicalExpression(): Expr {
 
     // todo: exists? some / any here??
+
+    if (this.match(SyntaxKind.exists_keyword)) {
+      const exists = <ExistsExpression>this.createAndMoveNext(this.token, SyntaxKind.exists_expr)
+      this.expect(SyntaxKind.openParen)
+      exists.subquery = this.parseSelect()
+      this.expect(SyntaxKind.closeParen)
+
+      return exists
+    }
+
 
     const start = this.token
     let expr = this.tryParseScalarExpression()
@@ -1407,8 +1430,11 @@ export class Parser {
           }
 
           if (this.match(SyntaxKind.as_keyword)) {
-            const ctas = <CreateTableAsSelectStatement>this.createNode(start, SyntaxKind.create_table_as_select_statement)
-            ctas.definition = this.parseSelect()
+
+            // parens?
+            const ctas = <CreateTableAsSelectStatement>this.createAndMoveNext(start, SyntaxKind.create_table_as_select_statement)
+            const exprs = this.tryParseCommonTableExpressions()
+            ctas.definition = this.parseSelect(exprs)
 
             this.optional(SyntaxKind.semicolon_token)
             return ctas
@@ -1472,8 +1498,9 @@ export class Parser {
         // hack
         stats.columns = <any>this.parseColumnList()
         this.expect(SyntaxKind.closeParen)
+
+        this.optional(SyntaxKind.semicolon_token)
         return stats
-        break
       }
 
       case SyntaxKind.index_keyword:
@@ -1608,6 +1635,7 @@ export class Parser {
 
   private parseSelect(cte?: any) {
 
+    const paren = this.optional(SyntaxKind.openParen)
     const node = <SelectStatement>this.createAndMoveNext(this.token, SyntaxKind.select_statement)
 
     if (this.optional(SyntaxKind.top_keyword)) {
@@ -1661,6 +1689,12 @@ export class Parser {
     if (unions.length > 0) {
       node.unions = unions
     }
+
+    if (paren) {
+      this.expect(SyntaxKind.closeParen)
+    }
+
+    this.optional(SyntaxKind.semicolon_token)
 
     return node
   }

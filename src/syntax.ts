@@ -178,6 +178,7 @@ export enum SyntaxKind {
   readtext_keyword,
   reconfigure_keyword,
   references_keyword,
+  rename_keyword,
   replication_keyword,
   restore_keyword,
   restrict_keyword,
@@ -252,7 +253,6 @@ export enum SyntaxKind {
   simple_case_expr,
   when_expr,
   then_expr,
-
   unary_minus_expr,
   unary_plus_expr,
   bitwise_not_expr,
@@ -265,6 +265,7 @@ export enum SyntaxKind {
   between_expr,
   like_expr,
   in_expr,
+  exists_expr,
   select_expr,
   // misc
   all_columns,    // <star>
