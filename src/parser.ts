@@ -1419,7 +1419,7 @@ export class Parser {
         break
     }
 
-    throw new Error('this should be unreachable')
+    throw new Error('Not sure how to create ' + SyntaxKind[objectType.kind])
   }
 
   private parseStatementBlock(allowMultilineWithoutBeginEnd = false) {
