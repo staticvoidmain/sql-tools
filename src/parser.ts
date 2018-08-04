@@ -88,7 +88,8 @@ import {
   LikeExpression,
   LiteralKind,
   OrderExpression,
-  CreateStatisticsStatement
+  CreateStatisticsStatement,
+  HavingClause
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -197,6 +198,7 @@ export class ParserException extends Error {
 }
 
 export class Parser {
+
   private readonly options: ParserOptions
   private readonly scanner: Scanner
   private token: Token = EmptyToken
@@ -1565,7 +1567,7 @@ export class Parser {
     return statement
   }
 
-  private parseInsertStatement(exprs: any[]): InsertStatement {
+  private parseInsertStatement(exprs?: any[]): InsertStatement {
     // todo: attach common table exprs
     const insert = <InsertStatement>this.createAndMoveNext(this.token, SyntaxKind.insert_statement)
     this.optional(SyntaxKind.into_keyword)
@@ -1639,16 +1641,20 @@ export class Parser {
       node.group_by = this.parseGroupBy()
     }
 
-
     if (this.match(SyntaxKind.order_keyword)) {
       node.order_by = this.parseOrderBy()
     }
-    // node.having = this.parseOptional(SyntaxKind.having_clause)
+
+    if (this.match(SyntaxKind.having_clause)) {
+      node.having = this.parseHaving()
+    }
+
     // todo: full-text index support????
     // (node.contains freetext etc.)
 
     const unions = []
     while (this.match(SyntaxKind.union_keyword)) {
+      // todo: nested parens?
       unions.push(this.parseSelect())
       this.optional(SyntaxKind.all_keyword)
     }
@@ -1788,6 +1794,14 @@ export class Parser {
     } while (this.optional(SyntaxKind.comma_token))
 
     return groupBy
+  }
+
+  private parseHaving() {
+    // okay, so, the strict version is only aggregates or someshit
+    // but whatever
+    const having = <HavingClause>this.createAndMoveNext(this.token, SyntaxKind.having_clause)
+    having.predicate = this.tryParseOrExpr()
+    return having
   }
 
   private parseOrderBy() {
