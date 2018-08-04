@@ -255,7 +255,15 @@ describe('Scanner', function () {
     ])
   })
 
-  it('you gotta be kidding me... whitespace between tokens', function() {
+  it ('handles nested block comments', () => {
+    const scanner = new Scanner('/*/*/*I am a bad person*****/*/*/')
+    const tokens = scanAll(scanner)
+    assertTokenKinds(tokens, [
+      SyntaxKind.comment_block
+    ])
+  })
+
+  it('you gotta be kidding me... whitespace between token characters', function() {
     const scanner = new Scanner('! =')
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [ SyntaxKind.notEqual ])

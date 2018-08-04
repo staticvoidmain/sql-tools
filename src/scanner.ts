@@ -515,17 +515,28 @@ export class Scanner {
   private scanBlockComment() {
     const start = this.pos
     let ch = this.text.charCodeAt(this.pos)
+    let requiredPops = 1
 
+    // nested block comments, because people do that shit.
     while (ch) {
-      if (ch === Chars.asterisk && this.peek() === Chars.forwardSlash) {
+      const next = this.peek()
+      // comment end
+      if (ch === Chars.asterisk && next === Chars.forwardSlash) {
         this.pos++
-        break
+        if (--requiredPops === 0) {
+          break
+        }
+      } else if (ch === Chars.forwardSlash && next === Chars.asterisk) {
+        // nested block comment
+        this.pos++
+        requiredPops++
       }
 
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    return this.text.substring(start + 2, this.pos - 2)
+    // todo: if capture comments!?
+    return this.text.substring(start, this.pos - 2)
   }
 
   private scanNumber(): Number {
@@ -687,12 +698,12 @@ export class Scanner {
         kind = SyntaxKind.div_token
 
         const next = this.peek()
-
         if (next === Chars.equal) {
           this.pos++
           kind = SyntaxKind.divEqualsAssignment
         } else if (next === Chars.asterisk) {
           kind = SyntaxKind.comment_block
+          this.pos += 2
           val = this.scanBlockComment()
         }
 

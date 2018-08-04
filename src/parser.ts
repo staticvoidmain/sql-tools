@@ -215,7 +215,7 @@ export class Parser {
   private readonly scanner: Scanner
   private token: Token = EmptyToken
 
-  private debugNodeList: Array<Token> = []
+  private debugNodeList: Array<SyntaxNode> = []
 
   // todo: capture trivia
   private leadingTriviaBuffer: Array<Token> = []
