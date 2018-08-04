@@ -85,7 +85,8 @@ import {
   GroupByClause,
   BetweenExpression,
   InExpression,
-  LikeExpression
+  LikeExpression,
+  LiteralKind
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -282,7 +283,7 @@ export class Parser {
 
       case SyntaxKind.print_keyword: {
         const print = <PrintStatement>this.createAndMoveNext(this.token, SyntaxKind.print_statement)
-        print.expression = this.tryParseAddExpr()
+        print.expression = this.tryParseScalarExpression()
         return print
       }
 
@@ -397,13 +398,13 @@ export class Parser {
       call.arguments = []
 
       do {
-        let expr = this.tryParseAddExpr()
+        let expr = this.tryParseScalarExpression()
 
         // HACK, skipping the named parameters,
         // and just keeping the exprs
         if (expr.kind === SyntaxKind.identifier_expr) {
           if (this.optional(SyntaxKind.equal)) {
-            expr = this.tryParseAddExpr()
+            expr = this.tryParseScalarExpression()
           }
         }
 
@@ -455,7 +456,7 @@ export class Parser {
         col.name = name
         this.moveNext()
 
-        col.expression = this.tryParseAddExpr()
+        col.expression = this.tryParseScalarExpression()
         cols.push(col)
       } else {
         const col = <ColumnDefinition>this.createNode(start, SyntaxKind.column_definition)
@@ -513,7 +514,7 @@ export class Parser {
           // default(expr)
           // -------------
           if (this.optional(SyntaxKind.default_keyword)) {
-            col.default = this.tryParseAddExpr()
+            col.default = this.tryParseScalarExpression()
           }
         }
         while (!(this.match(SyntaxKind.comma_token) || this.match(SyntaxKind.closeParen)))
@@ -529,7 +530,7 @@ export class Parser {
     const columns: Array<ColumnNode> = []
     do {
       const start = this.token
-      const expr = this.tryParseAddExpr()
+      const expr = this.tryParseScalarExpression()
 
       const col = <ColumnExpression>this.createNode(start, SyntaxKind.column_expr)
       // todo: if it's an @local = expr that should get a different type as well.
@@ -538,7 +539,7 @@ export class Parser {
         this.moveNext()
         col.style = 'alias_equals_expr'
         col.alias = identifier.identifier
-        col.expression = this.tryParseAddExpr()
+        col.expression = this.tryParseScalarExpression()
         col.end = col.expression.end
 
         columns.push(col)
@@ -632,7 +633,7 @@ export class Parser {
       decl.type = this.parseType()
 
       if (this.optional(SyntaxKind.equal)) {
-        decl.expression = <ValueExpression>this.tryParseAddExpr()
+        decl.expression = <ValueExpression>this.tryParseScalarExpression()
       }
 
       statement.variables = [decl]
@@ -645,7 +646,7 @@ export class Parser {
         next.type = this.parseType()
 
         if (this.optional(SyntaxKind.equal)) {
-          next.expression = <ValueExpression>this.tryParseAddExpr()
+          next.expression = <ValueExpression>this.tryParseScalarExpression()
         }
 
         statement.variables.push(next)
@@ -744,7 +745,7 @@ export class Parser {
       statement.name = ident.value
       statement.op = this.parseAssignmentOperation()
       this.moveNext()
-      statement.expression = <ValueExpression>this.tryParseAddExpr()
+      statement.expression = <ValueExpression>this.tryParseScalarExpression()
     } else {
       statement = <SetOptionStatement>node
       statement.kind = SyntaxKind.set_option_statement
@@ -764,74 +765,100 @@ export class Parser {
     return statement
   }
 
-  private tryParseSpecialExpression(left: Expr) {
-    let not = false
-    if (this.match(SyntaxKind.not_keyword)) {
-      not = true
-    }
+  private tryParseLogicalExpression(): Expr {
 
     // todo: exists? some / any here??
+
+    const start = this.token
+    let expr = this.tryParseScalarExpression()
+
+    // now process the right hand side
+    const not = this.optional(SyntaxKind.not_keyword)
     const kind = this.token.kind
 
     if (kind === SyntaxKind.in_keyword) {
-      const expr = <InExpression>this.createNode(this.token, SyntaxKind.in_expr)
-      expr.not = not
+      const in_expr = <InExpression>this.createAndMoveNext(start, SyntaxKind.in_expr)
+      in_expr.not = not
+      in_expr.left = expr
 
       this.expect(SyntaxKind.openParen)
 
       if (this.match(SyntaxKind.select_expr)) {
-        expr.subquery = this.parseSelect()
+        in_expr.subquery = this.parseSelect()
       } else {
-        expr.expressions = []
+        in_expr.expressions = []
         do {
-          expr.expressions.push(this.tryParseAddExpr())
+          in_expr.expressions.push(this.tryParseScalarExpression())
         } while (this.optional(SyntaxKind.comma_token))
       }
 
-      expr.end = this.token.end
+      in_expr.end = this.token.end
       this.expect(SyntaxKind.closeParen)
 
-      return expr
+      return in_expr
     } else if (kind === SyntaxKind.between_keyword) {
-      const between = <BetweenExpression>this.createAndMoveNext(this.token, SyntaxKind.between_expr)
+      const between = <BetweenExpression>this.createAndMoveNext(start, SyntaxKind.between_expr)
       between.not = not
-      between.test_expression = left
+      between.test_expression = expr
 
-      between.begin_expression = this.tryParseAddExpr()
+      between.begin_expression = this.tryParseScalarExpression()
 
       this.expect(SyntaxKind.and_keyword)
-      between.end_expression = this.tryParseAddExpr()
+      between.end_expression = this.tryParseScalarExpression()
       between.end = between.end_expression.end
 
       return between
     } else if (kind === SyntaxKind.like_keyword) {
-      const like = <LikeExpression>this.createAndMoveNext(this.token, SyntaxKind.like_expr)
+      const like = <LikeExpression>this.createAndMoveNext(start, SyntaxKind.like_expr)
+
       like.not = not
-      like.left = left
-      like.pattern = this.expect(SyntaxKind.string_literal)
+      like.left = expr
+
+      // don't force it all the way down to a paren expr
+      // if we included some unnecessary parens...
+      const paren = this.optional(SyntaxKind.openParen)
+
+      like.pattern = this.parseLiteralExpression()
+      like.end = like.pattern.end
+
+      if (paren) {
+        like.end = this.expect(SyntaxKind.closeParen).end
+      }
 
       if (this.optional(SyntaxKind.escape_keyword)) {
-        like.escape = this.expect(SyntaxKind.string_literal)
+        like.escape = this.parseLiteralExpression()
+        like.end = like.escape.end
       }
 
       return like
     }
 
     if (not) {
-      const not = <LogicalNotExpression>this.createAndMoveNext(this.token, SyntaxKind.logical_not_expr)
-      not.expr = this.tryParseComparisonExpr()
+      // already moved past the not
+      const not = <LogicalNotExpression>this.createNode(start, SyntaxKind.logical_not_expr)
+      this.expect(SyntaxKind.openParen)
+      not.expr = this.tryParseLogicalExpression()
+      this.expect(SyntaxKind.closeParen)
       return not
     }
+
+    // the rest of the less interesting boolean expressions
+    // comparisons and is null / is not null
+    while (this.isComparisonPrecedence()) {
+      if (this.match(SyntaxKind.is_keyword)) {
+        expr = this.makeNullTest(expr)
+      } else {
+        expr = this.makeBinaryExpr(expr, this.tryParseScalarExpression)
+      }
+    }
+
+    return expr
   }
 
   // 7
   private isOrPrecedence() {
     const kind = this.token.kind
     return kind === SyntaxKind.or_keyword
-      // todo: these behave strangely
-      || kind === SyntaxKind.some_keyword
-      || kind === SyntaxKind.all_keyword
-      || kind === SyntaxKind.any_keyword
   }
 
   // 6 SyntaxKind.and_keyword
@@ -874,26 +901,12 @@ export class Parser {
   }
 
   private tryParseAndExpr(): Expr {
-
-    let expr = this.tryParseComparisonExpr()
-    // hijack the precedence for
-    // between like and in
-    const special = this.tryParseSpecialExpression(expr)
-
-    if (special) {
-      expr = special
-    }
+    let expr = this.tryParseLogicalExpression()
 
     while (this.match(SyntaxKind.and_keyword)) {
-      expr = this.makeBinaryExpr(expr, this.tryParseComparisonExpr)
+      expr = this.makeBinaryExpr(expr, this.tryParseLogicalExpression)
     }
     return expr
-  }
-
-  private tryParseNotExpr(): Expr {
-
-
-    return this.tryParseComparisonExpr()
   }
 
   private makeNullTest(left: Expr) {
@@ -905,27 +918,8 @@ export class Parser {
     return is
   }
 
-  private tryParseComparisonExpr(): Expr {
-    let expr = this.tryParseAddExpr()
-
-    // comparisons and is null / is not null
-    while (this.isComparisonPrecedence()) {
-      if (this.match(SyntaxKind.is_keyword)) {
-        expr = this.makeNullTest(expr)
-      } else {
-        expr = this.makeBinaryExpr(expr, this.tryParseAddExpr)
-      }
-    }
-
-    return expr
-  }
-
-  private tryParseAddExpr(): Expr {
+  private tryParseScalarExpression(): Expr {
     let expr = this.tryParseMultiplicationExpr()
-
-    if (this.match(SyntaxKind.not_keyword)) {
-      // todo: negate next logical?
-    }
 
     while (this.isAddPrecedence()) {
       expr = this.makeBinaryExpr(expr, this.tryParseMultiplicationExpr)
@@ -1000,13 +994,38 @@ export class Parser {
       not.end = not.expr.end
       return not
     }
+
+
+    // // todo: these behave strangely, but they look to me like unary
+    // ops that can only be compared with = or < or whatever
+    // || kind === SyntaxKind.some_keyword
+    // || kind === SyntaxKind.all_keyword
+    // || kind === SyntaxKind.any_keyword
+  }
+
+  private parseLiteralExpression() {
+    const literal = <LiteralExpression>this.createNode(this.token, SyntaxKind.literal_expr)
+
+    literal.value = this.token.value
+    switch (this.token.kind) {
+      case SyntaxKind.string_literal:
+        literal.literal_kind = LiteralKind.String
+        break
+
+      case SyntaxKind.numeric_literal:
+        literal.literal_kind = LiteralKind.Number
+        break
+    }
+
+    this.moveNext()
+    return literal
   }
 
   private parseCastExpression(start: Token) {
     this.expect(SyntaxKind.openParen)
     const expr = <CastExpression>this.createNode(start, SyntaxKind.cast_expr)
 
-    expr.expr = this.tryParseAddExpr()
+    expr.expr = this.tryParseScalarExpression()
 
     // as
     this.expect(SyntaxKind.as_keyword)
@@ -1025,15 +1044,12 @@ export class Parser {
     }
 
     if (isLiteral(this.token)) {
-      const literal = <LiteralExpression>this.createNode(this.token, SyntaxKind.literal_expr)
-      literal.value = this.token.value
-      this.moveNext()
-      return literal
+      return this.parseLiteralExpression()
     }
 
+    // right now it jumps all the
+    // way back up the precedence hierarchy.
     if (this.match(SyntaxKind.openParen)) {
-      // todo: 'in' context? would allow for multiple comma-separated
-      // exprs... do they have to be constant?
       const expr = <ParenExpression>this.createAndMoveNext(this.token, SyntaxKind.paren_expr)
       expr.expression = this.tryParseOrExpr()
       expr.end = this.token.end
@@ -1084,7 +1100,7 @@ export class Parser {
         if (!this.match(SyntaxKind.closeParen)) {
           do {
             // collect all function arg expressions
-            expr.arguments.push(this.tryParseAddExpr())
+            expr.arguments.push(this.tryParseScalarExpression())
           } while (this.optional(SyntaxKind.comma_token))
         }
 
@@ -1105,7 +1121,7 @@ export class Parser {
               this.expect(SyntaxKind.by_keyword)
 
               do {
-                partition.expressions.push(this.tryParseAddExpr())
+                partition.expressions.push(this.tryParseScalarExpression())
               } while (this.optional(SyntaxKind.comma_token))
 
               expr.over.partition = partition
@@ -1151,7 +1167,7 @@ export class Parser {
 
       if (!this.match(SyntaxKind.closeParen)) {
         while (true) {
-          expr.arguments.push(this.tryParseAddExpr())
+          expr.arguments.push(this.tryParseScalarExpression())
 
           if (!this.match(SyntaxKind.comma_token)) break
         }
@@ -1179,7 +1195,7 @@ export class Parser {
     } while (this.match(SyntaxKind.when_keyword))
 
     if (this.optional(SyntaxKind.else_keyword)) {
-      expr.else = this.tryParseAddExpr()
+      expr.else = this.tryParseScalarExpression()
     }
 
     this.expect(SyntaxKind.end_keyword)
@@ -1200,8 +1216,8 @@ export class Parser {
       // exprs and below, whereas the searched supports full boolean exprs
       const simple = <SimpleCaseExpression>expr
       simple.kind = SyntaxKind.simple_case_expr
-      simple.input_expression = this.tryParseAddExpr()
-      this.parseWhenExpressionList(simple, this.tryParseAddExpr)
+      simple.input_expression = this.tryParseScalarExpression()
+      this.parseWhenExpressionList(simple, this.tryParseScalarExpression)
     }
 
     return expr
@@ -1288,7 +1304,7 @@ export class Parser {
 
         do {
           // todo: what's the rule here? variable or literals only?
-          exec_string.format_args.push(this.tryParseAddExpr())
+          exec_string.format_args.push(this.tryParseScalarExpression())
         } while (this.match(SyntaxKind.comma_token))
       }
 
@@ -1309,8 +1325,9 @@ export class Parser {
     if (this.hasFeature(FeatureFlags.CreateRemoteTableAsSelect)) {
       // todo: create REMOTE table as select
       if (this.match(SyntaxKind.identifier)) {
+        // todo: promote to keyword for case invariance
         if (this.token.value === 'remote') {
-          this.error('CRTAS not supported')
+          this.error('CRTAS not supported (yet)')
         }
       }
     }
@@ -1449,7 +1466,7 @@ export class Parser {
       next.type = this.parseType()
 
       if (this.optional(SyntaxKind.equal)) {
-        next.expression = <ValueExpression>this.tryParseAddExpr()
+        next.expression = <ValueExpression>this.tryParseScalarExpression()
       }
 
       args.push(next)
@@ -1505,7 +1522,7 @@ export class Parser {
       this.expect(SyntaxKind.openParen)
 
       do {
-        insert.values.push(this.tryParseAddExpr())
+        insert.values.push(this.tryParseScalarExpression())
       }
       while (this.optional(SyntaxKind.comma_token))
 
@@ -1693,7 +1710,7 @@ export class Parser {
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const expr = this.tryParseAddExpr()
+      const expr = this.tryParseScalarExpression()
       groupBy.grouping.push(expr)
       groupBy.end = expr.end
     } while (this.optional(SyntaxKind.comma_token))
@@ -1709,7 +1726,7 @@ export class Parser {
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const expr = this.tryParseAddExpr()
+      const expr = this.tryParseScalarExpression()
       orderBy.ordering.push(expr)
       orderBy.end = expr.end
     } while (this.optional(SyntaxKind.comma_token))

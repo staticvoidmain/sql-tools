@@ -15,7 +15,7 @@ import {
   statSync
 } from 'fs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -411,27 +411,26 @@ class ExampleLintVisitor extends Visitor {
       this.warning('null literal used in comparison, use "is null" or "is not null" instead', node, node.op)
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
+        // todo: full on SAT solver, let's go crazy and prove some shit
         this.warning('value compared with itself, result will always be constant', node)
       }
     }
 
-    if (node.op.kind === SyntaxKind.like_keyword) {
-      if (node.right.kind === SyntaxKind.literal_expr) {
-        const literal = <LiteralExpression>node.right
-        const pattern = <string>literal.value
+    // rule: null concat null, unsafe string concat
 
-        // todo: is like just wrong....?
-        // print this out...
-        if (!hasLeadingPrefix(pattern)) {
-          this.warning('patterns which do not begin with a prefix cannot benefit from indexes', node)
-        }
-        // no wildcard what's the point?
-        // otherwildcard kinds?
-      } else {
-        // you're doing something weird...
-        // and I do NOT like it...
-      }
+    // rule: expressions in a divisor slot which are non-literal
+    // could cause divide by zero, that might be cool to test for
+  }
+
+  visitLike(like: LikeExpression) {
+    const literal = like.pattern
+    const pattern = <string>literal.value
+
+    if (!hasLeadingPrefix(pattern)) {
+      this.warning('patterns which do not begin with a prefix cannot benefit from indexes', like)
     }
+    // no wildcard what's the point?
+    // otherwildcard kinds?
   }
 
   visitKeyword(token: Token) {

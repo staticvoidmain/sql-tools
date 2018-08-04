@@ -38,7 +38,10 @@ import {
   ComputedColumnDefinition,
   CreateTableStatement,
   CreateViewStatement,
-  SetOptionStatement
+  SetOptionStatement,
+  LikeExpression,
+  BetweenExpression,
+  InExpression
 } from './ast'
 
 import { Token } from './scanner'
@@ -48,6 +51,7 @@ import { Token } from './scanner'
  * visitor and implementing the required methods.
  */
 export abstract class Visitor {
+  visitBetweenExpression(node: BetweenExpression): void { }
   visitBinaryExpression(node: BinaryExpression): void { }
   visitBitwiseNot(node: BitwiseNotExpression): void { }
   visitBlock(block: StatementBlock): void { }
@@ -66,9 +70,11 @@ export abstract class Visitor {
   visitIdentifier(node: Identifier): void { }
   visitIdentifierExpression(node: IdentifierExpression): void { }
   visitIf(node: IfStatement): void { }
+  visitInExpression(node: InExpression): void { }
   visitInsertStatement(node: InsertStatement): void { }
   visitJoin(node: JoinedTable): void { }
   visitKeyword(token: Token): void { }
+  visitLike(node: LikeExpression): void { }
   visitLiteralExpression(node: LiteralExpression): void { }
   visitNullTest(node: IsNullTestExpression): void { }
   visitParenExpression(node: ParenExpression): void { }
@@ -86,6 +92,12 @@ export abstract class Visitor {
   visitWhen(node: WhenExpression): void { }
   visitWhere(node: WhereClause): void { }
   visitWhile(node: WhileStatement): void { }
+
+  visit_each(list: SyntaxNode[] | undefined) {
+    if (!list) { return }
+
+    list.forEach(n => this.visit(n))
+  }
 
   visit(node: SyntaxNode | undefined) {
     if (!node) { return }
@@ -287,9 +299,35 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.between_expr: {
+        const between = <BetweenExpression>node
+        this.visitBetweenExpression(between)
+        this.visit(between.test_expression)
+        this.visit(between.begin_expression)
+        this.visit(between.end_expression)
+        break
+      }
+
+      case SyntaxKind.like_expr: {
+        const like = <LikeExpression>node
+        this.visitLike(like)
+        this.visit(like.left)
+        this.visit(like.pattern)
+        break
+      }
+
+      case SyntaxKind.in_expr: {
+        const in_expr = <InExpression>node
+
+        this.visitInExpression(in_expr)
+        this.visit(in_expr.left)
+        this.visit_each(in_expr.expressions)
+        this.visit(in_expr.subquery)
+
+        break
+      }
+
       case SyntaxKind.binary_expr: {
-        // thought: expressions in a divisor slot which are non-literal
-        // could cause divide by zero, that might be cool to test for
         const binary = <BinaryExpression>node
 
         this.visitBinaryExpression(binary)

@@ -79,29 +79,29 @@ export interface AnyOperator extends SyntaxNode { kind: SyntaxKind.any_keyword }
 
 // https://docs.microsoft.com/en-us/sql/t-sql/language-elements/expressions-transact-sql?view=sql-server-2017
 
-export interface LogicalOperator extends SyntaxNode {
+export interface LogicalExpression extends Expr {
   not: boolean
 }
 
-export interface ExistsExpression extends LogicalOperator {
+export interface ExistsExpression extends LogicalExpression {
   subquery: SelectStatement
 }
 
-export interface InExpression extends LogicalOperator {
+export interface InExpression extends LogicalExpression {
   kind: SyntaxKind.in_expr
   left: Expr
   expressions?: Expr[]
   subquery: SelectStatement
 }
 
-export interface LikeExpression extends LogicalOperator {
+export interface LikeExpression extends LogicalExpression {
   kind: SyntaxKind.like_expr
   left: Expr
-  pattern: Token
-  escape: Token
+  pattern: LiteralExpression
+  escape: LiteralExpression
 }
 
-export interface BetweenExpression extends LogicalOperator {
+export interface BetweenExpression extends LogicalExpression {
   kind: SyntaxKind.between_expr
   test_expression: Expr
   begin_expression: Expr
@@ -244,7 +244,7 @@ export interface IsNullTestExpression extends Expr {
   not_null: boolean
 }
 
-export interface CastExpression extends SyntaxNode, Expr {
+export interface CastExpression extends Expr {
   expr: Expr
   type: DataType
 }
@@ -253,7 +253,7 @@ export interface BitwiseNotExpression extends Expr {
   expr: Expr
 }
 
-export interface LogicalNotExpression extends SyntaxNode {
+export interface LogicalNotExpression extends Expr {
   expr: Expr
 }
 
@@ -296,10 +296,16 @@ export type ConstantExpression =
   | NullExpression
   | LiteralExpression
 
+export enum LiteralKind {
+  String,
+  Number,
+}
+
 // todo: make this a type to account for nulls and defaults and all that
 // good stuff...
 export interface LiteralExpression extends Expr {
   value: any
+  literal_kind: LiteralKind
 }
 
 export interface ParenExpression extends Expr {

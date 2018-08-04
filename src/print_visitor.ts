@@ -43,7 +43,10 @@ import {
   DeleteStatement,
   CastExpression,
   CreateTableAsSelectStatement,
-  InsertStatement
+  InsertStatement,
+  InExpression,
+  BetweenExpression,
+  LikeExpression
 } from './ast'
 
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
@@ -147,6 +150,14 @@ export class PrintVisitor {
     this.level--
     this.write(line, !this.inline_next_pop)
     this.inline_next_pop = false
+  }
+
+  private printList(nodes: SyntaxNode[] | undefined) {
+    if (!nodes) return
+    nodes.forEach(n => {
+      this.write(' ')
+      this.printNode(n)
+    })
   }
 
   private printNode(node: SyntaxNode | undefined) {
@@ -513,9 +524,42 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.between_expr: {
+        const between = <BetweenExpression>node
+        this.push(between.not ? '(not-between ' : '(between ')
+        this.printNode(between.test_expression)
+        this.write(' ')
+        this.printNode(between.begin_expression)
+        this.write(' ')
+        this.printNode(between.end_expression)
+        this.pop()
+
+        break
+      }
+
+      case SyntaxKind.like_expr: {
+        const like = <LikeExpression>node
+        this.push(like.not ? '(not-like ' : '(like ')
+        this.printNode(like.left)
+        this.write(' ')
+        this.printNode(like.pattern)
+        this.pop()
+
+        break
+      }
+
+      case SyntaxKind.in_expr: {
+        const in_expr = <InExpression>node
+
+        this.push(in_expr.not ? '(not-in ' : '(in ')
+        this.printNode(in_expr.left)
+        this.printList(in_expr.expressions)
+        this.printNode(in_expr.subquery)
+        this.pop()
+        break
+      }
+
       case SyntaxKind.binary_expr: {
-        // thought: expressions in a divisor slot which are non-literal
-        // could cause divide by zero, that might be cool to test for
         const binary = <BinaryExpression>node
         this.push('(' + ops[binary.op.kind] + ' ')
         this.printNode(binary.left)
@@ -583,8 +627,8 @@ export class PrintVisitor {
       case SyntaxKind.set_statement: {
         const set = <SetStatement>node
         const op = set.op.kind === SyntaxKind.equal
-         ? 'set'
-         : ops[set.op.kind]
+          ? 'set'
+          : ops[set.op.kind]
 
         this.push(`(${op} ${set.name} `)
         this.printNode(set.expression)
