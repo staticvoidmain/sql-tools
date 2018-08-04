@@ -87,7 +87,8 @@ import {
   InExpression,
   LikeExpression,
   LiteralKind,
-  OrderExpression
+  OrderExpression,
+  CreateStatisticsStatement
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -100,6 +101,7 @@ function isLegalFunctionName(kind: SyntaxKind) {
   return kind === SyntaxKind.left_keyword
     || kind === SyntaxKind.right_keyword
     || kind === SyntaxKind.convert_keyword
+    || kind === SyntaxKind.coalesce_keyword
     || kind === SyntaxKind.nullif_keyword
 }
 
@@ -214,6 +216,9 @@ export class Parser {
    * don't find the start of a valid statement.
    */
   private parseStatement(): Statement | undefined {
+
+    const exprs = this.tryParseCommonTableExpressions()
+
     switch (this.token.kind) {
       case SyntaxKind.EOF:
         return undefined
@@ -232,7 +237,7 @@ export class Parser {
 
       case SyntaxKind.with_keyword:
       case SyntaxKind.select_keyword:
-        return this.parseSelect()
+        return this.parseSelect(exprs)
 
       case SyntaxKind.exec_keyword:
       case SyntaxKind.execute_keyword: {
@@ -248,10 +253,11 @@ export class Parser {
       }
 
       case SyntaxKind.insert_keyword: {
-        return this.parseInsertStatement()
+        return this.parseInsertStatement(exprs)
       }
 
       case SyntaxKind.update_keyword: {
+        // todo: wtf
         break
       }
 
@@ -267,6 +273,7 @@ export class Parser {
       }
 
       case SyntaxKind.delete_keyword: {
+        // todo: common table expr stuff
         const del = <DeleteStatement>this.createAndMoveNext(this.token, SyntaxKind.delete_statement)
 
         if (this.optional(SyntaxKind.top_keyword)) {
@@ -879,6 +886,7 @@ export class Parser {
     const kind = this.token.kind
     return (kind >= SyntaxKind.equal
       && kind <= SyntaxKind.greaterThanEqual)
+      || kind === SyntaxKind.is_keyword
   }
 
   // 3
@@ -926,6 +934,33 @@ export class Parser {
     this.expect(SyntaxKind.null_keyword)
 
     return is
+  }
+
+  private tryParseCommonTableExpressions() {
+    // this can be followed up by an insert/update/delete/select
+    let exprs = undefined
+    if (this.optional(SyntaxKind.with_keyword)) {
+      exprs = []
+
+      do {
+        const expr: any = {}
+        expr.name = this.parseIdentifier()
+        if (this.optional(SyntaxKind.openParen)) {
+          expr.cols = this.parseColumnList()
+          this.expect(SyntaxKind.openParen)
+        }
+        this.expect(SyntaxKind.as_keyword)
+        this.optional(SyntaxKind.openParen)
+        expr.definition = this.parseSelect()
+        this.optional(SyntaxKind.closeParen)
+        exprs.push(expr)
+      } while (this.optional(SyntaxKind.comma_token))
+
+      // todo: assert kind
+      // todo: attach these to the subsequent statement
+    }
+
+    return exprs
   }
 
   private tryParseScalarExpression(): Expr {
@@ -1424,6 +1459,22 @@ export class Parser {
         return procedure
       }
 
+      case SyntaxKind.statistics_keyword: {
+        // STUB
+        const stats = <CreateStatisticsStatement>this.createAndMoveNext(this.token, SyntaxKind.create_statistics_statement)
+        this.moveNext()
+        stats.name = this.parseIdentifier()
+
+        this.expect(SyntaxKind.on_keyword)
+        stats.target = this.parseIdentifier()
+        this.expect(SyntaxKind.openParen)
+        // hack
+        stats.columns = <any>this.parseColumnList()
+        this.expect(SyntaxKind.closeParen)
+        return stats
+        break
+      }
+
       case SyntaxKind.index_keyword:
         this.error('"create index" not implemented')
         break
@@ -1436,7 +1487,6 @@ export class Parser {
     const block = <StatementBlock>this.createNode(this.token, SyntaxKind.statement_block)
     block.statements = []
     const hasBegin = this.optional(SyntaxKind.begin_keyword)
-
 
     // parse the body block
     while (true) {
@@ -1500,13 +1550,23 @@ export class Parser {
     statement.objectType = this.token
 
     this.moveNext()
-    // todo: "if exists"
+
+    if (this.hasFeature(FeatureFlags.DropIfExists)) {
+      if (this.optional(SyntaxKind.if_keyword)) {
+        const not = this.optional(SyntaxKind.not_keyword)
+
+        this.expect(SyntaxKind.exists_keyword)
+        // todo: flags for "if exists"
+      }
+    }
+
     statement.target = this.parseIdentifier()
 
     return statement
   }
 
-  private parseInsertStatement(): InsertStatement {
+  private parseInsertStatement(exprs: any[]): InsertStatement {
+    // todo: attach common table exprs
     const insert = <InsertStatement>this.createAndMoveNext(this.token, SyntaxKind.insert_statement)
     this.optional(SyntaxKind.into_keyword)
 
@@ -1545,9 +1605,7 @@ export class Parser {
     return insert
   }
 
-  private parseSelect() {
-
-    // todo: handle with stuff
+  private parseSelect(cte?: any) {
 
     const node = <SelectStatement>this.createAndMoveNext(this.token, SyntaxKind.select_statement)
 
@@ -1637,10 +1695,14 @@ export class Parser {
       const join = <JoinedTable>this.createNode(this.token, SyntaxKind.joined_table)
       const isLeft = this.match(SyntaxKind.left_keyword)
       const isRight = this.match(SyntaxKind.right_keyword)
-
       // todo: cross join
-      // todo: full join
-      if (isLeft || isRight) {
+
+      if (this.match(SyntaxKind.full_keyword)) {
+        join.kind |= JoinType.full
+        this.moveNext()
+        this.assertKind(SyntaxKind.join_keyword)
+      }
+      else if (isLeft || isRight) {
         join.kind |= isLeft ? JoinType.left : JoinType.right
 
         this.moveNext()
@@ -1661,10 +1723,11 @@ export class Parser {
       this.moveNext()
 
       // table expression
+      const join_source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
+
       if (this.match(SyntaxKind.openParen)) {
         this.moveNext()
 
-        const join_source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
         join_source.expr = this.parseSelect()
         join_source.end = this.token.end
 
@@ -1679,7 +1742,6 @@ export class Parser {
 
         join.source = join_source
       } else {
-        const join_source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
         join_source.expr = this.tryParseTableOrFunctionExpression()
         join_source.end = join_source.expr.end
         this.optional(SyntaxKind.as_keyword)
@@ -1688,12 +1750,12 @@ export class Parser {
           join_source.alias = this.parseIdentifier()
           join_source.end = join_source.alias.end
         }
-
-        this.expect(SyntaxKind.on_keyword)
-        join.source = join_source
-        join.on = this.tryParseOrExpr()
-        join.end = join.on.end
       }
+
+      this.expect(SyntaxKind.on_keyword)
+      join.source = join_source
+      join.on = this.tryParseOrExpr()
+      join.end = join.on.end
 
       if (!from.joins) {
         from.joins = []

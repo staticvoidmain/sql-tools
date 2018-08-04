@@ -307,6 +307,7 @@ export enum SyntaxKind {
   alter_proc_statement,
   create_proc_statement,
   create_table_statement,
+  create_statistics_statement,
   // dw extension
   create_table_as_select_statement,
   alter_table_statement,

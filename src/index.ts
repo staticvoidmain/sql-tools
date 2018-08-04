@@ -87,6 +87,8 @@ async function processDirectory(dir: string, pattern: RegExp) {
         }
       }
     }
+
+    console.log(`Success: ${success} | Fail: ${fail}`)
   }
 }
 
@@ -118,6 +120,8 @@ function bufferToString(buffer: Buffer) {
   return buffer.toString('utf8')
 }
 
+let success = 0, fail = 0
+
 async function processFile(path: string) {
   const buff = await readFileAsync(path)
   const text = bufferToString(buff)
@@ -130,12 +134,11 @@ async function processFile(path: string) {
 
   try {
     const tree = parser.parse()
-
+    success++
     if (operation === '--print') {
-      console.log('# ' + path)
-      // todo: just list the ones we can parse correctly
+      // console.log('# ' + path)
       // printNodes(tree)
-      console.log('\n')
+      // console.log('\n')
     }
 
     if (operation === '--lint') {
@@ -152,10 +155,10 @@ async function processFile(path: string) {
     }
   }
   catch (e) {
+    fail++
     if (e instanceof ParserException) {
       const ex = <ParserException>e
-      printNodes(ex.statements)
-      console.log(ex.innerException)
+      console.log(ex.innerException.message)
     }
   }
 }

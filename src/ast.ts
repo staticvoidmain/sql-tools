@@ -559,6 +559,7 @@ export type CreateStatement =
   | CreateTableStatement
   | CreateProcedureStatement
   | CreateViewStatement
+  | CreateStatisticsStatement
   // | CreateFunctionStatement
   // | CreateDatabaseStatement
 
@@ -604,6 +605,13 @@ export interface CreateViewStatement extends SyntaxNode {
   definition: SelectStatement
   // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
   // todo: trailing semicolon
+}
+
+export interface CreateStatisticsStatement extends SyntaxNode {
+  name: Identifier
+  target: Identifier
+  columns: Identifier[]
+  // todo: with options
 }
 
 // create and alter are pretty much the same...

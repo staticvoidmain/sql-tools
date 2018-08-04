@@ -594,12 +594,20 @@ export class Scanner {
       //#region simple terminals
 
       case Chars.period: {
-        // todo: does sql allow naked floats .001?
         kind = SyntaxKind.dot_token
-
-        if (this.peek() == Chars.period) {
+        const next = this.peek()
+        if (next === Chars.period) {
           this.pos++
           kind = SyntaxKind.dotdot_token
+        } else if (isDigit(next)) {
+          // leading decimal digit float
+          do {
+            this.pos++
+          }
+          while (isDigit(this.text.charCodeAt(this.pos)))
+
+          val = parseFloat(this.text.substring(start, this.pos--))
+          kind = SyntaxKind.numeric_literal
         }
         break
       }
