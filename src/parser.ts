@@ -1425,7 +1425,7 @@ export class Parser {
         do {
           // todo: what's the rule here? variable or literals only?
           exec_string.format_args.push(this.tryParseScalarExpression())
-        } while (this.match(SyntaxKind.comma_token))
+        } while (this.optional(SyntaxKind.comma_token))
       }
 
       this.expect(SyntaxKind.closeParen)
@@ -1771,10 +1771,12 @@ export class Parser {
 
       assignment.target = this.parseIdentifier()
       assignment.op = this.parseAssignmentOperation()
+
+      this.moveNext()
       assignment.value = this.tryParseScalarExpression()
 
       node.assignments.push(assignment)
-    } while (this.match(SyntaxKind.comma_token))
+    } while (this.optional(SyntaxKind.comma_token))
 
     if (this.match(SyntaxKind.from_keyword)) {
       node.from = this.parseFrom()
