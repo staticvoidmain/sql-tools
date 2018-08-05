@@ -224,7 +224,7 @@ export class PrintVisitor {
         const block = <StatementBlock>node
         // not sure this is necessary...
         this.push('(block ')
-        block.statements.forEach(s => this.printNode(s))
+        this.printList(block.statements)
         this.pop()
         break
       }
@@ -308,9 +308,7 @@ export class PrintVisitor {
 
         // always expect a block
         this.push('(body')
-
-        proc.body.statements.forEach(s => this.printNode(s))
-
+        this.printList(proc.body.statements)
         this.pop()
         this.pop()
         break

@@ -191,20 +191,20 @@ function supportsOverClause(ident: Identifier) {
 // todo: zero unnecessary allocations!
 function isCast(ident: Identifier) {
   return ident.parts.length === 1
-    && ident.parts[0].toLocaleLowerCase() === 'cast'
+    && ident.parts[0].toLowerCase() === 'cast'
 }
 
 // todo: zero unnecessary allocations!
 function isConvert(ident: Identifier) {
   return ident.parts.length === 1
-    && ident.parts[0].toLocaleLowerCase() === 'convert'
+    && ident.parts[0].toLowerCase() === 'convert'
 }
 
 // wrapper with the current parser state
 export class ParserException extends Error {
   constructor(
     public message: string,
-    public statements: Statement[]) {
+    public nodes: SyntaxNode[]) {
     super()
   }
 }
@@ -747,10 +747,8 @@ export class Parser {
       kind: kind || token.kind
     }
 
-    if (this.options.debug && kind) {
-      if (isStatementKind(kind)) {
-        this.debugNodeList.push(node)
-      }
+    if (this.options.debug) {
+      this.debugNodeList.push(node)
     }
 
     return node
