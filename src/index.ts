@@ -173,7 +173,7 @@ async function processFile(path: string) {
           visitor.visit(node)
           // hack
         } catch { }
-        console.log('######################')
+        console.log('\n######################')
         console.log('\n\n')
 
         i++
