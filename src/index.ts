@@ -161,7 +161,7 @@ async function processFile(path: string) {
       const ex = <ParserException>e
       console.log(ex.message)
       console.log('AST backtrace:')
-      printNodes(ex.statements)
+      printNodes(ex.nodes)
     }
     else console.log(e)
   }
