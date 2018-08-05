@@ -3,6 +3,7 @@ import { SyntaxKind } from './syntax'
 
 // todo: namespace for all the common stuff?
 import { ParserOptions } from './ast'
+import { FeatureFlags } from './features'
 
 function isLetter(ch: number): boolean {
   return (Chars.A <= ch && ch <= Chars.Z)
@@ -55,6 +56,25 @@ interface Bucket {
   max: number
 }
 
+  // it's O(n) time in the worst case
+  // but the bucketed sizes are really small.
+  function invariantMatch(keyword: string, key: string) {
+    if (keyword.length === key.length) {
+      for (let j = 0; j < key.length; j++) {
+        const a = keyword.charCodeAt(j)
+        const b = key.charCodeAt(j)
+        // upper or lower match is fine
+        if (a !== b && a !== b + 32) {
+          return false
+        }
+      }
+
+      return true
+    }
+
+    return false
+  }
+
 class KeywordLookup {
   private readonly buckets: Array<Bucket>
 
@@ -67,7 +87,12 @@ class KeywordLookup {
     this.minIdentifier = 0
 
     for (let index = 0; index < items.length; index++) {
-      const [key, kind] = items[index]
+      this.addItem(items[index])
+    }
+  }
+
+  addItem(item: [string, SyntaxKind]): void {
+    const [key, kind] = item
       const i = key.charCodeAt(0) - Chars.a
       const bucket = (this.buckets[i] = this.buckets[i] || { keywords: [] })
 
@@ -83,26 +108,6 @@ class KeywordLookup {
       // since each bucket has a min/max
       this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
       this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
-    }
-  }
-
-  // it's O(n) time in the worst case
-  // but the bucketed sizes are really small.
-  invariantMatch(keyword: string, key: string) {
-    if (keyword.length === key.length) {
-      for (let j = 0; j < key.length; j++) {
-        const a = keyword.charCodeAt(j)
-        const b = key.charCodeAt(j)
-        // upper or lower match is fine
-        if (a !== b && a !== b + 32) {
-          return false
-        }
-      }
-
-      return true
-    }
-
-    return false
   }
 
   get(key: string): SyntaxKind | undefined {
@@ -131,7 +136,7 @@ class KeywordLookup {
         for (let i = 0; i < len; i++) {
           const el = bucket.keywords[i]
 
-          if (this.invariantMatch(el.key, key)) {
+          if (invariantMatch(el.key, key)) {
             return el.kind
           }
         }
@@ -360,11 +365,17 @@ export class Scanner {
   private readonly options: ParserOptions
   private pos: number
 
-  constructor(text: string, options?: ParserOptions) {
-    this.options = options || {}
+  constructor(text: string, options: ParserOptions = {}) {
+    this.options = options
     this.text = text
     this.pos = 0
     this.lines = []
+
+    if (this.options.features) {
+      if (this.options.features & FeatureFlags.CreateRemoteTableAsSelect) {
+        keywordMap.addItem(['remote', SyntaxKind.remote_keyword])
+      }
+    }
   }
 
   private lazyComputeLineNumbers() {
@@ -374,7 +385,7 @@ export class Scanner {
 
     let pos = 0, ch = NaN
     while (ch = this.text.charCodeAt(pos++)) {
-      if (ch  === Chars.newline) {
+      if (ch === Chars.newline) {
         this.lines.push(pos)
       }
     }
@@ -417,10 +428,8 @@ export class Scanner {
   // advance until we find the first unescaped single quote.
   private scanString(): string {
     const start = ++this.pos
-    let ch = this.text.charCodeAt(this.pos)
-    // todo: if we hit a newline preceded by a \
-    // then set a flag or something and don't include the
-    // newline token in the string...
+    let ch = this.token()
+
     while (true) {
       if (ch === Chars.singleQuote) {
         if (this.peek() !== Chars.singleQuote) {
@@ -432,12 +441,12 @@ export class Scanner {
 
       ch = this.text.charCodeAt(++this.pos)
     }
-    // todo: see above.
+
     return this.text.substring(start, this.pos)
   }
 
   private scanIdentifier() {
-    let ch = this.text.charCodeAt(this.pos)
+    let ch = this.token()
 
     // this is kinda wrong... square braces can't escape other square braces
     // "s and [] are balanced and end when the last unescaped closing token are encountered.
@@ -447,7 +456,7 @@ export class Scanner {
     // all idents are at least one character long.
     const start = this.pos++
 
-    while (ch = this.text.charCodeAt(this.pos)) {
+    while (ch = this.token()) {
       if ((ch === Chars.doubleQuote && insideQuoteContext)
         || (ch === Chars.closeBrace && insideBraceContext)) {
         this.pos++
@@ -493,13 +502,18 @@ export class Scanner {
   }
 
   // charCodeAt returns NaN if we go out of bounds.
-  private peek(): number {
+  private peek(skipWhitespace?: boolean): number {
+
     return this.text.charCodeAt(this.pos + 1)
+  }
+
+  private token() {
+    return this.text.charCodeAt(this.pos)
   }
 
   private scanInlineComment() {
     const start = this.pos
-    let ch = this.text.charCodeAt(this.pos)
+    let ch = this.token()
 
     while (ch) {
       if (ch === Chars.newline) {
@@ -509,19 +523,21 @@ export class Scanner {
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    return this.text.substring(start, this.pos - 1)
+    if (!this.options.skipTrivia) {
+      return this.text.substring(start, this.pos - 1)
+    }
   }
 
   private scanBlockComment() {
     const start = this.pos
-    let ch = this.text.charCodeAt(this.pos)
+    let ch = this.token()
     let requiredPops = 1
 
     // nested block comments, because people do that shit.
     while (ch) {
       const next = this.peek()
-      // comment end
       if (ch === Chars.asterisk && next === Chars.forwardSlash) {
+        // comment end
         this.pos++
         if (--requiredPops === 0) {
           break
@@ -535,19 +551,21 @@ export class Scanner {
       ch = this.text.charCodeAt(++this.pos)
     }
 
-    // todo: if capture comments!?
-    return this.text.substring(start, this.pos - 2)
+    if (!this.options.skipTrivia) {
+      return this.text.substring(start, this.pos - 2)
+    }
   }
 
   private scanNumber(): Number {
     const start = this.pos
-    while (isDigit(this.text.charCodeAt(this.pos))) this.pos++
-    // todo: scan exponent notation
-    if (this.text.charCodeAt(this.pos) === Chars.period) {
+    while (isDigit(this.token())) this.pos++
+    // todo: scan exponent notation for other vendors
+    // that support that
+    if (this.token() === Chars.period) {
       this.pos++
 
       let flag = false
-      while (isDigit(this.text.charCodeAt(this.pos))) {
+      while (isDigit(this.token())) {
         flag = true
         this.pos++
       }
@@ -561,24 +579,30 @@ export class Scanner {
     return parseFloat(this.text.substring(start, this.pos--))
   }
 
-
-  private isSpace() {
-    const ch = this.text.charCodeAt(this.pos)
-
-    return (ch === Chars.tab
+  private isSpace(ch: number) {
+    return ch === Chars.tab
       || ch === Chars.space
       || ch === Chars.newline
-      || ch === Chars.carriageReturn)
+      || ch === Chars.carriageReturn
   }
 
-  // todo: do while?
-  private consumeWhitespace() {
-    while (this.isSpace()) {
-      this.pos++
+  private seekNonWhitespace() {
+    let peek = this.pos + 1
+    let ch = this.text.charCodeAt(peek)
+    while (this.isSpace(ch)) {
+      ch = this.text.charCodeAt(++peek)
     }
-    // to account for the last
-    // pos++ so I don't have to do it later.
-    this.pos--
+    return peek
+  }
+
+  private consumeWhitespace() {
+    if (this.isSpace(this.token())) {
+      do {
+        this.pos++
+      } while (this.isSpace(this.token()))
+      return true
+    }
+    return false
   }
 
   getSourceLine(line: number) {
@@ -615,7 +639,7 @@ export class Scanner {
    */
   scan(): Token {
     const start = this.pos
-    const ch = this.text.charCodeAt(this.pos)
+    const ch = this.token()
     let flags = 0
     let val = undefined
     let kind = SyntaxKind.EOF
@@ -623,6 +647,9 @@ export class Scanner {
     if (isNaN(ch)) {
       return new Token(kind, start, this.pos)
     }
+
+    const peek_pos = this.seekNonWhitespace()
+    const peek_cached = this.text.charCodeAt(peek_pos)
 
     switch (ch) {
       //#region simple terminals
@@ -638,7 +665,7 @@ export class Scanner {
           do {
             this.pos++
           }
-          while (isDigit(this.text.charCodeAt(this.pos)))
+          while (isDigit(this.token()))
 
           val = parseFloat(this.text.substring(start, this.pos--))
           kind = SyntaxKind.numeric_literal
@@ -690,6 +717,7 @@ export class Scanner {
       case Chars.tab:
       case Chars.space: {
         this.consumeWhitespace()
+        this.pos--
         kind = SyntaxKind.whitespace
         break
       }
@@ -698,13 +726,17 @@ export class Scanner {
         kind = SyntaxKind.div_token
 
         const next = this.peek()
-        if (next === Chars.equal) {
-          this.pos++
-          kind = SyntaxKind.divEqualsAssignment
-        } else if (next === Chars.asterisk) {
+        if (next === Chars.asterisk) {
           kind = SyntaxKind.comment_block
           this.pos += 2
           val = this.scanBlockComment()
+        }
+        else if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
+          kind = SyntaxKind.divEqualsAssignment
         }
 
         break
@@ -716,8 +748,12 @@ export class Scanner {
       case Chars.plus: {
         kind = SyntaxKind.plus_token
 
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+
+          this.pos = peek_pos
           kind = SyntaxKind.plusEqualsAssignment
         }
 
@@ -725,13 +761,15 @@ export class Scanner {
       }
 
       case Chars.hyphen: {
-        const next = this.peek()
 
-        if (next === Chars.hyphen) {
+        if (this.peek() === Chars.hyphen) {
           this.scanInlineComment()
           kind = SyntaxKind.comment_inline
-        } else if (next === Chars.equal) {
-          this.pos++
+        } else if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
           kind = SyntaxKind.minusEqualsAssignment
         }
         else {
@@ -752,8 +790,12 @@ export class Scanner {
       case Chars.asterisk: {
         kind = SyntaxKind.mul_token
 
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+
+          this.pos = peek_pos
           kind = SyntaxKind.mulEqualsAssignment
         }
 
@@ -763,8 +805,11 @@ export class Scanner {
       case Chars.forwardSlash: {
         kind = SyntaxKind.div_token
 
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
           kind = SyntaxKind.divEqualsAssignment
         }
 
@@ -774,8 +819,11 @@ export class Scanner {
       // & or &=
       case Chars.ampersand: {
         kind = SyntaxKind.bitwise_and_token
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
           kind = SyntaxKind.bitwiseAndAssignment
         }
 
@@ -786,8 +834,11 @@ export class Scanner {
       case Chars.pipe: {
         kind = SyntaxKind.bitwise_or_token
 
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
           kind = SyntaxKind.bitwiseOrAssignment
         }
         break
@@ -796,8 +847,11 @@ export class Scanner {
       // ^ or ^=
       case Chars.caret: {
         kind = SyntaxKind.bitwise_xor_token
-        if (this.peek() === Chars.equal) {
-          this.pos++
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
           kind = SyntaxKind.bitwiseXorAssignment
         }
 
@@ -808,44 +862,54 @@ export class Scanner {
       case Chars.lessThan: {
         kind = SyntaxKind.lessThan
 
-        const next = this.peek()
-
-        if (next === Chars.greaterThan) {
+        if (peek_cached === Chars.greaterThan) {
           kind = SyntaxKind.ltGt
-          this.pos++
-        } else if (next === Chars.equal) {
+        } else if (peek_cached === Chars.equal) {
           kind = SyntaxKind.lessThanEqual
-          this.pos++
         }
+
+        // common case
+        if (kind !== SyntaxKind.lessThan) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
+        }
+
         break
       }
 
       // > >=
       case Chars.greaterThan: {
         kind = SyntaxKind.greaterThan
+        if (peek_cached === Chars.equal) {
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
 
-        if (this.peek() === Chars.equal) {
           kind = SyntaxKind.greaterThanEqual
-          this.pos++
         }
         break
       }
 
       // !=, !<, !>
       case Chars.bang: {
-        const next = this.peek()
-        this.pos++
-
-        if (next === Chars.equal) {
+        if (peek_cached === Chars.equal) {
           kind = SyntaxKind.notEqual
-        } else if (next === Chars.lessThan) {
+        } else if (peek_cached === Chars.lessThan) {
           kind = SyntaxKind.notLessThan
-        } else if (next === Chars.greaterThan) {
+        } else if (peek_cached === Chars.greaterThan) {
           kind = SyntaxKind.notGreaterThan
         }
         else {
-          this.illegal(next)
+          this.illegal(peek_cached)
         }
+
+        if (peek_pos - start > 1) {
+          flags |= TokenFlags.InnerTokenWhitespace
+        }
+        this.pos = peek_pos
 
         break
       }
@@ -853,10 +917,12 @@ export class Scanner {
       case Chars.percent: {
         kind = SyntaxKind.mod_token
 
-        const next = this.peek()
-        if (next === Chars.equal) {
+        if (peek_cached === Chars.equal) {
           kind = SyntaxKind.modEqualsAssignment
-          this.pos++
+          if (peek_pos - start > 1) {
+            flags |= TokenFlags.InnerTokenWhitespace
+          }
+          this.pos = peek_pos
         }
 
         break
@@ -893,6 +959,7 @@ export class Scanner {
       case Chars.openBrace: {
         val = this.scanIdentifier()
         kind = SyntaxKind.identifier
+        // flags |= TokenFlags.QuotedIdentifier
         break
       }
 

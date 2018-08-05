@@ -169,25 +169,27 @@ describe('Scanner', function () {
   })
 
   it('handles binary operators', function () {
-    const scanner = new Scanner('+ - * / > < >= <= !> !< <> !=', {})
+    // nightmare mode, go
+    const scanner = new Scanner('+ - * / > = < = ! > ! < < > ! = > < ', {})
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [
       SyntaxKind.plus_token,
       SyntaxKind.minus_token,
       SyntaxKind.mul_token,
       SyntaxKind.div_token,
-      SyntaxKind.greaterThan,
-      SyntaxKind.lessThan,
       SyntaxKind.greaterThanEqual,
       SyntaxKind.lessThanEqual,
       SyntaxKind.notGreaterThan,
       SyntaxKind.notLessThan,
       SyntaxKind.ltGt,
       SyntaxKind.notEqual,
+      SyntaxKind.greaterThan,
+      SyntaxKind.lessThan
     ])
   })
 
   it('handles assignment operators', function () {
+    // todo: more whitespace between tokens testing
     const scanner = new Scanner('+= -= *= /= |= &= ^=', {})
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [
@@ -264,9 +266,12 @@ describe('Scanner', function () {
   })
 
   it('you gotta be kidding me... whitespace between token characters', function() {
-    const scanner = new Scanner('! =')
+    const scanner = new Scanner('! =      <  \n>')
     const tokens = scanAll(scanner)
-    assertTokenKinds(tokens, [ SyntaxKind.notEqual ])
+    assertTokenKinds(tokens, [
+      SyntaxKind.notEqual,
+      SyntaxKind.ltGt
+    ])
   })
 
   xit('scans insane identifiers', function () {

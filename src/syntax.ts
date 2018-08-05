@@ -179,6 +179,7 @@ export enum SyntaxKind {
   readtext_keyword,
   reconfigure_keyword,
   references_keyword,
+  remote_keyword,
   rename_keyword,
   replication_keyword,
   restore_keyword,

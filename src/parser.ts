@@ -109,7 +109,7 @@ function isLegalFunctionName(kind: SyntaxKind) {
 
 function isStatementKind(kind: SyntaxKind) {
   return kind < SyntaxKind.while_statement
-  && kind > SyntaxKind.alter_proc_statement
+    && kind > SyntaxKind.alter_proc_statement
 }
 
 function isLocal(ident: Token) {
@@ -705,7 +705,7 @@ export class Parser {
     return statement
   }
 
-  private makeBinaryExpr(left: Expr, parse: Function): any {
+  private makeBinaryExpr(left: Expr, parse: Function, args?: any[]): any {
     const kind = this.token.kind
     const start = this.token.start
     const end = this.token.end
@@ -720,7 +720,7 @@ export class Parser {
         end: end,
         kind: kind
       },
-      right: parse.apply(this)
+      right: parse.apply(this, args)
     }
 
     binary.start = binary.left.start
@@ -912,7 +912,8 @@ export class Parser {
       if (this.match(SyntaxKind.is_keyword)) {
         expr = this.makeNullTest(expr)
       } else {
-        expr = this.makeBinaryExpr(expr, this.tryParseScalarExpression)
+        // todo:
+        expr = this.makeBinaryExpr(expr, this.tryParseScalarExpression, [true])
       }
     }
 
@@ -1010,8 +1011,8 @@ export class Parser {
     return exprs
   }
 
-  private tryParseScalarExpression(): Expr {
-    let expr = this.tryParseMultiplicationExpr()
+  private tryParseScalarExpression(comparison?: boolean): Expr {
+    let expr = this.tryParseMultiplicationExpr(comparison)
 
     while (this.isAddPrecedence()) {
       expr = this.makeBinaryExpr(expr, this.tryParseMultiplicationExpr)
@@ -1020,8 +1021,8 @@ export class Parser {
     return expr
   }
 
-  private tryParseMultiplicationExpr(): Expr {
-    let expr = this.parseBaseExpr()
+  private tryParseMultiplicationExpr(comparison?: boolean): Expr {
+    let expr = this.parseBaseExpr(comparison)
 
     while (this.isMultiplyPrecedence()) {
       expr = this.makeBinaryExpr(expr, this.parseBaseExpr)
@@ -1065,34 +1066,53 @@ export class Parser {
     return ident
   }
 
-  private tryParseUnaryExpr() {
-    if (this.token.kind === SyntaxKind.minus_token) {
+  // todo:
+  private tryParseUnaryExpr(comparison?: boolean) {
+    if (this.match(SyntaxKind.minus_token)) {
       const neg = <UnaryMinusExpression>this.createAndMoveNext(this.token, SyntaxKind.unary_minus_expr)
       neg.expr = this.parseBaseExpr()
       neg.end = neg.expr.end
       return neg
     }
 
-    if (this.token.kind === SyntaxKind.plus_token) {
+    if (this.match(SyntaxKind.plus_token)) {
       const pos = <UnaryPlusExpression>this.createAndMoveNext(this.token, SyntaxKind.unary_plus_expr)
       pos.expr = this.parseBaseExpr()
       pos.end = pos.expr.end
       return pos
     }
 
-    if (this.token.kind === SyntaxKind.bitwise_not_token) {
+    if (this.match(SyntaxKind.bitwise_not_token)) {
       const not = <BitwiseNotExpression>this.createAndMoveNext(this.token, SyntaxKind.bitwise_not_expr)
       not.expr = this.parseBaseExpr()
       not.end = not.expr.end
       return not
     }
 
+    const suffix = ' can only appear on the right hand side of a comparsison.'
+    if (this.match(SyntaxKind.some_keyword)) {
+      if (!comparison) {
+        this.error('"some"' + suffix)
+      }
 
-    // // todo: these behave strangely, but they look to me like unary
-    // ops that can only be compared with = or < or whatever
-    // || kind === SyntaxKind.some_keyword
-    // || kind === SyntaxKind.all_keyword
-    // || kind === SyntaxKind.any_keyword
+      return
+    }
+
+    if (this.match(SyntaxKind.any_keyword)) {
+      if (!comparison) {
+        this.error('"any"' + suffix)
+      }
+
+      return
+    }
+
+    if (this.match(SyntaxKind.all_keyword)) {
+      if (!comparison) {
+        this.error('"all"' + suffix)
+      }
+
+      return
+    }
   }
 
   private parseLiteralExpression() {
@@ -1127,9 +1147,9 @@ export class Parser {
     return expr
   }
 
-  // precedence sort of bottoms out here.
-  private parseBaseExpr(): Expr {
-    const unary = this.tryParseUnaryExpr()
+  // base_expr precedence sort of bottoms out here
+  private parseBaseExpr(comparison?: boolean): Expr {
+    const unary = this.tryParseUnaryExpr(comparison)
 
     if (unary) {
       return unary
