@@ -490,7 +490,17 @@ export interface SetStatement extends SyntaxNode {
   expression: ValueExpression
 }
 
-export interface SelectStatement extends SyntaxNode {
+export interface CommonTableExpression extends SyntaxNode {
+  name: Identifier
+  columns: Identifier[]
+  definition: SelectStatement
+}
+
+export interface HasCommonTableExpressions extends SyntaxNode {
+  ctes?: CommonTableExpression[]
+}
+
+export interface SelectStatement extends HasCommonTableExpressions {
   top: any
   qualifier: 'all' | 'distinct'
   columns: Array<ColumnNode>
@@ -545,7 +555,7 @@ export interface ExecuteProcedureStatement extends SyntaxNode {
 }
 
 // union type, values range OR select, never both.
-export interface InsertStatement extends SyntaxNode {
+export interface InsertStatement extends HasCommonTableExpressions {
   target: Identifier
   columns?: Array<string>
   values?: Expr[]
@@ -569,8 +579,24 @@ export interface TruncateTableStatement extends SyntaxNode {
   table: Identifier
 }
 
-export interface DeleteStatement extends SyntaxNode {
+export interface DeleteStatement extends HasCommonTableExpressions {
   target: Identifier
+  from?: FromClause
+  where?: WhereClause
+  // optional
+  top?: Expr
+  top_percent?: boolean
+}
+
+export interface Assignment extends SyntaxNode {
+  target: Identifier
+  op: AssignmentOperator
+  value: Expr
+}
+
+export interface UpdateStatement extends HasCommonTableExpressions {
+  target: Identifier
+  assignments: Assignment[]
   from?: FromClause
   where?: WhereClause
   // optional

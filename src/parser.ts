@@ -90,7 +90,10 @@ import {
   OrderExpression,
   CreateStatisticsStatement,
   HavingClause,
-  ExistsExpression
+  ExistsExpression,
+  CommonTableExpression,
+  UpdateStatement,
+  Assignment
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -273,8 +276,7 @@ export class Parser {
       }
 
       case SyntaxKind.update_keyword: {
-        // todo: wtf
-        break
+        return this.parseUpdate(exprs)
       }
 
       case SyntaxKind.drop_keyword: {
@@ -291,7 +293,7 @@ export class Parser {
       case SyntaxKind.delete_keyword: {
         // todo: common table expr stuff
         const del = <DeleteStatement>this.createAndMoveNext(this.token, SyntaxKind.delete_statement)
-
+        del.ctes = exprs
         if (this.optional(SyntaxKind.top_keyword)) {
           del.top = this.parseBaseExpr()
           // todo: percent?
@@ -1174,16 +1176,16 @@ export class Parser {
 
     if (this.match(SyntaxKind.mul_token)) {
       // todo: this is really only legal in a few places...
-      // select, group by, having
-      // maybe set up a context or something
+      // select, group by, order by, having
+      // maybe set a flag...
       const ident = this.createSinglePartIdentifier(this.token)
       const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
+      ident.parts[0] = '*'
       expr.identifier = ident
 
       return expr
     }
 
-    // a case expression
     if (this.token.kind === SyntaxKind.case_keyword) {
       return this.parseCaseExpression()
     }
@@ -1202,6 +1204,11 @@ export class Parser {
       // cast(@x as SomeType)
       if (isCast(ident)) {
         return this.parseCastExpression(start)
+      }
+
+      if (isConvert(ident)) {
+        // todo: convert might be useful for the
+        // syntax analyzer, parse it separately
       }
 
       // some other general func with arguments
@@ -1640,11 +1647,11 @@ export class Parser {
     return statement
   }
 
-  private parseInsertStatement(exprs?: any[]): InsertStatement {
+  private parseInsertStatement(exprs?: CommonTableExpression[]): InsertStatement {
     // todo: attach common table exprs
     const insert = <InsertStatement>this.createAndMoveNext(this.token, SyntaxKind.insert_statement)
     this.optional(SyntaxKind.into_keyword)
-
+    insert.ctes = exprs
     insert.target = this.parseIdentifier()
 
     // optional column name list
@@ -1680,7 +1687,7 @@ export class Parser {
     return insert
   }
 
-  private parseSelect(cte?: any) {
+  private parseSelect(ctes?: CommonTableExpression[]) {
 
     const paren = this.optional(SyntaxKind.openParen)
     const node = <SelectStatement>this.createAndMoveNext(this.token, SyntaxKind.select_statement)
@@ -1739,6 +1746,42 @@ export class Parser {
 
     if (paren) {
       this.expect(SyntaxKind.closeParen)
+    }
+
+    this.optional(SyntaxKind.semicolon_token)
+
+    return node
+  }
+
+  private parseUpdate(ctes?: CommonTableExpression[]) {
+
+    const node = <UpdateStatement>this.createAndMoveNext(this.token, SyntaxKind.update_statement)
+    node.assignments = []
+
+    if (this.optional(SyntaxKind.top_keyword)) {
+      // todo: this actually takes an expr... and some optional parens
+      node.top = this.expect(SyntaxKind.numeric_literal).value
+    }
+
+    node.target = this.parseIdentifier()
+
+    this.expect(SyntaxKind.set_keyword)
+    do {
+      const assignment = <Assignment>this.createNode(this.token, SyntaxKind.binary_expr)
+
+      assignment.target = this.parseIdentifier()
+      assignment.op = this.parseAssignmentOperation()
+      assignment.value = this.tryParseScalarExpression()
+
+      node.assignments.push(assignment)
+    } while (this.match(SyntaxKind.comma_token))
+
+    if (this.match(SyntaxKind.from_keyword)) {
+      node.from = this.parseFrom()
+    }
+
+    if (this.match(SyntaxKind.where_keyword)) {
+      node.where = this.parseWhere()
     }
 
     this.optional(SyntaxKind.semicolon_token)

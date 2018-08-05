@@ -124,7 +124,7 @@ function keyword(kind: SyntaxKind) {
 // okay so... I don't think the pretty printer can really share
 // the Visitor hierarchy
 export class PrintVisitor {
-  private level = 0
+  private level = 1
 
   // let the leaf nodes communicate with their parents
   // through this flag. When an enclosing paren is popped off.
@@ -169,7 +169,12 @@ export class PrintVisitor {
     switch (node.kind) {
       // mostly noise, skip for now
       case SyntaxKind.set_option_statement:
+        break
+
       case SyntaxKind.go_statement: {
+        this.push('(go')
+        this.inline_next_pop = true
+        this.pop()
         break
       }
 
@@ -204,7 +209,7 @@ export class PrintVisitor {
             this.printNode(e)
           })
         }
-        this.pop(')')
+        this.pop()
         break
       }
 
@@ -217,7 +222,7 @@ export class PrintVisitor {
         if (col.expression) {
           this.printNode(col.expression)
         } else {
-          this.inline_next_pop = true
+          // this.inline_next_pop = true
         }
 
         break
@@ -239,7 +244,7 @@ export class PrintVisitor {
         this.push('(drop ')
         this.write(keyword(drop.objectType.kind))
         this.write(formatIdentifier(drop.target))
-        this.inline_next_pop = true
+        // this.inline_next_pop = true
         this.pop()
         break
       }
@@ -265,7 +270,7 @@ export class PrintVisitor {
           this.write(' ' + col.nullability)
         }
 
-        this.inline_next_pop = true
+        // this.inline_next_pop = true
         this.pop()
         break
       }
@@ -363,18 +368,12 @@ export class PrintVisitor {
         break
       }
 
-
-
       case SyntaxKind.select_statement: {
         const select = <SelectStatement>node
         this.push('(select')
         this.push('(cols')
 
-        select.columns.forEach(c => {
-          this.push('(col ')
-          this.printNode(c)
-          this.pop()
-        })
+        this.printList(select.columns)
 
         this.pop()
 
@@ -509,7 +508,6 @@ export class PrintVisitor {
       case SyntaxKind.identifier_expr: {
         const ident = <IdentifierExpression>node
         this.write(formatIdentifier(ident.identifier))
-        this.inline_next_pop = true
         break
       }
 
@@ -523,7 +521,6 @@ export class PrintVisitor {
           this.write('' + literal.value)
         }
 
-        this.inline_next_pop = true
         break
       }
 
@@ -535,6 +532,7 @@ export class PrintVisitor {
         this.printNode(between.begin_expression)
         this.write(' ')
         this.printNode(between.end_expression)
+        this.inline_next_pop = true
         this.pop()
 
         break
@@ -546,6 +544,7 @@ export class PrintVisitor {
         this.printNode(like.left)
         this.write(' ')
         this.printNode(like.pattern)
+        this.inline_next_pop = true
         this.pop()
 
         break
@@ -558,6 +557,7 @@ export class PrintVisitor {
         this.printNode(in_expr.left)
         this.printList(in_expr.expressions)
         this.printNode(in_expr.subquery)
+        this.inline_next_pop = true
         this.pop()
         break
       }
@@ -623,7 +623,7 @@ export class PrintVisitor {
         this.printNode(cast.expr)
         this.write(' ')
         this.printNode(cast.type)
-        this.pop(')')
+        this.pop()
         break
       }
 

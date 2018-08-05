@@ -42,7 +42,9 @@ and s.foo not like 'asdf%'
 order by s.foo desc, s.bar asc
 
 go
--- update ex
--- set ex.foo /= 10 --divequals
--- from [SomeTable] as ex
--- where ex.bar <= @foo and ex.foo is null
+
+update ex
+set ex.foo /= 10,
+    ex.bar = ex.bar - 1
+from [SomeTable] as ex
+where ex.bar <= @foo and ex.foo is null
