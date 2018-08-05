@@ -166,7 +166,7 @@ async function processFile(path: string) {
       let i = 0
       for (const node of ex.nodes) {
         console.log('######################')
-        console.log('## Node: ' + i)
+        console.log('## Node: ' + i + ' ' + SyntaxKind[node.kind])
         console.log('######################')
 
         try {
