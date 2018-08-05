@@ -53,7 +53,10 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   const visitor = new PrintVisitor()
 
   for (const node of nodes) {
-    visitor.visit(node)
+    try {
+      visitor.visit(node)
+      // hack
+    } catch {}
   }
 }
 
@@ -306,10 +309,12 @@ export class PrintVisitor {
           this.pop()
         }
 
-        // always expect a block
-        this.push('(body')
-        this.printList(proc.body.statements)
-        this.pop()
+        // defensive.
+        if (proc.body) {
+          this.push('(body')
+          this.printList(proc.body.statements)
+          this.pop()
+        }
         this.pop()
         break
       }
