@@ -1634,6 +1634,8 @@ export class Parser {
 
     statement.target = this.parseIdentifier()
 
+    this.optional(SyntaxKind.semicolon_token)
+
     return statement
   }
 
