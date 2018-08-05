@@ -56,7 +56,7 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
     try {
       visitor.visit(node)
       // hack
-    } catch {}
+    } catch { }
   }
 }
 
@@ -126,10 +126,6 @@ function keyword(kind: SyntaxKind) {
 export class PrintVisitor {
   private level = 1
 
-  // let the leaf nodes communicate with their parents
-  // through this flag. When an enclosing paren is popped off.
-  private inline_next_pop = false
-
   private write(str: string, newline?: boolean) {
     if (newline) {
       const indent = spaces(this.level)
@@ -140,19 +136,15 @@ export class PrintVisitor {
   }
 
   private push(line: string) {
-    this.write(line, true)
     // increment level after writing.
-    this.level++
-
-    this.inline_next_pop = false
+    this.write(line, true)
+    return ++this.level
   }
 
-  private pop(line = ')') {
-    // decrease level first
-    // before writing
+  private pop(inline?: boolean) {
+    // decrease level before writing
     this.level--
-    this.write(line, !this.inline_next_pop)
-    this.inline_next_pop = false
+    this.write(')', !inline)
   }
 
   private printList(nodes: SyntaxNode[] | undefined) {
@@ -173,8 +165,7 @@ export class PrintVisitor {
 
       case SyntaxKind.go_statement: {
         this.push('(go')
-        this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
         break
       }
 
@@ -192,15 +183,15 @@ export class PrintVisitor {
 
       case SyntaxKind.print_statement: {
         const print = <PrintStatement>node
-        this.push('(print ')
+        const lvl = this.push('(print ')
         this.printNode(print.expression)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.execute_procedure_statement: {
         const exec = <ExecuteProcedureStatement>node
-        this.push('(exec ')
+        const lvl = this.push('(exec ')
         this.printNode(exec.procedure)
         if (exec.arguments) {
           this.write(' ')
@@ -209,20 +200,23 @@ export class PrintVisitor {
             this.printNode(e)
           })
         }
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.column_expr: {
         const col = <ColumnExpression>node
-        if (col.alias) {
-          this.write(col.alias.parts.join('.') + ' ')
-        }
+        const lvl = this.push('(col ')
 
-        if (col.expression) {
-          this.printNode(col.expression)
+        this.printNode(col.expression)
+
+        if (col.alias) {
+          this.push('(alias ')
+          this.printNode(col.alias)
+          this.pop(true)
+          this.pop()
         } else {
-          // this.inline_next_pop = true
+          this.pop(lvl === this.level)
         }
 
         break
@@ -230,7 +224,6 @@ export class PrintVisitor {
 
       case SyntaxKind.statement_block: {
         const block = <StatementBlock>node
-        // not sure this is necessary...
         this.push('(block ')
         this.printList(block.statements)
         this.pop()
@@ -244,8 +237,7 @@ export class PrintVisitor {
         this.push('(drop ')
         this.write(keyword(drop.objectType.kind))
         this.write(formatIdentifier(drop.target))
-        // this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
         break
       }
 
@@ -270,8 +262,7 @@ export class PrintVisitor {
           this.write(' ' + col.nullability)
         }
 
-        // this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
         break
       }
 
@@ -309,9 +300,7 @@ export class PrintVisitor {
         if (proc.arguments) {
           this.push('(args ')
           proc.arguments.forEach(a => this.printNode(a))
-          // always pops on a newline
-          this.inline_next_pop = false
-          this.pop()
+          this.pop(true)
         }
 
         // defensive.
@@ -399,9 +388,10 @@ export class PrintVisitor {
 
         for (let i = 0; i < sources.length; i++) {
           const element = sources[i]
-          this.push('(source ')
+          const lvl = this.push('(source ')
+
           this.printNode(element)
-          this.pop()
+          this.pop(lvl === this.level)
         }
 
         if (from.joins) {
@@ -451,7 +441,6 @@ export class PrintVisitor {
         this.push('(when ')
         this.printNode(when.when)
         this.push('(then ')
-
         this.printNode(when.then)
         this.pop()
         this.pop()
@@ -532,8 +521,7 @@ export class PrintVisitor {
         this.printNode(between.begin_expression)
         this.write(' ')
         this.printNode(between.end_expression)
-        this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
 
         break
       }
@@ -544,8 +532,7 @@ export class PrintVisitor {
         this.printNode(like.left)
         this.write(' ')
         this.printNode(like.pattern)
-        this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
 
         break
       }
@@ -557,42 +544,41 @@ export class PrintVisitor {
         this.printNode(in_expr.left)
         this.printList(in_expr.expressions)
         this.printNode(in_expr.subquery)
-        this.inline_next_pop = true
-        this.pop()
+        this.pop(true)
         break
       }
 
       case SyntaxKind.binary_expr: {
         const binary = <BinaryExpression>node
-        this.push('(' + ops[binary.op.kind] + ' ')
+        const lvl = this.push('(' + ops[binary.op.kind] + ' ')
         this.printNode(binary.left)
         this.write(' ')
         this.printNode(binary.right)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.bitwise_not_expr: {
         const unary = <BitwiseNotExpression>node
-        this.push('(~ ')
+        const lvl = this.push('(~ ')
         this.printNode(unary.expr)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.unary_minus_expr: {
         const unary = <UnaryMinusExpression>node
-        this.write('(- ')
+        const lvl = this.push('(- ')
         this.printNode(unary.expr)
-        this.write(')')
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.unary_plus_expr: {
         const unary = <UnaryPlusExpression>node
-        this.write('(+ ')
+        const lvl = this.push('(+ ')
         this.printNode(unary.expr)
-        this.write(')')
+        this.pop(lvl === this.level)
         break
       }
 
@@ -606,24 +592,25 @@ export class PrintVisitor {
 
       case SyntaxKind.function_call_expr: {
         const call = <FunctionCallExpression>node
-        this.write('(call ' + call.name.parts.join('.'))
+        const lvl = this.push('(call ' + call.name.parts.join('.'))
         if (call.arguments) {
           call.arguments.forEach(e => {
             this.write(' ')
             this.printNode(e)
           })
         }
-        this.pop()
+
+        this.pop(lvl === this.level)
         break
       }
 
       case SyntaxKind.cast_expr: {
         const cast = <CastExpression>node
-        this.push('(cast ')
+        const lvl = this.push('(cast ')
         this.printNode(cast.expr)
         this.write(' ')
         this.printNode(cast.type)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
@@ -633,9 +620,9 @@ export class PrintVisitor {
           ? 'set'
           : ops[set.op.kind]
 
-        this.push(`(${op} ${set.name} `)
+        const lvl = this.push(`(${op} ${set.name} `)
         this.printNode(set.expression)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
@@ -707,14 +694,17 @@ export class PrintVisitor {
         this.printNode(insert.target)
 
         if (insert.values) {
+          const lvl = this.level
           insert.values.forEach(v => {
+            this.write(' ')
             this.printNode(v)
           })
+
+          this.pop(lvl === this.level)
         } else {
           this.printNode(insert.select)
+          this.pop()
         }
-
-        this.pop()
 
         break
       }

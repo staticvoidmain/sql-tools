@@ -28,7 +28,6 @@ import {
   XorEqualsOperator,
   EqualsOperator,
   ValueExpression,
-  ColumnNode,
   Expr,
   BinaryExpression,
   LiteralExpression,
@@ -577,8 +576,8 @@ export class Parser {
     return cols
   }
 
-  private parseColumnList(): Array<ColumnNode> {
-    const columns: Array<ColumnNode> = []
+  private parseColumnList(): Array<ColumnExpression> {
+    const columns: Array<ColumnExpression> = []
     do {
       const start = this.token
       const expr = this.tryParseScalarExpression()

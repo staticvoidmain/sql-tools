@@ -41,8 +41,6 @@ export interface Identifier extends SyntaxNode {
   parts: string[]
 }
 
-export type ColumnNode = ColumnExpression | IdentifierExpression
-
 // todo: these might not matter... since createNode makes it with the token kind baked in...
 export interface PlusOperator extends SyntaxNode { kind: SyntaxKind.plus_token }
 export interface MinusOperator extends SyntaxNode { kind: SyntaxKind.minus_token }
@@ -503,7 +501,7 @@ export interface HasCommonTableExpressions extends SyntaxNode {
 export interface SelectStatement extends HasCommonTableExpressions {
   top: any
   qualifier: 'all' | 'distinct'
-  columns: Array<ColumnNode>
+  columns: Array<ColumnExpression>
   from?: FromClause
   into?: IntoClause
   where?: WhereClause
