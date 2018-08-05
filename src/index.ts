@@ -1,5 +1,5 @@
 
-import { printNodes } from './print_visitor'
+import { printNodes, PrintVisitor } from './print_visitor'
 import { Parser, ParserException } from './parser'
 
 import { promisify } from 'util'
@@ -161,6 +161,25 @@ async function processFile(path: string) {
       const ex = <ParserException>e
       console.log(ex.message)
       console.log('AST backtrace:')
+
+      const visitor = new PrintVisitor()
+      let i = 0
+      for (const node of ex.nodes) {
+        console.log('######################')
+        console.log('## Node: ' + i)
+        console.log('######################')
+
+        try {
+          visitor.visit(node)
+          // hack
+        } catch { }
+        console.log('######################')
+        console.log('\n\n')
+
+        i++
+      }
+
+
       printNodes(ex.nodes)
     }
     else console.log(e)

@@ -49,14 +49,16 @@ import {
   LikeExpression
 } from './ast'
 
+/**
+ * Convenience function which constructs a new PrintVisitor and visits all the nodes
+ * in a list, formatting them recursively.
+ * @param nodes list of nodes to pretty print
+ */
 export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   const visitor = new PrintVisitor()
 
   for (const node of nodes) {
-    try {
-      visitor.visit(node)
-      // hack
-    } catch { }
+    visitor.visit(node)
   }
 }
 
@@ -330,13 +332,14 @@ export class PrintVisitor {
 
         this.push('(if ')
         this.printNode(_if.predicate)
-        this.push('(then')
+        const then_level = this.push('(then')
         this.printNode(_if.then)
-        this.pop()
+        this.pop(then_level === this.level)
+
         if (_if.else) {
-          this.push('(else ')
+          const else_level = this.push('(else ')
           this.printNode(_if.else)
-          this.pop()
+          this.pop(else_level === this.level)
         }
         this.pop()
         break
@@ -438,12 +441,12 @@ export class PrintVisitor {
 
       case SyntaxKind.when_expr: {
         const when = <WhenExpression>node
-        this.push('(when ')
+        const when_level = this.push('(when ')
         this.printNode(when.when)
-        this.push('(then ')
+        const then_level = this.push('(then ')
         this.printNode(when.then)
-        this.pop()
-        this.pop()
+        this.pop(then_level === this.level)
+        this.pop(when_level === this.level)
         break
       }
 
@@ -456,9 +459,9 @@ export class PrintVisitor {
         searched.cases.forEach((n) => this.printNode(n))
 
         if (searched.else) {
-          this.push('(else ')
+          const else_level = this.push('(else ')
           this.printNode(searched.else)
-          this.pop()
+          this.pop(else_level === this.level)
         }
 
         this.pop()

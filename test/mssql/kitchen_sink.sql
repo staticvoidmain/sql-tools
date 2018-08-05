@@ -10,9 +10,16 @@ set @foo *= -1
 
 -- sp_helptext dbo.object_name_here
 print 'cast expressions'
-select isnull(cast([foo]as int),-1) as bar
+select isnull(cast([foo]as varchar(10)), ' ') as bar
 from something
 
+print 'funky case/cast stuff'
+
+select
+  cast(case when someFlag = 1 then 1
+            when someFlag = 0 then 0
+            else null
+          end as smallint) as flag
 
 print 'exec proc'
 exec asdf.do_foo 'bar', 1, @b
