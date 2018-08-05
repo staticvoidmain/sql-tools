@@ -127,6 +127,7 @@ async function processFile(path: string) {
   const text = bufferToString(buff)
 
   const parser = new Parser(text, {
+    debug: true,
     skipTrivia: true,
     path: path,
     features: getFlagsForEdition(edition, '2016'), // hack: fix this later
@@ -158,7 +159,9 @@ async function processFile(path: string) {
     fail++
     if (e instanceof ParserException) {
       const ex = <ParserException>e
-      console.log(ex.innerException.message)
+      console.log(ex.message)
+      console.log('AST backtrace:')
+      printNodes(ex.statements)
     }
     else console.log(e)
   }

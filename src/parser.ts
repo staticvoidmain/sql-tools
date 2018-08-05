@@ -203,9 +203,9 @@ function isConvert(ident: Identifier) {
 // wrapper with the current parser state
 export class ParserException extends Error {
   constructor(
-    public innerException: any,
+    public message: string,
     public statements: Statement[]) {
-    super(innerException)
+    super()
   }
 }
 
@@ -218,8 +218,8 @@ export class Parser {
   private debugNodeList: Array<SyntaxNode> = []
 
   // todo: capture trivia
-  private leadingTriviaBuffer: Array<Token> = []
-  private trailingTriviaBuffer: Array<Token> = []
+  // private leadingTriviaBuffer: Array<Token> = []
+  // private trailingTriviaBuffer: Array<Token> = []
   private keywords: Array<Token> = []
 
   constructor(script: string, info: ParserOptions = {}) {
@@ -235,8 +235,6 @@ export class Parser {
 
     const exprs = this.tryParseCommonTableExpressions()
 
-    // todo: for easier debugging only capture the "NEXT" statement
-    // instead of ALL the nodes?
     switch (this.token.kind) {
       case SyntaxKind.EOF:
         return undefined
@@ -424,7 +422,10 @@ export class Parser {
         message: message
       })
     } else {
-      throw new Error(`${this.options.path} (${line + 1}, ${col + 1}) ${message} \n${text}`)
+
+      throw new ParserException(
+        `${this.options.path} (${line + 1}, ${col + 1}) ${message} \n${text}`,
+        this.debugNodeList)
     }
   }
 
@@ -746,8 +747,10 @@ export class Parser {
       kind: kind || token.kind
     }
 
-    if (this.options.debug) {
-      this.debugNodeList.push(node)
+    if (this.options.debug && kind) {
+      if (isStatementKind(kind)) {
+        this.debugNodeList.push(node)
+      }
     }
 
     return node
@@ -1628,7 +1631,7 @@ export class Parser {
         const not = this.optional(SyntaxKind.not_keyword)
 
         this.expect(SyntaxKind.exists_keyword)
-        // todo: flags for "if exists"
+        statement.if = not ? 'not-exists' : 'exists'
       }
     }
 
@@ -1937,14 +1940,9 @@ export class Parser {
     const statements: Array<SyntaxNode> = []
 
     this.moveNext()
-
-    try {
-      let node = undefined
-      while (node = this.parseStatement()) {
-        statements.push(node)
-      }
-    } catch (e) {
-      throw new ParserException(e, statements)
+    let node = undefined
+    while (node = this.parseStatement()) {
+      statements.push(node)
     }
 
     // todo: error recovery?

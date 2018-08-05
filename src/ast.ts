@@ -518,6 +518,7 @@ export interface DefineLabelStatement extends SyntaxNode {
 export interface DropStatement extends SyntaxNode {
   objectType: Token
   target: Identifier
+  if?: 'exists' | 'not-exists'
 }
 
 export enum ExecuteStatementFlags {
