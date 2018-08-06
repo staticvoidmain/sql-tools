@@ -46,7 +46,8 @@ import {
   InsertStatement,
   InExpression,
   BetweenExpression,
-  LikeExpression
+  LikeExpression,
+  JoinType
 } from './ast'
 
 /**
@@ -120,6 +121,28 @@ function keyword(kind: SyntaxKind) {
       return 'function'
     default:
       return 'unknown'
+  }
+}
+
+function getJoinName(node: JoinedTable) {
+  switch (node.type) {
+    case JoinType.left:
+      return '(join left '
+
+    case JoinType.right:
+      return '(join right '
+
+    case JoinType.full:
+      return '(join full '
+
+    case JoinType.implicit_inner:
+      return '(join implicit-inner '
+
+    case JoinType.explicit_inner:
+      return '(join inner '
+
+    default:
+      return '(join ' // unreachable?
   }
 }
 
@@ -420,7 +443,8 @@ export class PrintVisitor {
 
       case SyntaxKind.joined_table: {
         const join = <JoinedTable>node
-        this.push('(join ')
+
+        this.push(getJoinName(join))
 
         this.printNode(join.source)
 

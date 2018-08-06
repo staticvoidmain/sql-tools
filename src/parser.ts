@@ -229,6 +229,10 @@ export class Parser {
     this.scanner = new Scanner(script, this.options)
   }
 
+  debug() {
+    return SyntaxKind[this.token.kind]
+  }
+
   /**
    * Try to parse the next statement in the list, return undefined if we
    * don't find the start of a valid statement.
@@ -1034,8 +1038,13 @@ export class Parser {
   }
 
   // advances to next token
-  private createSinglePartIdentifier(token: Token) {
-    const ident = <Identifier>this.createAndMoveNext(token, SyntaxKind.identifier)
+  private createSinglePartIdentifier(token: Token, moveNext?: boolean) {
+    const ident = <Identifier>this.createNode(token, SyntaxKind.identifier)
+
+    if (moveNext) {
+      this.moveNext()
+    }
+
     ident.parts = [
       token.value
     ]
@@ -1045,7 +1054,7 @@ export class Parser {
   private parseIdentifier(): Identifier {
     this.assertKind(SyntaxKind.identifier)
 
-    const ident = this.createSinglePartIdentifier(this.token)
+    const ident = this.createSinglePartIdentifier(this.token, true)
 
     while (this.optional(SyntaxKind.dot_token)) {
       if (this.optional(SyntaxKind.mul_token)) {
@@ -1115,6 +1124,10 @@ export class Parser {
 
       return
     }
+
+    if (isLiteral(this.token)) {
+      return this.parseLiteralExpression()
+    }
   }
 
   private parseLiteralExpression() {
@@ -1157,10 +1170,6 @@ export class Parser {
       return unary
     }
 
-    if (isLiteral(this.token)) {
-      return this.parseLiteralExpression()
-    }
-
     // right now it jumps all the
     // way back up the precedence hierarchy.
     if (this.match(SyntaxKind.openParen)) {
@@ -1177,11 +1186,17 @@ export class Parser {
       // todo: this is really only legal in a few places...
       // select, group by, order by, having
       // maybe set a flag...
-      const ident = this.createSinglePartIdentifier(this.token)
+      const ident = this.createSinglePartIdentifier(this.token, true)
       const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
       ident.parts[0] = '*'
       expr.identifier = ident
 
+      return expr
+    }
+
+    if (this.match(SyntaxKind.select_keyword)) {
+      const expr = <SelectExpression>this.createNode(start, SyntaxKind.select_expr)
+      expr.select = this.parseSelect()
       return expr
     }
 
@@ -1193,9 +1208,11 @@ export class Parser {
     if (this.match(SyntaxKind.identifier)) {
       ident = this.parseIdentifier()
     }
-
-    if (isLegalFunctionName(this.token.kind)) {
+    else if (isLegalFunctionName(this.token.kind)) {
       ident = this.createSinglePartIdentifier(this.token)
+
+      // or it's a bug! illegal identifierrrr
+      this.assertKind(SyntaxKind.openParen)
     }
 
     if (ident) {
@@ -1210,8 +1227,16 @@ export class Parser {
         // syntax analyzer, parse it separately
       }
 
-      // some other general func with arguments
-      if (this.match(SyntaxKind.openParen)) {
+      if (!this.match(SyntaxKind.openParen)) {
+        // just a standalone ident expr
+        const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
+        expr.identifier = ident
+        expr.end = ident.end
+        // parseIdentifier should have already moved next
+        // so this guy doesn't need to?
+        return expr
+      } else {
+        // some other general func with arguments
         const expr = <FunctionCallExpression>this.createAndMoveNext(start, SyntaxKind.function_call_expr)
         expr.arguments = []
         expr.name = ident
@@ -1253,21 +1278,7 @@ export class Parser {
         }
 
         return expr
-      } else {
-        // just a standalone ident expr
-        const expr = <IdentifierExpression>this.createNode(start, SyntaxKind.identifier_expr)
-        expr.identifier = ident
-        expr.end = ident.end
-        // parseIdentifier should have already moved next
-        // so this guy doesn't need to?
-        return expr
       }
-    }
-
-    if (this.match(SyntaxKind.select_keyword)) {
-      const expr = <SelectExpression>this.createNode(start, SyntaxKind.select_expr)
-      expr.select = this.parseSelect()
-      return expr
     }
 
     this.error(SyntaxKind[this.token.kind] + ' cannot start an expr')
@@ -1828,23 +1839,23 @@ export class Parser {
       // todo: cross join
 
       if (this.match(SyntaxKind.full_keyword)) {
-        join.kind |= JoinType.full
+        join.type = JoinType.full
         this.moveNext()
         this.assertKind(SyntaxKind.join_keyword)
       }
       else if (isLeft || isRight) {
-        join.kind |= isLeft ? JoinType.left : JoinType.right
+        join.type = isLeft ? JoinType.left : JoinType.right
 
         this.moveNext()
         this.optional(SyntaxKind.outer_keyword)
 
         this.assertKind(SyntaxKind.join_keyword)
       } else if (this.optional(SyntaxKind.inner_keyword)) {
-        join.type |= JoinType.explicit_inner
+        join.type = JoinType.explicit_inner
 
         this.assertKind(SyntaxKind.join_keyword)
       } else if (this.match(SyntaxKind.join_keyword)) {
-        join.type |= JoinType.implicit_inner
+        join.type = JoinType.implicit_inner
       } else {
         // no joins, done parsing 'from'
         break

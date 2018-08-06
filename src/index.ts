@@ -160,7 +160,7 @@ async function processFile(path: string) {
     if (e instanceof ParserException) {
       const ex = <ParserException>e
       console.log(ex.message)
-      console.log('AST backtrace:')
+      console.log('AST trace:')
 
       const visitor = new PrintVisitor()
       let i = 0
@@ -171,7 +171,6 @@ async function processFile(path: string) {
 
         try {
           visitor.visit(node)
-          // hack
         } catch { }
         console.log('\n######################')
         console.log('\n\n')

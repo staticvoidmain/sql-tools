@@ -716,8 +716,7 @@ export class Scanner {
       case Chars.newline:
       case Chars.tab:
       case Chars.space: {
-        this.consumeWhitespace()
-        this.pos--
+        this.pos = peek_pos - 1
         kind = SyntaxKind.whitespace
         break
       }

@@ -29,6 +29,7 @@ and provide a sql linter / analyzer / code fix provider. Maybe as a SQL Ops stud
   - [ ] like 100 more dropppable objects
 - [x] in / exists / like / not
 - [ ] any / all / some (50%)
+- [ ] Common Table Expressions (50%)
 - [x] AST pretty-printer
 - [x] example linter / analyzer with some decent starter rules
 - [ ] fulltext search

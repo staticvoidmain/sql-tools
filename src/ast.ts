@@ -356,8 +356,7 @@ export enum JoinType {
   right,
   full,
   explicit_inner,
-  implicit_inner,
-  cross
+  implicit_inner
 }
 
 export interface JoinedTable extends SyntaxNode {
