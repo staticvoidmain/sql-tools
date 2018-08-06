@@ -1723,7 +1723,6 @@ export class Parser {
       node.from = this.parseFrom()
     }
 
-    // odd: where can actually be included without a from
     if (this.match(SyntaxKind.where_keyword)) {
       node.where = this.parseWhere()
     }
@@ -1732,12 +1731,12 @@ export class Parser {
       node.group_by = this.parseGroupBy()
     }
 
-    if (this.match(SyntaxKind.order_keyword)) {
-      node.order_by = this.parseOrderBy()
+    if (this.match(SyntaxKind.having_keyword)) {
+      node.having = this.parseHaving()
     }
 
-    if (this.match(SyntaxKind.having_clause)) {
-      node.having = this.parseHaving()
+    if (this.match(SyntaxKind.order_keyword)) {
+      node.order_by = this.parseOrderBy()
     }
 
     // todo: full-text index support
@@ -1918,7 +1917,7 @@ export class Parser {
   private parseGroupBy() {
     this.assertKind(SyntaxKind.group_keyword)
 
-    const groupBy = <GroupByClause>this.createAndMoveNext(this.token, SyntaxKind.order_by_clause)
+    const groupBy = <GroupByClause>this.createAndMoveNext(this.token, SyntaxKind.group_by_clause)
     groupBy.grouping = []
     this.expect(SyntaxKind.by_keyword)
 
@@ -1947,7 +1946,7 @@ export class Parser {
     this.expect(SyntaxKind.by_keyword)
 
     do {
-      const orderExpr = <OrderExpression>this.createNode(this.token)
+      const orderExpr = <OrderExpression>this.createNode(this.token, SyntaxKind.order_expr)
       orderExpr.expr = this.tryParseScalarExpression()
 
       const asc = this.match(SyntaxKind.asc_keyword)

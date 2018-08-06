@@ -47,7 +47,11 @@ import {
   InExpression,
   BetweenExpression,
   LikeExpression,
-  JoinType
+  JoinType,
+  GroupByClause,
+  OrderByClause,
+  OrderExpression,
+  HavingClause
 } from './ast'
 
 /**
@@ -393,20 +397,17 @@ export class PrintVisitor {
         this.pop()
 
         // emit these on the same level as cols
-        if (select.from) {
-          this.printNode(select.from)
-        }
-
-        if (select.where) {
-          this.printNode(select.where)
-        }
+        this.printNode(select.from)
+        this.printNode(select.where)
+        this.printNode(select.group_by)
+        this.printNode(select.having)
+        this.printNode(select.order_by)
 
         this.pop()
         break
       }
 
       case SyntaxKind.from_clause: {
-        // todo: recurse, there are other types
         const from = <FromClause>node
         const sources = <TableLikeDataSource[]>from.sources
 
@@ -459,6 +460,39 @@ export class PrintVisitor {
         const where = <WhereClause>node
         this.push('(where ')
         this.printNode(where.predicate)
+        this.pop()
+        break
+      }
+
+      case SyntaxKind.group_by_clause: {
+        const group = <GroupByClause>node
+        const lvl = this.push('(group-by ')
+        this.printList(group.grouping)
+        this.pop(lvl === this.level)
+
+        break
+      }
+
+      case SyntaxKind.order_by_clause: {
+        const order = <OrderByClause>node
+        const lvl = this.push('(order-by ')
+        this.printList(order.orderings)
+        this.pop(lvl === this.level)
+        break
+      }
+
+      case SyntaxKind.order_expr: {
+        const expr = <OrderExpression>node
+        const lvl = this.push('(' + expr.direction + ' ')
+        this.printNode(expr.expr)
+        this.pop(lvl === this.level)
+        break
+      }
+
+      case SyntaxKind.having_clause: {
+        const having = <HavingClause>node
+        this.push('(having')
+        this.printNode(having.predicate)
         this.pop()
         break
       }

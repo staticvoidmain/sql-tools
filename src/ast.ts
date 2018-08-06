@@ -374,6 +374,7 @@ export interface PartitionByClause extends SyntaxNode {
 }
 
 export interface OrderExpression extends Expr {
+  kind: SyntaxKind.order_expr
   expr: Expr
   direction: 'asc' | 'desc' | undefined
 }

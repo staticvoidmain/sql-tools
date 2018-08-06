@@ -47,6 +47,7 @@ left join dbo.table_valued_func(@foo) as e
 where s.number in (1, 2, 3)
 and s.foo not like 'asdf%'
 group by s.foo
+having count(*) = 1
 order by s.foo desc, s.bar asc
 
 --go

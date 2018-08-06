@@ -274,6 +274,7 @@ export enum SyntaxKind {
   unary_minus_expr,
   unary_plus_expr,
   when_expr,
+  order_expr,
 
   // ============
   //  statements

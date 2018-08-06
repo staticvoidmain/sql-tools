@@ -98,6 +98,7 @@ describe('Parser', () => {
     const path = './test/mssql/kitchen_sink.sql'
     const file = readFileSync(path, 'utf8')
     const parser = new Parser(file, {
+      debug: true,
       path: path
     })
 

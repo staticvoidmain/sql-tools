@@ -251,6 +251,10 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.group_by_clause: { break }
+      case SyntaxKind.order_by_clause: { break }
+      case SyntaxKind.having_clause: { break }
+
       case SyntaxKind.when_expr: {
         const when = <WhenExpression>node
         this.visitWhen(when)
