@@ -275,7 +275,7 @@ export enum SyntaxKind {
   unary_plus_expr,
   when_expr,
   order_expr,
-
+  common_table_expr,
   // ============
   //  statements
   // ============
@@ -337,5 +337,9 @@ export enum SyntaxKind {
   table_alias,
   table_variable_decl,
   where_clause,
-  // todo: all kinds of kinds
+  column_change,
+  add_column,
+  // todo: better names?
+  alter_table_drop_column,
+  alter_table_drop_constraint
 }

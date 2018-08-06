@@ -615,9 +615,24 @@ export interface CreateTableAsSelectStatement extends SyntaxNode {
   definition: SelectStatement
 }
 
+// https://docs.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-2017
+export interface ColumnChange extends SyntaxNode {
+  name: Identifier
+  new_type?: DataType
+  new_nullability?: 'null' | 'not-null'
+  // columnConstraints?: ColumnConstraint[]
+  new_collation?: CollateNode
+  default?: Expr
+
+  // todo: add flags, persisted, not for replication, etc
+}
+
 // alter table, view
 export interface AlterTableStatement extends SyntaxNode {
   object: Identifier
+
+  alter_column?: ColumnChange
+  // todo: drops, adds
 }
 
 export interface AlterFunctionStatement extends SyntaxNode {

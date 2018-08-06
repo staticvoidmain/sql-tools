@@ -364,14 +364,19 @@ function hasLeadingPrefix(pattern: string) {
   return /^[^_\[%]+/.test(pattern)
 }
 
+/* internal */
 type Span =
   | SyntaxNode
   | Token
 
+export enum Level {
+  info,
+  warning,
+  error
+}
+
 class ExampleLintVisitor extends Visitor {
-  // todo: respect severity,
-  // probably an enum to number kind of thing to set the min level
-  constructor(private parser: Parser, private severity: string) {
+  constructor(private parser: Parser, private severity: Level) {
     super()
   }
 
@@ -380,11 +385,15 @@ class ExampleLintVisitor extends Visitor {
    * node to provide more clarity
    */
   private warning(message: string, node: Span, underlineNode = node, category = ' ') {
-    this.emit(message, node, underlineNode, 'warning', category)
+    if (this.severity <= Level.warning) {
+      this.emit(message, node, underlineNode, 'warning', category)
+    }
   }
 
   private info(message: string, node: Span, underlineNode = node, category = ' ') {
-    this.emit(message, node, underlineNode, 'info', category)
+    if (this.severity === Level.info) {
+      this.emit(message, node, underlineNode, 'info', category)
+    }
   }
 
   private emit(message: string, node: Span, underlineNode = node, severity = 'warning', category = ' ') {
@@ -455,7 +464,7 @@ class ExampleLintVisitor extends Visitor {
 
   visitColumnExpression(node: ColumnExpression) {
     if (node.style === 'alias_equals_expr') {
-      this.warning('"alias = expression" syntax is deprecated, use "expression as alias" instead.', node)
+      this.info('"alias = expression" syntax is deprecated, use "expression as alias" instead.', node)
     }
   }
 

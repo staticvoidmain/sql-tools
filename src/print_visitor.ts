@@ -51,7 +51,8 @@ import {
   GroupByClause,
   OrderByClause,
   OrderExpression,
-  HavingClause
+  HavingClause,
+  CommonTableExpression
 } from './ast'
 
 /**
@@ -387,6 +388,15 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.common_table_expr: {
+        const cte = <CommonTableExpression>node
+        this.push('(cte ')
+        this.printList(cte.columns)
+        this.printNode(cte.definition)
+        this.pop()
+        break
+      }
+
       case SyntaxKind.select_statement: {
         const select = <SelectStatement>node
         this.push('(select')
@@ -397,6 +407,7 @@ export class PrintVisitor {
         this.pop()
 
         // emit these on the same level as cols
+        this.printList(select.ctes)
         this.printNode(select.from)
         this.printNode(select.where)
         this.printNode(select.group_by)

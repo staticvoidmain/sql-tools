@@ -92,7 +92,9 @@ import {
   ExistsExpression,
   CommonTableExpression,
   UpdateStatement,
-  Assignment
+  Assignment,
+  AlterTableStatement,
+  ColumnChange
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -997,10 +999,16 @@ export class Parser {
       exprs = []
 
       do {
-        const expr: any = {}
+        const expr = <CommonTableExpression>this.createNode(this.token, SyntaxKind.common_table_expr)
         expr.name = this.parseIdentifier()
         if (this.optional(SyntaxKind.openParen)) {
-          expr.cols = this.parseColumnList()
+          expr.columns = []
+
+          do {
+            expr.columns.push(this.createSinglePartIdentifier(this.token, true))
+          }
+          while (this.optional(SyntaxKind.comma_token))
+
           this.expect(SyntaxKind.openParen)
         }
         this.expect(SyntaxKind.as_keyword)
@@ -1626,7 +1634,39 @@ export class Parser {
   }
 
   private parseAlterStatement(): AlterStatement {
-    this.error('"Alter" not implemented')
+    const start = this.token
+    this.assertKind(SyntaxKind.alter_keyword)
+
+    this.moveNext()
+
+    if (this.match(SyntaxKind.table_keyword)) {
+      const alterTable = <AlterTableStatement>this.createAndMoveNext(start, SyntaxKind.alter_table_statement)
+
+      alterTable.object = this.parseIdentifier()
+
+      if (this.match(SyntaxKind.alter_keyword)) {
+        const change = alterTable.alter_column = <ColumnChange>this.createAndMoveNext(this.token, SyntaxKind.column_change)
+
+        this.expect(SyntaxKind.column_keyword)
+
+        change.name = this.parseIdentifier()
+
+        // hack: assume alter column always has a type
+        change.new_type = this.parseType()
+        change.new_collation = this.tryParseCollation()
+
+        const not = this.optional(SyntaxKind.not_keyword)
+
+        if (this.optional(SyntaxKind.null_keyword)) {
+          change.new_nullability = not ? 'not-null' : 'null'
+        }
+      }
+
+      this.optional(SyntaxKind.semicolon_token)
+
+      return alterTable
+    }
+
     return <AlterStatement>this.createNode(this.token)
   }
 
@@ -1701,6 +1741,7 @@ export class Parser {
 
     const paren = this.optional(SyntaxKind.openParen)
     const node = <SelectStatement>this.createAndMoveNext(this.token, SyntaxKind.select_statement)
+    node.ctes = ctes
 
     if (this.optional(SyntaxKind.top_keyword)) {
       node.top = this.expect(SyntaxKind.numeric_literal).value
@@ -1954,6 +1995,8 @@ export class Parser {
       if (asc || desc) {
         orderExpr.direction = asc ? 'asc' : 'desc'
         this.moveNext()
+      } else {
+        orderExpr.direction = 'asc'
       }
 
       orderBy.orderings.push(orderExpr)

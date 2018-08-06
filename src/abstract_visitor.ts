@@ -41,7 +41,12 @@ import {
   SetOptionStatement,
   LikeExpression,
   BetweenExpression,
-  InExpression
+  InExpression,
+  CreateTableAsSelectStatement,
+  GroupByClause,
+  OrderByClause,
+  OrderExpression,
+  HavingClause
 } from './ast'
 
 import { Token } from './scanner'
@@ -61,12 +66,15 @@ export abstract class Visitor {
   visitCreateProcedure(node: CreateProcedureStatement): void { }
   visitCreateTable(node: CreateTableStatement): void { }
   visitCreateView(node: CreateViewStatement): void { }
+  visitCtas(node: CreateTableAsSelectStatement): void {  }
   visitDataSource(node: TableLikeDataSource): void { }
   visitDataType(node: DataType): void { }
   visitDeclareLocals(node: DeclareStatement): void { }
   visitDeclareTableVariable(node: DeclareStatement): void { }
   visitDrop(node: DropStatement): void { }
   visitFrom(node: FromClause): void { }
+  visitGroupBy(node: GroupByClause): void {  }
+  visitHaving(node: HavingClause): void {  }
   visitIdentifier(node: Identifier): void { }
   visitIdentifierExpression(node: IdentifierExpression): void { }
   visitIf(node: IfStatement): void { }
@@ -77,6 +85,8 @@ export abstract class Visitor {
   visitLike(node: LikeExpression): void { }
   visitLiteralExpression(node: LiteralExpression): void { }
   visitNullTest(node: IsNullTestExpression): void { }
+  visitOrderBy(node: OrderByClause): void {  }
+  visitOrderExpression(node: OrderExpression): void {  }
   visitParenExpression(node: ParenExpression): void { }
   visitPrint(print: PrintStatement): void { }
   visitScalar(node: VariableDeclaration): void { }
@@ -163,6 +173,14 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.create_table_as_select_statement: {
+        const table = <CreateTableAsSelectStatement>node
+        this.visitCtas(table)
+        this.visit(table.name)
+        this.visit(table.definition)
+        break
+      }
+
       case SyntaxKind.create_view_statement: {
         const view = <CreateViewStatement>node
         this.visitCreateView(view)
@@ -211,6 +229,9 @@ export abstract class Visitor {
 
         this.visit(select.from)
         this.visit(select.where)
+        this.visit(select.group_by)
+        this.visit(select.having)
+        this.visit(select.order_by)
 
         break
       }
@@ -251,9 +272,34 @@ export abstract class Visitor {
         break
       }
 
-      case SyntaxKind.group_by_clause: { break }
-      case SyntaxKind.order_by_clause: { break }
-      case SyntaxKind.having_clause: { break }
+      case SyntaxKind.group_by_clause: {
+        const group = <GroupByClause>node
+
+        this.visitGroupBy(group)
+        this.visit_each(group.grouping)
+        break
+      }
+
+      case SyntaxKind.order_by_clause: {
+        const order = <OrderByClause>node
+        this.visitOrderBy(order)
+        this.visit_each(order.orderings)
+        break
+      }
+
+      case SyntaxKind.order_expr: {
+        const expr = <OrderExpression>node
+        this.visitOrderExpression(expr)
+        this.visit(expr.expr)
+        break
+      }
+
+      case SyntaxKind.having_clause: {
+        const having = <HavingClause>node
+        this.visitHaving(having)
+        this.visit(having.predicate)
+        break
+      }
 
       case SyntaxKind.when_expr: {
         const when = <WhenExpression>node
