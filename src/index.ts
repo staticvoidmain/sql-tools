@@ -43,10 +43,12 @@ yargs
       describe: 'the file or directory to lint',
       default: '.\*.sql'
     })
-    .option('rules', {
-      description: 'the ruleset to analyze',
-      default: 'default.yaml'
-    })
+      .option('severity', {
+        alias: 'sev',
+        description: 'the minimum severity to report',
+        default: 'warning',
+        choices: ['info', 'warning', 'error']
+      })
   }, (a: yargs.Arguments) => {
     // do stuff with the sub-command
     run('lint', a)
@@ -148,15 +150,17 @@ async function processFile(path: string, op: string, args: yargs.Arguments) {
     }
 
     if (op === 'lint') {
-      const visitor = new ExampleLintVisitor(parser)
+      const visitor = new ExampleLintVisitor(parser, args.severity)
 
       for (const node of tree) {
         visitor.visit(node)
       }
 
-      // do some casing stuff
-      for (const key of parser.getKeywords()) {
-        visitor.visitKeyword(key)
+      if (args.severity === 'info') {
+        // do some casing stuff
+        for (const key of parser.getKeywords()) {
+          visitor.visitKeyword(key)
+        }
       }
     }
   }
@@ -364,7 +368,9 @@ type Span =
   | Token
 
 class ExampleLintVisitor extends Visitor {
-  constructor(private parser: Parser) {
+  // todo: respect severity,
+  // probably an enum to number kind of thing to set the min level
+  constructor(private parser: Parser, private severity: string) {
     super()
   }
 
