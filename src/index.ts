@@ -17,7 +17,7 @@ import {
 
 import * as yargs from 'yargs'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression, Identifier } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -239,6 +239,7 @@ function isNullLiteral(node: SyntaxNode) {
   return false
 }
 
+// support is null and is not null?
 function isComparison(op: BinaryOperator) {
   switch (op.kind) {
     case SyntaxKind.equal:
@@ -475,7 +476,10 @@ class ExampleLintVisitor extends Visitor {
       this.warning('null literal used in comparison, use "is null" or "is not null" instead', node, node.op)
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
-        // todo: full on SAT solver, let's go crazy and prove some shit
+
+        // todo: people do like their 1=1 nonsense, give that a pass.
+        // todo: link to a full on SAT solver
+        // let's go crazy and add some unreachable code detection
         this.warning('value compared with itself, result will always be constant', node)
       }
     }
@@ -507,5 +511,12 @@ class ExampleLintVisitor extends Visitor {
         break
       }
     }
+  }
+
+  visitIdentifier(ident: Identifier) {
+    // todo: validate identifier case rules
+    // todo: unncessary quoted identifier
+    // todo: hungarian notation
+    // todo: spellchecker??
   }
 }

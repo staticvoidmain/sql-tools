@@ -26,9 +26,10 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
+        "print",
         "C:/datadev/SQL/APS/ODS/ODS DB/Procedures/*.dsql",
-        "--print",
-        "parallel-data-warehouse"
+        "--edition=parallel-data-warehouse",
+        "--verbose"
       ],
       "cwd": "${workspaceFolder}"
     }

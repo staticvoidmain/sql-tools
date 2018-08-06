@@ -8,8 +8,8 @@
   },
   "scripts": {
     "test": "mocha ./dist/test",
-    "lint": "node ./dist/src/index.js ./test/mssql/select_with_join.sql --lint",
-    "print": "node ./dist/src/index.js ./test/mssql/kitchen_sink.sql --print"
+    "lint": "node ./dist/src/index.js lint ./test/mssql/select_with_join.sql --verbose --severity=info",
+    "print": "node ./dist/src/index.js print ./test/mssql/kitchen_sink.sql --verbose"
   },
   "devDependencies": {
     "@types/chai": "^4.1.4",

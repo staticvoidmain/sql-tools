@@ -515,9 +515,9 @@ export class PrintVisitor {
           ? '(is-not-null '
           : '(is-null '
 
-        this.push(tag)
+        const lvl = this.push(tag)
         this.printNode(test.expr)
-        this.pop()
+        this.pop(lvl === this.level)
         break
       }
 
