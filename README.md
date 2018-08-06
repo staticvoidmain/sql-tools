@@ -27,6 +27,11 @@ and provide a sql linter / analyzer / code fix provider. Maybe as a SQL Ops stud
   - [x] schema
   - [x] index
   - [ ] like 100 more dropppable objects
+- [ ] alter
+  - [x] table (20%)
+  - [ ] procedure
+  - [ ] view
+  - [ ] ... more
 - [x] in / exists / like / not
 - [ ] any / all / some (50%)
 - [ ] Common Table Expressions (50%)
