@@ -15,64 +15,97 @@ import {
   statSync
 } from 'fs'
 
+import * as yargs from 'yargs'
+
 import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
 import { Chars } from './chars'
-import { getFlagsForEdition } from './features'
+import { getFlagsForEdition, Edition, getSupportedEditions } from './features'
 
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
 
-const args = process.argv.slice(2)
+yargs
+  .usage('$0 <cmd> [options]')
+  .command('print [path]', 'the directory or file to print', (y: yargs.Argv) => {
+    return y.positional('path', {
+      describe: 'the file or directory to print',
+      default: '.\*.sql'
+    })
+  }, (a: yargs.Arguments) => {
+    // do stuff with the sub-command
+    run('print', a)
+  })
+  .command('lint [path] [options]', 'the directory or file to lint', (y: yargs.Argv) => {
+    return y.positional('path', {
+      describe: 'the file or directory to lint',
+      default: '.\*.sql'
+    })
+    .option('rules', {
+      description: 'the ruleset to analyze',
+      default: 'default.yaml'
+    })
+  }, (a: yargs.Arguments) => {
+    // do stuff with the sub-command
+    run('lint', a)
+  })
+  .option('edition', {
+    alias: 'e',
+    default: 'sql-server',
+    choices: getSupportedEditions()
+  })
+  .option('verbose', {
+    alias: 'v',
+    default: false
+  })
+  .demandCommand()
+  .help('h')
+  .alias('h', 'help')
+  .argv
 
-if (!args) {
-  process.stdout.write('no file or directory specified\n')
-  process.exit(-1)
-}
+function run(op: string, args: yargs.Arguments) {
 
-const pathOrFile = args[0]
-const operation = args[1] || '--print'
-const edition = args[2] || 'sql-server'
+  const pathOrFile = args.path
+  if (pathOrFile.indexOf('*') === -1) {
+    const path = pathOrFile.startsWith('.')
+      ? normalize(join(process.cwd(), pathOrFile))
+      : pathOrFile
 
-if (pathOrFile.indexOf('*') === -1) {
-  const path = pathOrFile.startsWith('.')
-    ? normalize(join(process.cwd(), pathOrFile))
-    : pathOrFile
+    processFile(path, op, args)
+  } else {
+    // else it's a pattern.
+    // relative OR absolute
+    // ex: ./somedir/sql/*.sql
+    const prefix = pathOrFile.substr(0, pathOrFile.indexOf('*'))
+    const suffix = pathOrFile.substring(prefix.length)
 
-  processFile(path)
-} else {
-  // else it's a pattern.
-  // relative OR absolute
-  // ex: ./somedir/sql/*.sql
-  const prefix = pathOrFile.substr(0, pathOrFile.indexOf('*'))
-  const suffix = pathOrFile.substring(prefix.length)
+    if (suffix.indexOf('**') != -1) {
+      process.stderr.write('glob patterns not implemented')
+      process.exit(-1)
+    }
 
-  if (suffix.indexOf('**') != -1) {
-    process.stderr.write('glob patterns not implemented')
-    process.exit(-1)
+    const root = normalizeRootDirectory(prefix, pathOrFile)
+
+    // .+\.sql$
+    const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
+
+    processDirectory(root, pattern, op, args)
   }
-
-  const root = normalizeRootDirectory(prefix)
-
-  // .+\.sql$
-  const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
-
-  processDirectory(root, pattern)
 }
 
 /**
  * Converts a relative or abs path to an abs path
  * @param prefix a string containing a relative or absolute path
  */
-function normalizeRootDirectory(prefix: string) {
-  return !pathOrFile.startsWith('.')
+function normalizeRootDirectory(prefix: string, path: string) {
+  return !path.startsWith('.')
     ? normalize(prefix)
     : normalize(join(process.cwd(), prefix))
 }
 
-async function processDirectory(dir: string, pattern: RegExp) {
+async function processDirectory(dir: string, pattern: RegExp, op: string, args: yargs.Arguments) {
   const contents = await readDirAsync(dir)
 
   if (contents) {
@@ -83,7 +116,7 @@ async function processDirectory(dir: string, pattern: RegExp) {
 
       if (stat.isFile()) {
         if (pattern.test(child)) {
-          await processFile(path)
+          await processFile(path, op, args)
         }
       }
     }
@@ -92,6 +125,75 @@ async function processDirectory(dir: string, pattern: RegExp) {
   }
 }
 
+let success = 0, fail = 0
+
+async function processFile(path: string, op: string, args: yargs.Arguments) {
+  const buff = await readFileAsync(path)
+  const text = bufferToString(buff)
+
+  const parser = new Parser(text, {
+    debug: args.verbose,
+    skipTrivia: true,
+    path: path,
+    features: getFlagsForEdition(args.edition, '2016'), // hack: fix this later
+  })
+
+  try {
+    const tree = parser.parse()
+    success++
+    if (op === 'print') {
+      console.log('# ' + path)
+      printNodes(tree)
+      console.log('\n')
+    }
+
+    if (op === 'lint') {
+      const visitor = new ExampleLintVisitor(parser)
+
+      for (const node of tree) {
+        visitor.visit(node)
+      }
+
+      // do some casing stuff
+      for (const key of parser.getKeywords()) {
+        visitor.visitKeyword(key)
+      }
+    }
+  }
+  catch (e) {
+    fail++
+    if (e instanceof ParserException) {
+      const ex = <ParserException>e
+      console.log(ex.message)
+
+      // means we're debugging
+      if (ex.nodes) {
+        console.log('AST trace:')
+
+        const visitor = new PrintVisitor()
+        let i = 0
+        for (const node of ex.nodes) {
+          console.log('######################')
+          console.log('## Node: ' + i + ' ' + SyntaxKind[node.kind])
+          console.log('######################')
+
+          try {
+            visitor.visit(node)
+          } catch { }
+          console.log('\n######################')
+          console.log('\n\n')
+
+          i++
+        }
+
+        printNodes(ex.nodes)
+      }
+    }
+    else console.log(e)
+  }
+}
+
+// # Utils
 function bufferToString(buffer: Buffer) {
   let len = buffer.length
 
@@ -120,72 +222,6 @@ function bufferToString(buffer: Buffer) {
   return buffer.toString('utf8')
 }
 
-let success = 0, fail = 0
-
-async function processFile(path: string) {
-  const buff = await readFileAsync(path)
-  const text = bufferToString(buff)
-
-  const parser = new Parser(text, {
-    debug: true,
-    skipTrivia: true,
-    path: path,
-    features: getFlagsForEdition(edition, '2016'), // hack: fix this later
-  })
-
-  try {
-    const tree = parser.parse()
-    success++
-    if (operation === '--print') {
-      // console.log('# ' + path)
-      // printNodes(tree)
-      // console.log('\n')
-    }
-
-    if (operation === '--lint') {
-      const visitor = new ExampleLintVisitor(parser)
-
-      for (const node of tree) {
-        visitor.visit(node)
-      }
-
-      // do some casing stuff
-      for (const key of parser.getKeywords()) {
-        visitor.visitKeyword(key)
-      }
-    }
-  }
-  catch (e) {
-    fail++
-    if (e instanceof ParserException) {
-      const ex = <ParserException>e
-      console.log(ex.message)
-      console.log('AST trace:')
-
-      const visitor = new PrintVisitor()
-      let i = 0
-      for (const node of ex.nodes) {
-        console.log('######################')
-        console.log('## Node: ' + i + ' ' + SyntaxKind[node.kind])
-        console.log('######################')
-
-        try {
-          visitor.visit(node)
-        } catch { }
-        console.log('\n######################')
-        console.log('\n\n')
-
-        i++
-      }
-
-
-      printNodes(ex.nodes)
-    }
-    else console.log(e)
-  }
-}
-
-// # Utils
 // todo: start pulling these out into utils
 function isNullLiteral(node: SyntaxNode) {
   if (node.kind === SyntaxKind.literal_expr) {
@@ -318,8 +354,8 @@ function walkExpr(expr: Expr, cb: (e: Expr) => void) {
   }
 }
 
+// should start with something other than %, _, or [
 function hasLeadingPrefix(pattern: string) {
-  // should start with something other than %, _, or [
   return /^[^_\[%]+/.test(pattern)
 }
 
@@ -371,10 +407,7 @@ class ExampleLintVisitor extends Visitor {
     console.log('\n')
   }
 
-
-
   visitSelect(node: SelectStatement) {
-
     if (node.from) {
       if (node.from.joins) {
         node.from.joins.forEach(join => {
@@ -441,7 +474,7 @@ class ExampleLintVisitor extends Visitor {
       }
     }
 
-    // rule: null concat null, unsafe string concat
+    // rule: null concat null, unsafe string concat (needs semantic model)
 
     // rule: expressions in a divisor slot which are non-literal
     // could cause divide by zero, that might be cool to test for

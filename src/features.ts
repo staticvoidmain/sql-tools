@@ -10,10 +10,21 @@ export enum FeatureFlags {
   CreateIfNotExist          = 1 << 5,
 }
 
-export type Edition =
-  | 'sql-server'
-  | 'azure-data-warehouse'
-  | 'parallel-data-warehouse'
+export enum Edition {
+  default = 'sql-server',
+  azure = 'azure-data-warehouse',
+  pdw = 'parallel-data-warehouse'
+}
+
+export function getSupportedEditions(): string[] {
+  const list = []
+  const e = <any>Edition
+  for (const key of Object.keys(e)) {
+    list.push(e[key])
+  }
+
+  return list
+}
 
 export function getFlagsForEdition(edition: string, version: string) {
   let flags = FeatureFlags.None
