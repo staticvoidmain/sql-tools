@@ -1209,7 +1209,7 @@ export class Parser {
       ident = this.parseIdentifier()
     }
     else if (isLegalFunctionName(this.token.kind)) {
-      ident = this.createSinglePartIdentifier(this.token)
+      ident = this.createSinglePartIdentifier(this.token, true)
 
       // or it's a bug! illegal identifierrrr
       this.assertKind(SyntaxKind.openParen)
