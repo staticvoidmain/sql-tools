@@ -103,7 +103,7 @@ import { FeatureFlags } from './features'
  * reserved words that can be used as functions...
  * @param kind the kind of the token
  */
-function isLegalFunctionName(kind: SyntaxKind) {
+export function isLegalFunctionName(kind: SyntaxKind) {
   return kind === SyntaxKind.left_keyword
     || kind === SyntaxKind.right_keyword
     || kind === SyntaxKind.convert_keyword
@@ -111,20 +111,24 @@ function isLegalFunctionName(kind: SyntaxKind) {
     || kind === SyntaxKind.nullif_keyword
 }
 
-function isStatementKind(kind: SyntaxKind) {
+export function isStatementKind(kind: SyntaxKind) {
   return kind < SyntaxKind.while_statement
     && kind > SyntaxKind.alter_proc_statement
 }
 
-function isLocal(ident: Token) {
-  const val = <string>ident.value
+export function isTemp(val: string) {
+  return val[0] === '#'
+    || (val[0] === '"' && val[1] === '#')
+    || (val[0] === '[' && val[1] === '#')
+}
 
+export function isLocal(val: string) {
   return val[0] === '@'
     || (val[0] === '"' && val[1] === '@')
     || (val[0] === '[' && val[1] === '@')
 }
 
-function isLiteral(token: Token) {
+export function isLiteral(token: Token) {
   const kind = token.kind
   return kind === SyntaxKind.null_keyword
     || kind === SyntaxKind.numeric_literal
@@ -668,7 +672,7 @@ export class Parser {
     const statement = <DeclareStatement>this.createAndMoveNext(this.token, SyntaxKind.declare_statement)
     const local = this.expect(SyntaxKind.identifier)
 
-    if (!isLocal(local)) {
+    if (!isLocal(local.value)) {
       this.error('expected local variable, saw ' + local.value)
     }
 
@@ -802,7 +806,7 @@ export class Parser {
     const ident = this.expect(SyntaxKind.identifier)
     let statement: SetStatement | SetOptionStatement
 
-    if (isLocal(ident)) {
+    if (isLocal(ident.value)) {
       statement = <SetStatement>node
       statement.name = ident.value
       statement.op = this.parseAssignmentOperation()

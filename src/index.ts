@@ -1,6 +1,6 @@
 
 import { printNodes, PrintVisitor } from './print_visitor'
-import { Parser, ParserException } from './parser'
+import { Parser, ParserException, isLocal, isTemp } from './parser'
 
 import { promisify } from 'util'
 
@@ -15,9 +15,10 @@ import {
   statSync
 } from 'fs'
 
-import * as yargs from 'yargs'
+import yargs from 'yargs'
+import chalk from 'chalk'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression, Identifier } from './ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression, Identifier, FromClause, TableLikeDataSource } from './ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
@@ -26,6 +27,7 @@ import { getFlagsForEdition, Edition, getSupportedEditions } from './features'
 
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
+
 
 yargs
   .usage('$0 <cmd> [options]')
@@ -375,9 +377,17 @@ export enum Level {
   error
 }
 
+const severityMap: any = {
+  'info': chalk.cyan('info'),
+  'warning': chalk.yellow('warning'),
+  'error': chalk.red('error')
+}
+
 class ExampleLintVisitor extends Visitor {
-  constructor(private parser: Parser, private severity: Level) {
+  private readonly severity: number
+  constructor(private parser: Parser, sev: string) {
     super()
+    this.severity = (<any>Level)[sev]
   }
 
   /**
@@ -399,9 +409,8 @@ class ExampleLintVisitor extends Visitor {
   private emit(message: string, node: Span, underlineNode = node, severity = 'warning', category = ' ') {
     let space = '    '
     const [file, line, col, text] = this.parser.getInfo(node)
-
-    // todo: message = chalk.color(message) based on severity
-    console.log(`${file}:${line + 1}:${col + 1} - ${severity} -${category}${message}\n`)
+    const sev = severityMap[severity]
+    console.log(`${file}:${line + 1}:${col + 1} - ${sev} -${category}${message}\n`)
     console.log(space + text)
 
     let underline = '~'
@@ -418,21 +427,37 @@ class ExampleLintVisitor extends Visitor {
       space += ' '
     }
 
-    // todo: chalk.red(underline)
-    console.log(space + underline)
+    console.log(space + chalk.red(underline))
     console.log('\n')
+  }
+
+  visitDataSource(s: TableLikeDataSource) {
+    if (s.expr.kind === SyntaxKind.identifier_expr) {
+      const expr = <IdentifierExpression>s.expr
+      const parts = expr.identifier.parts
+      if (parts.length < 2) {
+        // UNLESS it's a temp or local
+        if (isLocal(parts[0])) { return }
+        if (isTemp(parts[0])) { return }
+
+        this.warning('named data sources should use at least a 2 part name', s)
+      }
+    }
+  }
+
+  visitFrom(from: FromClause) {
+
+    if (from.joins) {
+      from.joins.forEach(join => {
+        if (!join.source.alias) {
+          this.warning('joined sources should have an alias', join)
+        }
+      })
+    }
   }
 
   visitSelect(node: SelectStatement) {
     if (node.from) {
-      if (node.from.joins) {
-        node.from.joins.forEach(join => {
-          if (!join.source.alias) {
-            this.warning('joined sources should have an alias', join)
-          }
-        })
-      }
-
       if (node.from.sources.length > 1 || node.from.joins) {
         // if there are joins OR multiple sources
         // require a two part name.
