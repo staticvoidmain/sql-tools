@@ -457,23 +457,33 @@ class ExampleLintVisitor extends Visitor {
   }
 
   visitSelect(node: SelectStatement) {
-    if (node.from) {
-      if (node.from.sources.length > 1 || node.from.joins) {
-        // if there are joins OR multiple sources
-        // require a two part name.
-        node.columns.forEach(col => {
-          walkExpr(col, (expr) => {
-            if (expr.kind === SyntaxKind.identifier_expr) {
-              const ident = <IdentifierExpression>expr
 
-              if (ident.identifier.parts.length < 2) {
-                this.warning('use a two-part name for queries involving more than one table', ident)
-              }
+    const multipleSources = node.from
+      && (node.from.sources.length > 1 || node.from.joins)
+
+    // if there are joins OR multiple sources
+    // require a two part name.
+    node.columns.forEach(col => {
+
+      if (col.expression.kind !== SyntaxKind.identifier_expr) {
+        if (!col.alias) {
+          this.warning('complex expressions require aliases', col)
+        }
+      }
+
+      if (multipleSources) {
+        walkExpr(col, (expr) => {
+          if (expr.kind === SyntaxKind.identifier_expr) {
+            const ident = <IdentifierExpression>expr
+            const parts = ident.identifier.parts
+
+            if (parts.length < 2) {
+              this.warning('use a two-part name for queries involving more than one table', ident)
             }
-          })
+          }
         })
       }
-    }
+    })
   }
 
   visitWhere(node: WhereClause) {
@@ -494,6 +504,8 @@ class ExampleLintVisitor extends Visitor {
   }
 
   visitJoin(node: JoinedTable) {
+    // todo: if we're joining on nonsense [requires-semantic]
+
     walkExpr(node.on, (e: Expr) => {
       // todo: are case exprs sargable?
       // simple vs searched? assume searched are more likely

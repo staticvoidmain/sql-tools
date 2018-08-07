@@ -406,7 +406,7 @@ export class Parser {
         break
       }
 
-      // TODO: transaction stuff
+      // TODO(HIGH): transaction stuff
       case SyntaxKind.begin_keyword:
       case SyntaxKind.commit_keyword:
       case SyntaxKind.rollback_keyword: {
