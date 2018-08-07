@@ -22,6 +22,7 @@
     "chalk": "^2.4.1",
     "mocha": "^5.2.0",
     "mocha-typescript": "^1.0.23",
+    "spellchecker": "^3.4.4",
     "yargs": "^12.0.1"
   },
   "author": "",

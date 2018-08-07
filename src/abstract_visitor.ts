@@ -252,6 +252,7 @@ export abstract class Visitor {
       case SyntaxKind.data_source: {
         const src = <TableLikeDataSource>node
         this.visitDataSource(src)
+        // todo: visit alias?
         this.visit(src.expr)
         break
       }
@@ -337,9 +338,15 @@ export abstract class Visitor {
         break
       }
 
+      case SyntaxKind.identifier: {
+        this.visitIdentifier(<Identifier>node)
+        break
+      }
+
       case SyntaxKind.identifier_expr: {
         const ident = <IdentifierExpression>node
         this.visitIdentifierExpression(ident)
+        this.visit(ident.identifier)
         break
       }
 
