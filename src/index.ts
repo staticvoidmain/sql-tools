@@ -164,6 +164,10 @@ async function processFile(path: string, op: string, args: yargs.Arguments) {
           visitor.visitKeyword(key)
         }
       }
+
+      if (visitor.hasIssues) {
+        process.exitCode = -1
+      }
     }
   }
   catch (e) {
@@ -385,6 +389,8 @@ const severityMap: any = {
 
 class ExampleLintVisitor extends Visitor {
   private readonly severity: number
+  public hasIssues = false
+
   constructor(private parser: Parser, sev: string) {
     super()
     this.severity = (<any>Level)[sev]
@@ -429,6 +435,8 @@ class ExampleLintVisitor extends Visitor {
 
     console.log(space + chalk.red(underline))
     console.log('\n')
+
+    this.hasIssues
   }
 
   visitDataSource(s: TableLikeDataSource) {
@@ -446,7 +454,6 @@ class ExampleLintVisitor extends Visitor {
   }
 
   visitFrom(from: FromClause) {
-
     if (from.joins) {
       from.joins.forEach(join => {
         if (!join.source.alias) {
@@ -563,6 +570,7 @@ class ExampleLintVisitor extends Visitor {
     // todo: validate identifier case rules
     // todo: unncessary quoted identifier
     // todo: hungarian notation
+    // @strSomeString
     // todo: spellchecker??
   }
 }
