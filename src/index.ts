@@ -28,7 +28,6 @@ import { getFlagsForEdition, Edition, getSupportedEditions } from './features'
 const readDirAsync = promisify(readdir)
 const readFileAsync = promisify(readFile)
 
-
 yargs
   .usage('$0 <cmd> [options]')
   .command('print [path]', 'the directory or file to print', (y: yargs.Argv) => {
@@ -396,10 +395,12 @@ class ExampleLintVisitor extends Visitor {
     this.severity = (<any>Level)[sev]
   }
 
-  /**
-   * display a warning for the current node, optionally underlining a child
-   * node to provide more clarity
-   */
+  private error(message: string, node: Span, underlineNode = node, category = ' ') {
+    if (this.severity <= Level.error) {
+      this.emit(message, node, underlineNode, 'error', category)
+    }
+  }
+
   private warning(message: string, node: Span, underlineNode = node, category = ' ') {
     if (this.severity <= Level.warning) {
       this.emit(message, node, underlineNode, 'warning', category)
@@ -412,6 +413,10 @@ class ExampleLintVisitor extends Visitor {
     }
   }
 
+  /**
+   * display a warning for the current node, optionally underlining a child
+   * node to provide more clarity
+   */
   private emit(message: string, node: Span, underlineNode = node, severity = 'warning', category = ' ') {
     let space = '    '
     const [file, line, col, text] = this.parser.getInfo(node)
@@ -526,14 +531,14 @@ class ExampleLintVisitor extends Visitor {
 
   visitBinaryExpression(node: BinaryExpression) {
     if (isNullLiteral(node.left) || isNullLiteral(node.right)) {
-      this.warning('null literal used in comparison, use "is null" or "is not null" instead', node, node.op)
+      this.error('null literal used in comparison, use "is null" or "is not null" instead', node, node.op)
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
 
         // todo: people do like their 1=1 nonsense, give that a pass.
         // todo: link to a full on SAT solver
         // let's go crazy and add some unreachable code detection
-        this.warning('value compared with itself, result will always be constant', node)
+        this.error('value compared with itself, result will always be constant', node)
       }
     }
 
