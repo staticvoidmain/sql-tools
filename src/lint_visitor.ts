@@ -24,6 +24,29 @@ function isNullLiteral(node: SyntaxNode) {
   return false
 }
 
+function getIdentifierText(part: string) {
+  let start = 0
+  let end = part.length - 1
+
+  for (; start < part.length; start++) {
+    if (isChar(part.charCodeAt(start))) {
+      break
+    }
+  }
+
+  for (; end > start; end--) {
+    if (isChar(part.charCodeAt(end))) {
+      break
+    }
+  }
+
+  if (start > 0 || end < part.length - 1) {
+    return part.substring(start, end)
+  }
+
+  return part
+}
+
 // support is null and is not null?
 function isComparison(op: BinaryOperator) {
   switch (op.kind) {
@@ -85,6 +108,10 @@ function exprEquals(left: Expr, right: Expr) {
 
 function isDigit(charCode: number): boolean {
   return Chars.num_0 <= charCode && charCode <= Chars.num_9
+}
+
+function isChar(n: number) {
+  return isLowerChar(n) || isUpperChar(n)
 }
 
 function isUpperChar(n: number) {
@@ -176,10 +203,12 @@ const severityMap: any = {
 }
 
 const nameValidators = {
-  'PascalCase': /^(?:[A-Z][a-z]+)+$/,
-  'camelCase': /^[a-z]+(?:[A-Z0-9][a-z0-9]+)+$/,
-  'snake_case': /^[a-z0-9]+(?:_[a-z0-9]+)*$/,
-  'SCREAMING_SNAKE_CASE': /^[A-Z]+(?:_[A-Z])*$/
+  // allows runs of digits to be slapped in there
+  // for reasons...
+  'camelCase': /^[a-z]+(?:[0-9]*[A-Z][a-z0-9]+)*\b$/,
+  'PascalCase': /^[A-Z](?:[A-Z]+[0-9]*[a-z]*)*$/,
+  'snake_case': /^[a-z]+(?:_[a-z0-9]+)*$/,
+  'SCREAMING_SNAKE_CASE': /^[A-Z]+(?:_[A-Z0-9])*$/
 }
 
 export class ExampleLintVisitor extends Visitor {
@@ -236,8 +265,6 @@ export class ExampleLintVisitor extends Visitor {
 
     console.log(space + chalk.red(underline))
     console.log('\n')
-
-    this.hasIssues
   }
 
   visitDataSource(s: TableLikeDataSource) {
@@ -374,60 +401,24 @@ export class ExampleLintVisitor extends Visitor {
 
     const last = ident.parts[ident.parts.length - 1]
 
-    const camelOrPascal = nameValidators.camelCase.test(last)
-      || nameValidators.PascalCase.test(last)
-
-    let start = 0
-
-    if (isLocal(last) || isTemp(last)) {
-      for (let i = 0; i < last.length; i++) {
-        const c = last.charCodeAt(i)
-
-        if (isLowerChar(c) || isUpperChar(c)) {
-          start = i
-          break
-        }
-      }
+    if (last.length <= 4) {
+      // we'll grandfather in some
+      // short names for now until we have
+      // a resolver, then we can allow aliases
+      // to be misspelled, but nothing else
+      return
     }
 
-    // todo: single letter identifier rule?
+    const words = /(?:[0-9]+|(?<=[a-z])(?=[A-Z]))/g
 
-    const off = ident.parts.reduce((res, str) => {
-      return res + str.length
-    }, 0) - last.length
-
-    // super next level, spellcheck
-    if (camelOrPascal) {
-      for (let i = start; i < last.length; i++) {
-        const c = last.charCodeAt(i)
-        // todo: skip over numbers... or something
-        if (isUpperChar(c) || isDigit(c)) {
-          const word = last.substring(start, i)
+    last.split('_').forEach(segment => {
+      segment.split(words).forEach(word => {
+        if (word.length > 1) {
           if (isMisspelled(word)) {
-            this.info('Check the spelling of ' + word, ident, { start: off + start, end: i })
-          }
-          start = i
-        }
-      }
-    } else {
-      const isSnake = nameValidators.snake_case.test(last)
-      const isScreaming = nameValidators.SCREAMING_SNAKE_CASE.test(last)
-
-      if (isSnake || isScreaming) {
-        for (let i = start; i < last.length; i++) {
-          const c = last.charCodeAt(i)
-          if (c === Chars.underscore) {
-            const word = last.substring(start, i)
-            if (isMisspelled(word)) {
-              this.info('Check the spelling of ' + word, ident, { start: off + start, end: i })
-            }
-            // could be some double-underscore nonsense
-            start = ++i
+            this.info('Check the spelling of ' + word, ident)
           }
         }
-      } else {
-        this.info('What the hell kind of identifier is this?', ident)
-      }
-    }
+      })
+    })
   }
 }

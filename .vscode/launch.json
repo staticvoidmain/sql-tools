@@ -10,12 +10,9 @@
       "name": "run tests",
       "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
       "args": [
-        "-u",
-        "tdd",
         "--timeout",
         "999999",
-        "--colors",
-        "${workspaceFolder}/dist/test"
+        "${workspaceFolder}/dist/test/linter.spec.js"
       ],
       "internalConsoleOptions": "openOnSessionStart"
     },

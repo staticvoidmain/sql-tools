@@ -1,7 +1,7 @@
 import { } from 'mocha'
-// import { expect } from 'chai'
+import { expect } from 'chai'
 
-import { processFile, bufferToString } from '../src/index'
+import { bufferToString } from '../src/utils'
 import { readFileSync } from 'fs'
 import { Parser } from '../src/parser'
 import { getFlagsForEdition } from '../src/features'
@@ -32,8 +32,8 @@ function lint(path: string) {
   }
 }
 
-describe('the linter', function () {
-  it('does things', function () {
+describe('lint_visitor', function () {
+  it('debug: lint the file', function () {
     lint('./test/mssql/select_with_join.sql')
   })
 })

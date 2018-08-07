@@ -1,8 +1,6 @@
 
 import { printNodes, PrintVisitor } from './print_visitor'
-import { Parser, ParserException, isLocal, isTemp } from './parser'
-
-import { promisify, isNumber } from 'util'
+import { Parser, ParserException } from './parser'
 
 import {
   join,
@@ -10,8 +8,6 @@ import {
 } from 'path'
 
 import {
-  readFile,
-  readdir,
   statSync
 } from 'fs'
 
@@ -20,8 +16,11 @@ import { SyntaxKind } from './syntax'
 import { getFlagsForEdition, getSupportedEditions } from './features'
 import { ExampleLintVisitor } from './lint_visitor'
 
-const readDirAsync = promisify(readdir)
-const readFileAsync = promisify(readFile)
+import {
+  bufferToString,
+  readFileAsync,
+  readDirAsync
+} from './utils'
 
 yargs
   .usage('$0 <cmd> [options]')
@@ -194,33 +193,4 @@ export async function processFile(path: string, op: string, args: yargs.Argument
     }
     else console.log(e)
   }
-}
-
-// # Utils
-export function bufferToString(buffer: Buffer) {
-  let len = buffer.length
-
-  if (len >= 2) {
-    // funky big-endian conversion.
-    if (buffer[0] === 0xFE && buffer[1] === 0xFF) {
-      len &= -2
-      for (let i = 0; i < len; i += 2) {
-        const temp = buffer[i]
-        buffer[i] = buffer[i + 1]
-        buffer[i + 1] = temp
-      }
-
-      return buffer.toString('utf16le', 2)
-    }
-
-    if (buffer[0] === 0xFF && buffer[1] === 0xFE) {
-      return buffer.toString('utf16le', 2)
-    }
-
-    if (len >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
-      return buffer.toString('utf8', 3)
-    }
-  }
-
-  return buffer.toString('utf8')
 }
