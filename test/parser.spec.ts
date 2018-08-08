@@ -15,7 +15,7 @@ import {
   Identifier
 } from '../src/ast'
 
-import { printNodes } from '../src/print_visitor'
+import { printNodes } from '../src/visitors/print_visitor'
 
 describe('Parser', () => {
 

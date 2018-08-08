@@ -1,5 +1,5 @@
 
-import { printNodes, PrintVisitor } from './print_visitor'
+import { printNodes, PrintVisitor } from './visitors/print_visitor'
 import { Parser, ParserException } from './parser'
 
 import {
@@ -14,7 +14,7 @@ import {
 import yargs from 'yargs'
 import { SyntaxKind } from './syntax'
 import { getFlagsForEdition, getSupportedEditions } from './features'
-import { ExampleLintVisitor } from './lint_visitor'
+import { ExampleLintVisitor } from './visitors/lint_visitor'
 
 import {
   bufferToString,
