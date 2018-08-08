@@ -58,14 +58,15 @@ issue or shoot me a pull request with a failing test case.
 
 ```
 digraph g {
-  node [shape=record,height=.1];
-  do_stuff[label="<in>in|{procedure|dbo.do_stuff}|<out>out"];
+  node[shape=Mrecord];
   junk[label="<io>dbo.some_junk"];
   stuff[label="<io>dbo.my_stuff"];
   report[label="<io>dbo.reports"];
-  "stuff":io->"do_stuff":in;
-  "junk":io->"do_stuff":in;
-  "do_stuff":out->"report":io;
+
+  do_stuff[label="procedure:dbo.do_stuff|{<c>C|<r>R|<u>U|<d>D}"];
+  "do_stuff":r->"stuff":io;
+  "do_stuff":r->"junk":io;
+  "do_stuff":c->"report":io;
 }
 ```
 

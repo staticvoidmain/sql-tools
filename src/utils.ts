@@ -8,6 +8,8 @@ import {
   readdir
 } from 'fs'
 
+import * as path from 'path'
+
 import { Identifier } from './ast'
 
 export const readDirAsync = promisify(readdir)
@@ -39,6 +41,12 @@ export function bufferToString(buffer: Buffer) {
   }
 
   return buffer.toString('utf8')
+}
+
+export function getFileName(p: string) {
+  const i = p.lastIndexOf(path.sep)
+
+  return p.substr(i + 1)
 }
 
 export function formatIdentifier(id: Identifier) {

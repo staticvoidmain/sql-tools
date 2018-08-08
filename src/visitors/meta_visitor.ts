@@ -13,17 +13,51 @@ export interface SqlObject {
 }
 
 export class Metadata {
+  public path =  ''
   public create: SqlObject[] = []
   public read: SqlObject[] = []
   public update: SqlObject[] = []
   public delete: SqlObject[] = []
 }
 
+// assigns each unique node an id
+export function collectNodes(metaStore: Metadata[]) {
+  const hash: any = {}
+  let id = 0
+
+  for (const meta of metaStore) {
+    // is this concat necessary?
+    const all = meta.create.concat(
+      meta.read,
+      meta.update,
+      meta.delete
+    )
+
+    all.forEach(n => {
+      const key = n.name.toLowerCase()
+      if (!hash[key]) {
+        hash[key] = id++
+      }
+    })
+  }
+
+  return hash
+}
+
 export class MetadataVisitor extends Visitor {
   private meta = new Metadata()
 
-  public getMetadata() {
-    return this.meta
+  public getAllNodes() {
+    // get every target node with their types
+  }
+
+  // gets the current metadata
+  public getMetadata(path: string) {
+    const old = this.meta
+    old.path = path
+
+    this.meta = new Metadata()
+    return old
   }
 
   visitCreateProcedure(proc: CreateProcedureStatement) {

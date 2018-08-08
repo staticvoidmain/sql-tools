@@ -1,3 +1,6 @@
+/**
+ * TODO(HIGH): new project: sql-lint, separate this from the parser
+ */
 
 import { printNodes, PrintVisitor } from './visitors/print_visitor'
 import { Parser, ParserException } from './parser'
@@ -19,8 +22,11 @@ import { ExampleLintVisitor } from './visitors/lint_visitor'
 import {
   bufferToString,
   readFileAsync,
-  readDirAsync
+  readDirAsync,
+  getFileName
 } from './utils'
+
+import { MetadataVisitor, Metadata, collectNodes, SqlObject } from './visitors/meta_visitor';
 
 yargs
   .usage('$0 <cmd> [options]')
@@ -30,8 +36,11 @@ yargs
       default: '.\*.sql'
     })
   }, (a: yargs.Arguments) => {
-    // do stuff with the sub-command
-    run('print', a)
+    run(a, (parser, path) => {
+      console.log('## ' + path)
+      printNodes(parser.parse())
+      console.log('\n\n')
+    })
   })
   .command('lint [path] [options]', 'the directory or file to lint', (y: yargs.Argv) => {
     return y.positional('path', {
@@ -45,8 +54,83 @@ yargs
         choices: ['info', 'warning', 'error']
       })
   }, (a: yargs.Arguments) => {
-    // do stuff with the sub-command
-    run('lint', a)
+    run(a, (parser) => {
+      const visitor = new ExampleLintVisitor(parser, a.severity)
+
+      for (const node of parser.parse()) {
+        visitor.visit(node)
+      }
+
+      if (a.severity === 'info') {
+        for (const key of parser.getKeywords()) {
+          visitor.visitKeyword(key)
+        }
+      }
+
+      if (visitor.hasIssues) {
+        process.exitCode = -1
+      }
+    })
+  })
+  .command('draw [path] [options]', 'create a metadata diagram', (y: yargs.Argv) => {
+    return y.positional('path', {
+      describe: 'the file or directory to lint',
+      default: '.\*.sql'
+    })
+    .option('output', {
+      alias: 'o',
+      description: 'Location to generate the diagram dotfile',
+      default: '--'
+    })
+    .option('type', {
+      alias: 't',
+      description: 'The type of diagram to generate',
+      default: 'crud',
+      choices: ['crud']
+    })
+  }, (a: yargs.Arguments) => {
+
+    const metaStore: Metadata[] = []
+    run(a, (parser, path) => {
+      const visitor = new MetadataVisitor()
+      visitor.visit_each(parser.parse())
+      metaStore.push(visitor.getMetadata(path))
+    })
+
+    const o = process.stdout
+    o.setDefaultEncoding('utf8')
+
+    // todo: maybe just a general graph
+    // for the CRUD stuff, this might get super hairy.
+    // if we do an undireceed graph, change -> to --
+    o.write('digraph g {\n')
+    o.write('node[shape=Mrecord];\n')
+    const nodes = collectNodes(metaStore)
+    for (const key in nodes) {
+      o.write(`node_${nodes[key]}[label=<io>${key}];\n`)
+    }
+
+
+    function link(file: string, port: string, obj: SqlObject) {
+      const key = obj.name.toLowerCase()
+      o.write(`"file_${f}":${port}->node_${nodes[key]}:<io>`)
+    }
+
+    let f = 0
+    for (const meta of metaStore) {
+      const file = getFileName(meta.path)
+      o.write(`file_${f}[label=${file}|{<c>C|<r>R|<u>U|<d>D}`)
+
+      // link all the edges
+      for (const obj of meta.create) { link(file, 'c', obj) }
+      for (const obj of meta.read)   { link(file, 'r', obj) }
+      for (const obj of meta.update) { link(file, 'u', obj) }
+      for (const obj of meta.delete) { link(file, 'd', obj) }
+
+      f++
+    }
+
+    o.write('}')
   })
   .option('edition', {
     alias: 'e',
@@ -62,7 +146,10 @@ yargs
   .alias('h', 'help')
   .argv
 
-function run(op: string, args: yargs.Arguments) {
+
+type Handler = (parser: Parser, path: string) => void
+
+function run(args: yargs.Arguments, cb: Handler) {
 
   const pathOrFile = args.path
   if (pathOrFile.indexOf('*') === -1) {
@@ -70,7 +157,7 @@ function run(op: string, args: yargs.Arguments) {
       ? normalize(join(process.cwd(), pathOrFile))
       : pathOrFile
 
-    processFile(path, op, args)
+    processFile(path, args, cb)
   } else {
     // else it's a pattern.
     // relative OR absolute
@@ -88,7 +175,7 @@ function run(op: string, args: yargs.Arguments) {
     // .+\.sql$
     const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
 
-    processDirectory(root, pattern, op, args)
+    processDirectory(root, pattern, args, cb)
   }
 }
 
@@ -102,7 +189,7 @@ function normalizeRootDirectory(prefix: string, path: string) {
     : normalize(join(process.cwd(), prefix))
 }
 
-async function processDirectory(dir: string, pattern: RegExp, op: string, args: yargs.Arguments) {
+async function processDirectory(dir: string, pattern: RegExp, args: yargs.Arguments, cb: Handler) {
   const contents = await readDirAsync(dir)
 
   if (contents) {
@@ -113,7 +200,7 @@ async function processDirectory(dir: string, pattern: RegExp, op: string, args: 
 
       if (stat.isFile()) {
         if (pattern.test(child)) {
-          await processFile(path, op, args)
+          await processFile(path, args, cb)
         }
       }
     }
@@ -124,7 +211,7 @@ async function processDirectory(dir: string, pattern: RegExp, op: string, args: 
 
 let success = 0, fail = 0
 
-export async function processFile(path: string, op: string, args: yargs.Arguments) {
+export async function processFile(path: string, args: yargs.Arguments, cb: Handler) {
   const buff = await readFileAsync(path)
   const text = bufferToString(buff)
 
@@ -136,31 +223,9 @@ export async function processFile(path: string, op: string, args: yargs.Argument
   })
 
   try {
-    const tree = parser.parse()
+    cb(parser, path)
+
     success++
-    if (op === 'print') {
-      console.log('# ' + path)
-      printNodes(tree)
-      console.log('\n')
-    }
-
-    if (op === 'lint') {
-      const visitor = new ExampleLintVisitor(parser, args.severity)
-
-      for (const node of tree) {
-        visitor.visit(node)
-      }
-
-      if (args.severity === 'info') {
-        for (const key of parser.getKeywords()) {
-          visitor.visitKeyword(key)
-        }
-      }
-
-      if (visitor.hasIssues) {
-        process.exitCode = -1
-      }
-    }
   }
   catch (e) {
     fail++

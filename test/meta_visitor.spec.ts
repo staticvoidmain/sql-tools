@@ -19,7 +19,7 @@ describe('MetadataVisitor', () => {
 
     visitor.visit_each(parser.parse())
 
-    const meta = visitor.getMetadata()
+    const meta = visitor.getMetadata(path)
 
     console.log(JSON.stringify(meta, undefined, ' '))
   })
