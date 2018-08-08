@@ -1,18 +1,9 @@
-import { Chars } from './chars'
+import { Chars, isDigit, isLetter } from './chars'
 import { SyntaxKind } from './syntax'
 
 // todo: namespace for all the common stuff?
 import { ParserOptions } from './ast'
 import { FeatureFlags } from './features'
-
-function isLetter(ch: number): boolean {
-  return (Chars.A <= ch && ch <= Chars.Z)
-    || (Chars.a <= ch && ch <= Chars.z)
-}
-
-function isDigit(charCode: number): boolean {
-  return Chars.num_0 <= charCode && charCode <= Chars.num_9
-}
 
 // stash some additional stuff inside the token
 // for later tools

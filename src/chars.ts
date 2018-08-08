@@ -98,5 +98,23 @@ export const enum Chars {
   pipe = 124,
   tilde = 126,
   // not sure I care about this too much, but for completeness.
-  bom = 0xFEFF
+  bom = 0xFEFF // utf8-bom
 }
+
+export function isDigit(charCode: number): boolean {
+  return Chars.num_0 <= charCode && charCode <= Chars.num_9
+}
+
+export function isLetter(ch: number): boolean {
+  return (Chars.A <= ch && ch <= Chars.Z)
+    || (Chars.a <= ch && ch <= Chars.z)
+}
+
+export function isUpper(n: number) {
+  return Chars.A <= n && n <= Chars.Z
+}
+
+export function isLower(n: number) {
+  return Chars.a <= n && n <= Chars.a
+}
+

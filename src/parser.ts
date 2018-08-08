@@ -420,9 +420,9 @@ export class Parser {
   }
 
   private error(message: string) {
-    const line = this.scanner!.lineOf(this.token.start)
-    const col = this.scanner!.offsetOf(this.token.start, line)
-    const text = this.scanner!.getSourceLine(line)
+    const line = this.scanner.lineOf(this.token.start)
+    const col = this.scanner.offsetOf(this.token.start, line)
+    const text = this.scanner.getSourceLine(line)
     const err = this.options.error
 
     if (err) {
@@ -478,12 +478,12 @@ export class Parser {
 
   private moveNext(): Token {
 
-    this.token = this.scanner!.scan()
+    this.token = this.scanner.scan()
 
     // todo: this could capture leading and trailing trivia
     // but for now it straight up ignores it.
     while (this.isTrivia()) {
-      this.token = this.scanner!.scan()
+      this.token = this.scanner.scan()
     }
 
     if (this.token.flags & TokenFlags.Keyword) {
@@ -2022,9 +2022,9 @@ export class Parser {
    * and its children
    */
   getInfo(node: SyntaxNode): any[] {
-    const line = this.scanner!.lineOf(node.start)
-    const col = this.scanner!.offsetOf(node.start, line)
-    const text = this.scanner!.getSourceSubstring(node.start, node.end + 1)
+    const line = this.scanner.lineOf(node.start)
+    const col = this.scanner.offsetOf(node.start, line)
+    const text = this.scanner.getSourceSubstring(node.start, node.end + 1)
 
     return [this.options.path, line, col, text]
   }

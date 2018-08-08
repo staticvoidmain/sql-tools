@@ -6,11 +6,14 @@ import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, 
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from './syntax'
 import { Token } from './scanner'
-import { Chars } from './chars'
-import { isMisspelled } from 'spellchecker'
+import { Chars, isLetter, isUpper } from './chars'
+import { isMisspelled, add as addWord, add } from 'spellchecker'
 
 // todo: add some common sql-isms to the spellchecker
 // dictionary where possible.
+addWord('cte')
+addWord('ctas')
+addWord('crtas')
 
 function isNullLiteral(node: SyntaxNode) {
   if (node.kind === SyntaxKind.literal_expr) {
@@ -24,18 +27,19 @@ function isNullLiteral(node: SyntaxNode) {
   return false
 }
 
+// todo: I think
 function getIdentifierText(part: string) {
   let start = 0
   let end = part.length - 1
 
   for (; start < part.length; start++) {
-    if (isChar(part.charCodeAt(start))) {
+    if (isLetter(part.charCodeAt(start))) {
       break
     }
   }
 
   for (; end > start; end--) {
-    if (isChar(part.charCodeAt(end))) {
+    if (isLetter(part.charCodeAt(end))) {
       break
     }
   }
@@ -104,22 +108,6 @@ function exprEquals(left: Expr, right: Expr) {
 
     return true
   }
-}
-
-function isDigit(charCode: number): boolean {
-  return Chars.num_0 <= charCode && charCode <= Chars.num_9
-}
-
-function isChar(n: number) {
-  return isLowerChar(n) || isUpperChar(n)
-}
-
-function isUpperChar(n: number) {
-  return Chars.A <= n && n <= Chars.Z
-}
-
-function isLowerChar(n: number) {
-  return Chars.a <= n && n <= Chars.a
 }
 
 function walkExpr(expr: Expr, cb: (e: Expr) => void) {
@@ -387,7 +375,7 @@ export class ExampleLintVisitor extends Visitor {
 
     for (let i = 0; i < val.length; i++) {
       // todo: reverse this for the crazy UPPER nerds
-      if (isUpperChar(val.charCodeAt(i))) {
+      if (isUpper(val.charCodeAt(i))) {
         this.info('keywords should be lower case', token)
         break
       }
@@ -399,9 +387,9 @@ export class ExampleLintVisitor extends Visitor {
       return
     }
 
-    const last = ident.parts[ident.parts.length - 1]
+    const text = getIdentifierText(ident.parts[ident.parts.length - 1])
 
-    if (last.length <= 4) {
+    if (text.length <= 4) {
       // we'll grandfather in some
       // short names for now until we have
       // a resolver, then we can allow aliases
@@ -411,7 +399,8 @@ export class ExampleLintVisitor extends Visitor {
 
     const words = /(?:[0-9]+|(?<=[a-z])(?=[A-Z]))/g
 
-    last.split('_').forEach(segment => {
+    // this works for both cases.
+    text.split('_').forEach(segment => {
       segment.split(words).forEach(word => {
         if (word.length > 1) {
           if (isMisspelled(word)) {
