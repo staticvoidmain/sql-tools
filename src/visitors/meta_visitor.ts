@@ -23,7 +23,7 @@ export class Metadata {
 // assigns each unique node an id
 export function collectNodes(metaStore: Metadata[]) {
   const hash: any = {}
-  let id = 0
+  let id = 1
 
   for (const meta of metaStore) {
     // is this concat necessary?
@@ -45,19 +45,17 @@ export function collectNodes(metaStore: Metadata[]) {
 }
 
 export class MetadataVisitor extends Visitor {
-  private meta = new Metadata()
+  private meta: Metadata
 
-  public getAllNodes() {
-    // get every target node with their types
+  constructor(path: string) {
+    super()
+    this.meta = new Metadata()
+    this.meta.path = path
   }
 
   // gets the current metadata
-  public getMetadata(path: string) {
-    const old = this.meta
-    old.path = path
-
-    this.meta = new Metadata()
-    return old
+  public getMetadata() {
+    return this.meta
   }
 
   visitCreateProcedure(proc: CreateProcedureStatement) {

@@ -23,7 +23,7 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
-        "lint",
+        "draw",
         "${workspaceFolder}/test/mssql/select_with_join.sql",
         "--edition=parallel-data-warehouse",
         "--verbose"

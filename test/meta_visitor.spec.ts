@@ -7,8 +7,9 @@ import { getFlagsForEdition } from '../src/features'
 describe('MetadataVisitor', () => {
 
   it('debug: captures CRUD', () => {
-    const visitor = new MetadataVisitor()
+
     const path = './test/mssql/kitchen_sink.sql'
+    const visitor = new MetadataVisitor(path)
     const text = readFileSync(path, 'utf8')
     const parser = new Parser(text, {
       debug: true,
@@ -19,7 +20,7 @@ describe('MetadataVisitor', () => {
 
     visitor.visit_each(parser.parse())
 
-    const meta = visitor.getMetadata(path)
+    const meta = visitor.getMetadata()
 
     console.log(JSON.stringify(meta, undefined, ' '))
   })

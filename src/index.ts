@@ -28,9 +28,12 @@ import {
 
 import { MetadataVisitor, Metadata, collectNodes, SqlObject } from './visitors/meta_visitor';
 
+// to show some stats at the end
+let success = 0, fail = 0
+
 yargs
   .usage('$0 <cmd> [options]')
-  .command('print [path]', 'the directory or file to print', (y: yargs.Argv) => {
+  .command('print', 'print abstract syntax trees', (y: yargs.Argv) => {
     return y.positional('path', {
       describe: 'the file or directory to print',
       default: '.\*.sql'
@@ -40,19 +43,19 @@ yargs
       console.log('## ' + path)
       printNodes(parser.parse())
       console.log('\n\n')
-    })
+    }).then(() => { console.log(`Success: ${success} | Fail: ${fail}`) })
   })
-  .command('lint [path] [options]', 'the directory or file to lint', (y: yargs.Argv) => {
+  .command('lint', 'perform static analysis', (y: yargs.Argv) => {
     return y.positional('path', {
       describe: 'the file or directory to lint',
       default: '.\*.sql'
     })
-      .option('severity', {
-        alias: 'sev',
-        description: 'the minimum severity to report',
-        default: 'warning',
-        choices: ['info', 'warning', 'error']
-      })
+    .option('severity', {
+      alias: 'sev',
+      description: 'the minimum severity to report',
+      default: 'warning',
+      choices: ['info', 'warning', 'error']
+    })
   }, (a: yargs.Arguments) => {
     run(a, (parser) => {
       const visitor = new ExampleLintVisitor(parser, a.severity)
@@ -70,17 +73,17 @@ yargs
       if (visitor.hasIssues) {
         process.exitCode = -1
       }
-    })
+    }).then(() => { console.log(`Success: ${success} | Fail: ${fail}`) })
   })
-  .command('draw [path] [options]', 'create a metadata diagram', (y: yargs.Argv) => {
+  .command('graph', 'create a metadata diagram', (y: yargs.Argv) => {
     return y.positional('path', {
-      describe: 'the file or directory to lint',
+      describe: 'the file or directory to graph',
       default: '.\*.sql'
     })
     .option('output', {
       alias: 'o',
       description: 'Location to generate the diagram dotfile',
-      default: '--'
+      default: ''
     })
     .option('type', {
       alias: 't',
@@ -92,9 +95,9 @@ yargs
 
     const metaStore: Metadata[] = []
     run(a, (parser, path) => {
-      const visitor = new MetadataVisitor()
+      const visitor = new MetadataVisitor(path)
       visitor.visit_each(parser.parse())
-      metaStore.push(visitor.getMetadata(path))
+      metaStore.push(visitor.getMetadata())
     })
 
     const o = process.stdout
@@ -110,22 +113,21 @@ yargs
       o.write(`node_${nodes[key]}[label=<io>${key}];\n`)
     }
 
-
-    function link(file: string, port: string, obj: SqlObject) {
+    function link(f: number, port: string, obj: SqlObject) {
       const key = obj.name.toLowerCase()
-      o.write(`"file_${f}":${port}->node_${nodes[key]}:<io>`)
+      o.write(`"file_${f}":${port}->node_${nodes[key]}:<io>;\n`)
     }
 
     let f = 0
     for (const meta of metaStore) {
       const file = getFileName(meta.path)
-      o.write(`file_${f}[label=${file}|{<c>C|<r>R|<u>U|<d>D}`)
+      o.write(`file_${f}[label=${file}|{<c>C|<r>R|<u>U|<d>D};\n`)
 
       // link all the edges
-      for (const obj of meta.create) { link(file, 'c', obj) }
-      for (const obj of meta.read)   { link(file, 'r', obj) }
-      for (const obj of meta.update) { link(file, 'u', obj) }
-      for (const obj of meta.delete) { link(file, 'd', obj) }
+      for (const obj of meta.create) { link(f, 'c', obj) }
+      for (const obj of meta.read)   { link(f, 'r', obj) }
+      for (const obj of meta.update) { link(f, 'u', obj) }
+      for (const obj of meta.delete) { link(f, 'd', obj) }
 
       f++
     }
@@ -146,18 +148,16 @@ yargs
   .alias('h', 'help')
   .argv
 
-
 type Handler = (parser: Parser, path: string) => void
 
-function run(args: yargs.Arguments, cb: Handler) {
-
+async function run(args: yargs.Arguments, cb: Handler) {
   const pathOrFile = args.path
   if (pathOrFile.indexOf('*') === -1) {
     const path = pathOrFile.startsWith('.')
       ? normalize(join(process.cwd(), pathOrFile))
       : pathOrFile
 
-    processFile(path, args, cb)
+    await processFile(path, args, cb)
   } else {
     // else it's a pattern.
     // relative OR absolute
@@ -175,7 +175,7 @@ function run(args: yargs.Arguments, cb: Handler) {
     // .+\.sql$
     const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
 
-    processDirectory(root, pattern, args, cb)
+    await processDirectory(root, pattern, args, cb)
   }
 }
 
@@ -204,12 +204,8 @@ async function processDirectory(dir: string, pattern: RegExp, args: yargs.Argume
         }
       }
     }
-
-    console.log(`Success: ${success} | Fail: ${fail}`)
   }
 }
-
-let success = 0, fail = 0
 
 export async function processFile(path: string, args: yargs.Arguments, cb: Handler) {
   const buff = await readFileAsync(path)
@@ -247,6 +243,7 @@ export async function processFile(path: string, args: yargs.Arguments, cb: Handl
           try {
             visitor.visit(node)
           } catch { }
+
           console.log('\n######################')
           console.log('\n\n')
 
