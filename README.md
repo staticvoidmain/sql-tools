@@ -52,3 +52,33 @@ for the kinds of scripts my team works with on a regular basis. If this library
 doesn't cover your code, it's probably *not* your code's fault, so open an 
 issue or shoot me a pull request with a failing test case.
 
+# Notes / Thoughts / Insanity
+
+## Vizualize the relationships between scripts with graphviz
+
+```
+digraph g {
+  node [shape=record,height=.1];
+  do_stuff[label="<in>in|{procedure|dbo.do_stuff}|<out>out"];
+  junk[label="<io>dbo.some_junk"];
+  stuff[label="<io>dbo.my_stuff"];
+  report[label="<io>dbo.reports"];
+  "stuff":io->"do_stuff":in;
+  "junk":io->"do_stuff":in;
+  "do_stuff":out->"report":io;
+}
+```
+
+## Z3 Server
+
+Read about SAT-solvers on reddit recently.
+
+Currently, I have a naive check for obviously UNSAT conditionals, such as a != a, however
+I can think of some less obvious cases that could be automatically proven UNSAT, 
+such as len(anything) < 0, (a + b) != (b + a) and things like that.
+
+So, my hair-brained idea is to write some sort of crazy out-of-process z3 server with a grpc binding.
+
+Encode all boolean expressions as theorems and attempt to prove SAT, or declare the code
+unreachable.
+
