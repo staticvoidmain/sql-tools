@@ -46,7 +46,9 @@ import {
   GroupByClause,
   OrderByClause,
   OrderExpression,
-  HavingClause
+  HavingClause,
+  UpdateStatement,
+  DeleteStatement
 } from './../ast'
 
 import { Token } from './../scanner'
@@ -71,6 +73,7 @@ export abstract class Visitor {
   visitDataType(node: DataType): void { }
   visitDeclareLocals(node: DeclareStatement): void { }
   visitDeclareTableVariable(node: DeclareStatement): void { }
+  visitDelete(node: DeleteStatement): void { }
   visitDrop(node: DropStatement): void { }
   visitFrom(node: FromClause): void { }
   visitGroupBy(node: GroupByClause): void {  }
@@ -98,6 +101,7 @@ export abstract class Visitor {
   visitTableDeclaration(node: TableDeclaration): void { }
   visitUnaryMinus(node: UnaryMinusExpression): void { }
   visitUnaryPlus(node: UnaryPlusExpression): void { }
+  visitUpdate(node: UpdateStatement): void { }
   visitUseDatabase(use: UseDatabaseStatement): void { }
   visitWhen(node: WhenExpression): void { }
   visitWhere(node: WhereClause): void { }
@@ -500,6 +504,28 @@ export abstract class Visitor {
         this.visitInsertStatement(insert)
 
         break
+      }
+
+      case SyntaxKind.update_statement: {
+        const update = <UpdateStatement>node
+        this.visitUpdate(update)
+
+        this.visit(update.target)
+        this.visit(update.from)
+        this.visit(update.where)
+        this.visit_each(update.assignments)
+        this.visit_each(update.ctes)
+        break
+      }
+
+      case SyntaxKind.delete_statement: {
+        const del = <DeleteStatement>node
+
+        this.visitDelete(del)
+        this.visit(del.target)
+        this.visit(del.from)
+        this.visit(del.where)
+        this.visit_each(del.ctes)
       }
     }
   }

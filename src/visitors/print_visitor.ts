@@ -54,6 +54,8 @@ import {
   CommonTableExpression
 } from './../ast'
 
+import { formatIdentifier } from '../utils'
+
 /**
  * Convenience function which constructs a new PrintVisitor and visits all the nodes
  * in a list, formatting them recursively.
@@ -65,10 +67,6 @@ export function printNodes(nodes: ReadonlyArray<SyntaxNode>) {
   for (const node of nodes) {
     visitor.visit(node)
   }
-}
-
-function formatIdentifier(id: Identifier) {
-  return id.parts.join('.')
 }
 
 // add all the binary ops

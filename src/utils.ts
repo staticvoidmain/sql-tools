@@ -1,10 +1,14 @@
-
+/**
+ * Collection of miscellaneous utility functions
+ */
 import { promisify } from 'util'
 
 import {
   readFile,
   readdir
 } from 'fs'
+
+import { Identifier } from './ast'
 
 export const readDirAsync = promisify(readdir)
 export const readFileAsync = promisify(readFile)
@@ -35,4 +39,8 @@ export function bufferToString(buffer: Buffer) {
   }
 
   return buffer.toString('utf8')
+}
+
+export function formatIdentifier(id: Identifier) {
+  return id.parts.map(p => p.replace(/"\[\]/g, '')).join('.')
 }

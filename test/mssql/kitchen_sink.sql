@@ -5,8 +5,8 @@
 -- declare @foo int, @bar datetime
 -- set @foo *= -1
 
--- -- insert into [SomeTable] (foo, bar)
--- -- values ( @foo, case when @foo >= -1 then 1 else 0 end )
+insert into [SomeTable] (foo, bar)
+values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- -- sp_helptext dbo.object_name_here
 -- print 'cast expressions'
@@ -30,14 +30,14 @@
 
 -- -- drop procedure asdf.foo
 -- print 'create table'
--- create table dbo.whatever (
---   [id] int identity(1, 1) not null,
---   [name] varchar(256) null,
---   [date] datetime null
--- );
+create table dbo.whatever (
+  [id] int identity(1, 1) not null,
+  [name] varchar(256) null,
+  [date] datetime null
+);
 
 
-with cte as (select 1)
+with cte as (select 1 from abc.SRC_TABLE)
 select sum(s.num) as [sum]
 from something s
 left join dbo.other
@@ -52,8 +52,8 @@ order by s.foo desc, s.bar asc
 
 --go
 
--- update ex
--- set ex.foo /= 10,
---     ex.bar = ex.bar - 1
--- from [SomeTable] as ex
--- where ex.bar <= @foo and ex.foo is null
+update ex
+set ex.foo /= 10,
+    ex.bar = ex.bar - 1
+from [SomeTable] as ex
+where ex.bar <= @foo and ex.foo is null

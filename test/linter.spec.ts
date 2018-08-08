@@ -5,7 +5,7 @@ import { bufferToString } from '../src/utils'
 import { readFileSync } from 'fs'
 import { Parser } from '../src/parser'
 import { getFlagsForEdition } from '../src/features'
-import { ExampleLintVisitor } from '../src/lint_visitor'
+import { ExampleLintVisitor } from '../src/visitors/lint_visitor'
 
 // ripped from index.ts
 function lint(path: string) {
