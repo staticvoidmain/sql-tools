@@ -56,19 +56,7 @@ issue or shoot me a pull request with a failing test case.
 
 ## Vizualize the relationships between scripts with graphviz
 
-```
-digraph g {
-  node[shape=Mrecord];
-  junk[label="<io>dbo.some_junk"];
-  stuff[label="<io>dbo.my_stuff"];
-  report[label="<io>dbo.reports"];
-
-  do_stuff[label="procedure:dbo.do_stuff|{<c>C|<r>R|<u>U|<d>D}"];
-  "do_stuff":r->"stuff":io;
-  "do_stuff":r->"junk":io;
-  "do_stuff":c->"report":io;
-}
-```
+![example graph](graph.svg)
 
 ## Z3 Server
 
