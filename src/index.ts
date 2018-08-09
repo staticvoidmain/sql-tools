@@ -210,9 +210,9 @@ yargs
     const o = process.stdout
     o.setDefaultEncoding('utf8')
 
-    function link_write(f: number, port: string, obj: SqlObject) {
+    function link(f: number, port: string, obj: SqlObject) {
       const key = obj.name.toLowerCase()
-      o.write(`"file_${f}":${port}->"node_${nodes[key]}":io;\n`)
+      o.write(`"${port}${f}"->"n${nodes[key]}";\n`)
     }
 
     // todo: maybe just a general graph
@@ -222,25 +222,28 @@ yargs
     o.write('node[shape=Mrecord];\n')
     const nodes = collectNodes(metaStore)
     for (const key in nodes) {
-      o.write(`node_${nodes[key]}[label="<io>|${key}"];\n`)
+      o.write(`n${nodes[key]}[label="${key}"];\n`)
     }
 
     let f = 0
     for (const meta of metaStore) {
       const file = getFileName(meta.path)
-      o.write(`file_${f}[label="<r>R|${file}|{<c>C|<u>U|<d>D}"];\n`)
+      o.write(`subgraph cluster_${f} {\n`)
+      o.write('node[style=filled];\n')
 
-      // link all the edges
+      o.write('label="' + file + '";\n')
 
-      // reads go the other way.
-      for (const obj of meta.read) {
-        const key = obj.name.toLowerCase()
-        o.write(`"node_${nodes[key]}":io->"file_${f}":r;\n`)
-      }
+      o.write(`c${f} [label="Create"];\n`)
+      o.write(`r${f} [label="Read"];\n`)
+      o.write(`u${f} [label="Update"];\n`)
+      o.write(`d${f} [label="Delete"];\n`)
 
-      for (const obj of meta.create) { link_write(f, 'c', obj) }
-      for (const obj of meta.update) { link_write(f, 'u', obj) }
-      for (const obj of meta.delete) { link_write(f, 'd', obj) }
+      o.write('}\n')
+
+      for (const obj of meta.create) { link(f, 'c', obj) }
+      for (const obj of meta.read)   { link(f, 'r', obj) }
+      for (const obj of meta.update) { link(f, 'u', obj) }
+      for (const obj of meta.delete) { link(f, 'd', obj) }
 
       f++
     }
