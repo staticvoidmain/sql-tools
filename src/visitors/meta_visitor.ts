@@ -74,7 +74,8 @@ export class MetadataVisitor extends Visitor {
     this.meta.create.push(name)
   }
 
-  visitCreateTableAsSelect(table: CreateTableAsSelectStatement) {
+  visitCtas(table: CreateTableAsSelectStatement) {
+    // unnamed ctas? dafuh?
     const name = formatIdentifier(table.name)
     if (isTemp(name)) { return }
     this.meta.create.push(name)

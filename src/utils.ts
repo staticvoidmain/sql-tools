@@ -44,12 +44,6 @@ export function bufferToString(buffer: Buffer) {
   return buffer.toString('utf8')
 }
 
-export function getFileName(p: string) {
-  const i = p.lastIndexOf(path.sep)
-
-  return p.substr(i + 1)
-}
-
 // does allocations but whatever, I'll optimize later
 export function formatIdentifier(id: Identifier) {
   return id.parts.map(p => p.replace(/"\[\]/g, '')).join('.')

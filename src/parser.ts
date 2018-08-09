@@ -1504,7 +1504,7 @@ export class Parser {
 
             // parens?
             const ctas = <CreateTableAsSelectStatement>this.createAndMoveNext(start, SyntaxKind.create_table_as_select_statement)
-            ctas.name = create.name
+            ctas.name = name
 
             const paren = this.optional(SyntaxKind.openParen)
             const exprs = this.tryParseCommonTableExpressions()

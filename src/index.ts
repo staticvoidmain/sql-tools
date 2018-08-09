@@ -7,7 +7,8 @@ import { Parser, ParserException } from './parser'
 
 import {
   join,
-  normalize
+  normalize,
+  relative
 } from 'path'
 
 import {
@@ -22,14 +23,13 @@ import { ExampleLintVisitor } from './visitors/lint_visitor'
 import {
   bufferToString,
   readFileAsync,
-  readDirAsync,
-  getFileName
+  readDirAsync
 } from './utils'
 
 import { MetadataVisitor, Metadata, collectNodes } from './visitors/meta_visitor'
 
 // to show some stats at the end
-let success = 0, fail = 0
+let success = 0, fail = 0, dir = ''
 type Handler = (parser: Parser, path: string) => Promise<void>
 
 function run(args: yargs.Arguments, cb: Handler): Promise<void> {
@@ -54,12 +54,12 @@ function run(args: yargs.Arguments, cb: Handler): Promise<void> {
       process.exit(-1)
     }
 
-    const root = normalizeRootDirectory(prefix, pathOrFile)
+    dir = normalizeRootDirectory(prefix, pathOrFile)
 
     // .+\.sql$
     const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
 
-    return processDirectory(root, pattern, args, cb)
+    return processDirectory(pattern, args, cb)
   }
 }
 
@@ -73,7 +73,7 @@ function normalizeRootDirectory(prefix: string, path: string) {
     : normalize(join(process.cwd(), prefix))
 }
 
-async function processDirectory(dir: string, pattern: RegExp, args: yargs.Arguments, cb: Handler) {
+async function processDirectory(pattern: RegExp, args: yargs.Arguments, cb: Handler) {
   const contents = await readDirAsync(dir)
 
   if (contents) {
@@ -199,7 +199,8 @@ yargs
 
     const metaStore: Metadata[] = []
     await run(a, async (parser, path) => {
-      const visitor = new MetadataVisitor(path)
+      const rel = relative(dir, path)
+      const visitor = new MetadataVisitor(rel)
       const tree = parser.parse()
       visitor.visit_each(tree)
 
@@ -212,7 +213,7 @@ yargs
 
     function link_read(f: number, obj: string, color: string) {
       const key = obj.toLowerCase()
-      o.write(`"n${f}":e->"f${nodes[key]}":w[color=${color}];\n`)
+      o.write(`"n${nodes[key]}":e->"f${f}":w[color=${color}];\n`)
     }
 
     function link_write(f: number, obj: string, color: string) {
@@ -230,7 +231,8 @@ yargs
 
     let f = 0
     for (const meta of metaStore) {
-      const file = getFileName(meta.path)
+      // files have no labels? thefuh?
+      const file = meta.path
 
       o.write(`f${f}[label="${file}",shape=cds];\n`)
 
