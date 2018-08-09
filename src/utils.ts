@@ -1,7 +1,6 @@
 /**
  * Collection of miscellaneous utility functions
  */
-import { promisify } from 'util'
 
 import {
   readFile,
@@ -11,6 +10,8 @@ import {
 import * as path from 'path'
 
 import { Identifier } from './ast'
+
+import { promisify } from 'util'
 
 export const readDirAsync = promisify(readdir)
 export const readFileAsync = promisify(readFile)
@@ -49,6 +50,26 @@ export function getFileName(p: string) {
   return p.substr(i + 1)
 }
 
+// does allocations but whatever, I'll optimize later
 export function formatIdentifier(id: Identifier) {
   return id.parts.map(p => p.replace(/"\[\]/g, '')).join('.')
+}
+
+// bit of a hack until I get my semantic model
+// working...
+export function matchIdentifier(left?: Identifier, right?: Identifier) {
+  if (!left || !right) return true
+  if (left.parts.length !== right.parts.length) return false
+
+  return compare(
+    formatIdentifier(left),
+    formatIdentifier(right))
+}
+
+// sql is case invariant, so base sensitivity should be perfect
+// just plz don't use diacritic marks
+const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+
+export function compare(left: string, right: string) {
+  return collator.compare(left, right) === 0
 }

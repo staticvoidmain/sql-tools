@@ -2,13 +2,13 @@
  * Extracts metadata from a given script for use in diagraming. *
  */
 import { Visitor } from './abstract_visitor'
-import { CreateTableAsSelectStatement, TableLikeDataSource, IdentifierExpression, UpdateStatement, DeleteStatement, InsertStatement } from '../ast'
-import { formatIdentifier } from '../utils'
+import { CreateTableAsSelectStatement, TableLikeDataSource, IdentifierExpression, UpdateStatement, DeleteStatement, InsertStatement, FromClause, Identifier, CreateTableStatement } from '../ast'
+import { formatIdentifier, matchIdentifier } from '../utils'
 import { isTemp } from '../parser'
 import { SyntaxKind } from '../syntax'
 
 export class Metadata {
-  public path =  ''
+  public path = ''
   public create: string[] = []
   public read: string[] = []
   public update: string[] = []
@@ -39,6 +39,21 @@ export function collectNodes(metaStore: Metadata[]) {
   return hash
 }
 
+function findByAlias(from: FromClause, ident: Identifier) {
+  for (const t of from.sources) {
+    // this should be like the 80% case
+    if (matchIdentifier(t.alias, ident)) {
+      if (t.expr.kind === SyntaxKind.identifier_expr) {
+        const expr = <IdentifierExpression>t.expr
+
+        return formatIdentifier(expr.identifier)
+      }
+
+      return undefined
+    }
+  }
+}
+
 export class MetadataVisitor extends Visitor {
   private meta: Metadata
 
@@ -53,12 +68,16 @@ export class MetadataVisitor extends Visitor {
     return this.meta
   }
 
+  visitCreateTable(table: CreateTableStatement) {
+    const name = formatIdentifier(table.name)
+    if (isTemp(name)) { return }
+    this.meta.create.push(name)
+  }
+
   visitCreateTableAsSelect(table: CreateTableAsSelectStatement) {
     const name = formatIdentifier(table.name)
-
-    if (!isTemp(name)) {
-      this.meta.create.push(name)
-    }
+    if (isTemp(name)) { return }
+    this.meta.create.push(name)
   }
 
   visitDataSource(source: TableLikeDataSource) {
@@ -78,27 +97,31 @@ export class MetadataVisitor extends Visitor {
   visitInsertStatement(insert: InsertStatement) {
     const name = formatIdentifier(insert.target)
 
-    if (!isTemp(name)) {
-      this.meta.create.push(name)
-    }
+    if (isTemp(name)) { return }
+
+    this.meta.create.push(name)
   }
 
   visitUpdate(update: UpdateStatement) {
-    const name = formatIdentifier(update.target)
+    let name = formatIdentifier(update.target)
 
-    // todo: this could be an alias, need semantic model...
-    if (!isTemp(name)) {
-      this.meta.update.push(name)
+    if (isTemp(name)) { return }
+
+    if (update.target.parts.length === 1 && update.from) {
+      name = findByAlias(update.from, update.target) || name
     }
+
+    this.meta.update.push(name)
   }
 
-  // todo: count drop as delete for meta purposes?
   visitDelete(del: DeleteStatement) {
-    // todo: this could be an alias, need semantic model...
-    const name = formatIdentifier(del.target)
+    let name = formatIdentifier(del.target)
+    if (isTemp(name)) { return }
 
-    if (!isTemp(name)) {
-      this.meta.delete.push(name)
+    if (del.target.parts.length === 1 && del.from) {
+      name = findByAlias(del.from, del.target) || name
     }
+
+    this.meta.delete.push(name)
   }
 }

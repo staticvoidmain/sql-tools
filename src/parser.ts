@@ -1479,8 +1479,7 @@ export class Parser {
     switch (objectType.kind) {
       case SyntaxKind.table_keyword: {
         const create = <CreateTableStatement>this.createAndMoveNext(start, SyntaxKind.create_table_statement)
-
-        create.name = this.parseIdentifier()
+        const name = this.parseIdentifier()
 
         if (this.hasFeature(FeatureFlags.CreateTableAsSelect)) {
 
@@ -1505,10 +1504,14 @@ export class Parser {
 
             // parens?
             const ctas = <CreateTableAsSelectStatement>this.createAndMoveNext(start, SyntaxKind.create_table_as_select_statement)
+            ctas.name = create.name
+
+            const paren = this.optional(SyntaxKind.openParen)
             const exprs = this.tryParseCommonTableExpressions()
 
-            // this is ACTUALLY... a block of selects?
             ctas.definition = this.parseSelect(exprs)
+
+            if (paren) { this.expect(SyntaxKind.closeParen) }
 
             this.optional(SyntaxKind.semicolon_token)
             return ctas
@@ -1517,6 +1520,7 @@ export class Parser {
 
         // vanilla create table
         this.expect(SyntaxKind.openParen)
+        create.name = name
         create.body = this.parseColumnDefinitionList()
         this.expect(SyntaxKind.closeParen)
 

@@ -210,14 +210,14 @@ yargs
     const o = process.stdout
     o.setDefaultEncoding('utf8')
 
-    function link_read(f: number, obj: string) {
+    function link_read(f: number, obj: string, color: string) {
       const key = obj.toLowerCase()
-      o.write(`"n${f}":e->"f${nodes[key]}":w;\n`)
+      o.write(`"n${f}":e->"f${nodes[key]}":w[color=${color}];\n`)
     }
 
-    function link_write(f: number, obj: string) {
+    function link_write(f: number, obj: string, color: string) {
       const key = obj.toLowerCase()
-      o.write(`"f${f}":e->"n${nodes[key]}":w;\n`)
+      o.write(`"f${f}":e->"n${nodes[key]}":w[color=${color}];\n`)
     }
 
     o.write('digraph g {\n')
@@ -232,12 +232,12 @@ yargs
     for (const meta of metaStore) {
       const file = getFileName(meta.path)
 
-      o.write(`f${f}[label="${file}"];\n`)
+      o.write(`f${f}[label="${file}",shape=cds];\n`)
 
-      for (const obj of meta.read)   { link_read(f, obj) }
-      for (const obj of meta.create) { link_write(f, obj) }
-      for (const obj of meta.update) { link_write(f, obj) }
-      for (const obj of meta.delete) { link_write(f, obj) }
+      for (const obj of meta.read) { link_read(f, obj, 'cyan') }
+      for (const obj of meta.create) { link_write(f, obj, 'green') }
+      for (const obj of meta.update) { link_write(f, obj, 'yellow') }
+      for (const obj of meta.delete) { link_write(f, obj, 'red') }
 
       f++
     }
