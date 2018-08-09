@@ -23,10 +23,8 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
-        "draw",
-        "${workspaceFolder}/test/mssql/select_with_join.sql",
-        "--edition=parallel-data-warehouse",
-        "--verbose"
+        "graph",
+        "${workspaceFolder}\\test\\mssql\\select_with_join.sql"
       ],
       "cwd": "${workspaceFolder}"
     }
