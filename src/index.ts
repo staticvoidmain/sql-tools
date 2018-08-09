@@ -26,7 +26,7 @@ import {
   getFileName
 } from './utils'
 
-import { MetadataVisitor, Metadata, collectNodes, SqlObject } from './visitors/meta_visitor'
+import { MetadataVisitor, Metadata, collectNodes } from './visitors/meta_visitor'
 
 // to show some stats at the end
 let success = 0, fail = 0
@@ -210,15 +210,18 @@ yargs
     const o = process.stdout
     o.setDefaultEncoding('utf8')
 
-    function link(f: number, port: string, obj: SqlObject) {
-      const key = obj.name.toLowerCase()
-      o.write(`"${port}${f}"->"n${nodes[key]}";\n`)
+    function link_read(f: number, obj: string) {
+      const key = obj.toLowerCase()
+      o.write(`"n${f}":e->"f${nodes[key]}":w;\n`)
     }
 
-    // todo: maybe just a general graph
-    // for the CRUD stuff, this might get super hairy.
-    // if we do an undireceed graph, change -> to --
+    function link_write(f: number, obj: string) {
+      const key = obj.toLowerCase()
+      o.write(`"f${f}":e->"n${nodes[key]}":w;\n`)
+    }
+
     o.write('digraph g {\n')
+    o.write('rankdir=LR;\n')
     o.write('node[shape=Mrecord];\n')
     const nodes = collectNodes(metaStore)
     for (const key in nodes) {
@@ -228,22 +231,13 @@ yargs
     let f = 0
     for (const meta of metaStore) {
       const file = getFileName(meta.path)
-      o.write(`subgraph cluster_${f} {\n`)
-      o.write('node[style=filled];\n')
 
-      o.write('label="' + file + '";\n')
+      o.write(`f${f}[label="${file}"];\n`)
 
-      o.write(`c${f} [label="Create"];\n`)
-      o.write(`r${f} [label="Read"];\n`)
-      o.write(`u${f} [label="Update"];\n`)
-      o.write(`d${f} [label="Delete"];\n`)
-
-      o.write('}\n')
-
-      for (const obj of meta.create) { link(f, 'c', obj) }
-      for (const obj of meta.read)   { link(f, 'r', obj) }
-      for (const obj of meta.update) { link(f, 'u', obj) }
-      for (const obj of meta.delete) { link(f, 'd', obj) }
+      for (const obj of meta.read)   { link_read(f, obj) }
+      for (const obj of meta.create) { link_write(f, obj) }
+      for (const obj of meta.update) { link_write(f, obj) }
+      for (const obj of meta.delete) { link_write(f, obj) }
 
       f++
     }

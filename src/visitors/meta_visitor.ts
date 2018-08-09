@@ -2,22 +2,17 @@
  * Extracts metadata from a given script for use in diagraming. *
  */
 import { Visitor } from './abstract_visitor'
-import { CreateProcedureStatement, CreateTableStatement, CreateTableAsSelectStatement, CreateViewStatement, DataSourceKind, TableLikeDataSource, IdentifierExpression, UpdateStatement, DeleteStatement, InsertStatement } from '../ast'
+import { CreateTableAsSelectStatement, TableLikeDataSource, IdentifierExpression, UpdateStatement, DeleteStatement, InsertStatement } from '../ast'
 import { formatIdentifier } from '../utils'
 import { isTemp } from '../parser'
 import { SyntaxKind } from '../syntax'
 
-export interface SqlObject {
-  type: 'table' | 'view' | 'procedure'
-  name: string
-}
-
 export class Metadata {
   public path =  ''
-  public create: SqlObject[] = []
-  public read: SqlObject[] = []
-  public update: SqlObject[] = []
-  public delete: SqlObject[] = []
+  public create: string[] = []
+  public read: string[] = []
+  public update: string[] = []
+  public delete: string[] = []
 }
 
 // assigns each unique node an id
@@ -34,7 +29,7 @@ export function collectNodes(metaStore: Metadata[]) {
     )
 
     all.forEach(n => {
-      const key = n.name.toLowerCase()
+      const key = n.toLowerCase()
       if (!hash[key]) {
         hash[key] = id++
       }
@@ -58,37 +53,12 @@ export class MetadataVisitor extends Visitor {
     return this.meta
   }
 
-  visitCreateProcedure(proc: CreateProcedureStatement) {
-    this.meta.create.push({ type: 'procedure', name: formatIdentifier(proc.name) })
-  }
-
-  visitCreateTable(table: CreateTableStatement) {
-    const name = formatIdentifier(table.name)
-
-    if (!isTemp(name)) {
-      this.meta.create.push({
-        type: 'table',
-        name: name
-      })
-    }
-  }
-
   visitCreateTableAsSelect(table: CreateTableAsSelectStatement) {
     const name = formatIdentifier(table.name)
 
     if (!isTemp(name)) {
-      this.meta.create.push({
-        type: 'table',
-        name: name
-      })
+      this.meta.create.push(name)
     }
-  }
-
-  visitCreateView(view: CreateViewStatement) {
-    this.meta.create.push({
-      type: 'view',
-      name: formatIdentifier(view.name)
-    })
   }
 
   visitDataSource(source: TableLikeDataSource) {
@@ -100,10 +70,7 @@ export class MetadataVisitor extends Visitor {
 
       if (!isTemp(name)) {
         // need semantic model to know for sure
-        this.meta.read.push({
-          type: 'table',
-          name: name
-        })
+        this.meta.read.push(name)
       }
     }
   }
@@ -112,10 +79,7 @@ export class MetadataVisitor extends Visitor {
     const name = formatIdentifier(insert.target)
 
     if (!isTemp(name)) {
-      this.meta.update.push({
-        type: 'table',
-        name: name
-      })
+      this.meta.create.push(name)
     }
   }
 
@@ -124,10 +88,7 @@ export class MetadataVisitor extends Visitor {
 
     // todo: this could be an alias, need semantic model...
     if (!isTemp(name)) {
-      this.meta.update.push({
-        type: 'table',
-        name: name
-      })
+      this.meta.update.push(name)
     }
   }
 
@@ -137,10 +98,7 @@ export class MetadataVisitor extends Visitor {
     const name = formatIdentifier(del.target)
 
     if (!isTemp(name)) {
-      this.meta.delete.push({
-        type: 'table',
-        name: name
-      })
+      this.meta.delete.push(name)
     }
   }
 }
