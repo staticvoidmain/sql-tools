@@ -216,7 +216,8 @@ yargs
 
     o.write('digraph g {\n')
     o.write('rankdir=LR;\n')
-    o.write('node[shape=Mrecord];\n')
+    o.write('node[shape=box,style=filled,fillcolor="#d0d0d0",fontname=helvetica,color=white,height=0.75];\n')
+    o.write('edge[penwidth=2.0];\n')
     const nodes = collectNodes(metaStore)
     for (const key in nodes) {
       o.write(`n${nodes[key]}[label="${key}"];\n`)
@@ -224,10 +225,10 @@ yargs
 
     let f = 0
     for (const meta of metaStore) {
-      // files have no labels? thefuh?
-      const file = meta.path
+      // backspace causes problems for the svg output
+      const file = meta.path.replace(/\\/g, '/')
 
-      o.write(`f${f}[label="${file}",shape=cds];\n`)
+      o.write(`f${f}[label="${file}",shape=cds,fillcolor=dodgerblue,fontcolor=white];\n`)
 
       for (const obj of meta.read) { link_read(f, obj, 'cyan') }
       for (const obj of meta.create) { link_write(f, obj, 'green') }
