@@ -8,12 +8,15 @@ import { Parser, ParserException } from './parser'
 import {
   join,
   normalize,
-  relative
+  relative,
+  dirname
 } from 'path'
 
 import {
   statSync
 } from 'fs'
+
+import { sync as glob } from 'glob'
 
 import yargs from 'yargs'
 import { SyntaxKind } from './syntax'
@@ -32,63 +35,51 @@ import { MetadataVisitor, Metadata, collectNodes } from './visitors/meta_visitor
 let success = 0, fail = 0, dir = ''
 type Handler = (parser: Parser, path: string) => Promise<void>
 
-function run(args: yargs.Arguments, cb: Handler): Promise<void> {
-  const pathOrFile = args.path
-  const star = pathOrFile.indexOf('*')
+async function run(args: yargs.Arguments, cb: Handler) {
+  dir = getNearestCommonAncestor(args.paths)
 
-  if (star === -1) {
-    const path = pathOrFile.startsWith('.')
-      ? normalize(join(process.cwd(), pathOrFile))
-      : pathOrFile
+  for (const p of args.paths) {
+    const files = glob(p)
 
-    return processFile(path, args, cb)
-  } else {
-    // else it's a pattern.
-    // relative OR absolute
-    // ex: ./somedir/sql/*.sql
-    const prefix = pathOrFile.substr(0, star)
-    const suffix = pathOrFile.substring(prefix.length)
-
-    if (suffix.indexOf('**') != -1) {
-      process.stderr.write('glob patterns not implemented')
-      process.exit(-1)
+    for (const f of files) {
+      await processFile(f, args, cb)
     }
-
-    dir = normalizeRootDirectory(prefix, pathOrFile)
-
-    // .+\.sql$
-    const pattern = new RegExp(suffix.replace('.', '\\.').replace('*', '.+') + '$')
-
-    return processDirectory(pattern, args, cb)
   }
 }
 
-/**
- * Converts a relative or abs path to an abs path
- * @param prefix a string containing a relative or absolute path
- */
-function normalizeRootDirectory(prefix: string, path: string) {
-  return !path.startsWith('.')
-    ? normalize(prefix)
-    : normalize(join(process.cwd(), prefix))
+function directoryName(path: string) {
+  const star = path.indexOf('*')
+    if (star === -1) {
+      return dirname(path)
+    }
+
+    return path.substr(0, star)
 }
 
-async function processDirectory(pattern: RegExp, args: yargs.Arguments, cb: Handler) {
-  const contents = await readDirAsync(dir)
+function getNearestCommonAncestor(paths: string[]) {
+  if (paths.length === 1) {
+    return directoryName(paths[0])
+  }
 
-  if (contents) {
-    for (let i = 0; i < contents.length; i++) {
-      const child = contents[i]
-      const path = normalize(join(dir, child))
-      const stat = statSync(path)
+  const dirs = paths.map(directoryName)
+  const min = dirs.reduce((min, dir) =>
+    Math.min(min, dir.length), dirs[0].length)
 
-      if (stat.isFile()) {
-        if (pattern.test(child)) {
-          await processFile(path, args, cb)
-        }
+  let i = 0
+  const base = dirs[0].toLowerCase()
+  for (; i < min; i++) {
+    const c = base.charCodeAt(i)
+
+    for (let j = 1; j < dirs.length; j++) {
+      const current = dirs[j].charCodeAt(i)
+      // let's do case invariant
+      if (current !== c && current + 32 !== c) {
+        break
       }
     }
   }
+
+  return dirs[0].substr(0, i)
 }
 
 export async function processFile(path: string, args: yargs.Arguments, cb: Handler) {
@@ -144,11 +135,10 @@ export async function processFile(path: string, args: yargs.Arguments, cb: Handl
 }
 
 yargs
-  .usage('$0 <cmd> <path> [options]')
-  .command('print [path]', 'print abstract syntax trees for debugging', (y: yargs.Argv) => {
-    return y.positional('path', {
-      describe: 'the file or directory to print',
-      type: 'string'
+  .usage('$0 <cmd> [options]')
+  .command('print <paths..>', 'print abstract syntax trees for debugging', (y: yargs.Argv) => {
+    return y.positional('paths', {
+      describe: 'list of files or directories to process'
     })
   }, async (a: yargs.Arguments) => {
     await run(a, async (parser, path) => {
@@ -159,10 +149,9 @@ yargs
 
     console.log(`Success: ${success} | Fail: ${fail}`)
   })
-  .command('lint [path]', 'perform static analysis', (y: yargs.Argv) => {
-    return y.positional('path', {
-      describe: 'the file or directory to lint',
-
+  .command('lint <paths..>', 'perform static analysis', (y: yargs.Argv) => {
+    return y.positional('paths', {
+      describe: 'list of files or directories to process'
     })
       .option('severity', {
         alias: 'sev',
@@ -170,8 +159,8 @@ yargs
         default: 'warning',
         choices: ['info', 'warning', 'error']
       })
-  }, (a: yargs.Arguments) => {
-    run(a, async (parser) => {
+  }, async (a: yargs.Arguments) => {
+    await run(a, async (parser) => {
       const visitor = new ExampleLintVisitor(parser, a.severity)
 
       for (const node of parser.parse()) {
@@ -191,14 +180,18 @@ yargs
 
     console.log(`Success: ${success} | Fail: ${fail}`)
   })
-  .command('graph [path]', 'create a metadata diagram', (y: yargs.Argv) => {
-    return y.positional('path', {
-      describe: 'the file or directory to graph'
+  .command('graph <paths..>', 'create a metadata diagram', (y: yargs.Argv) => {
+    return y.positional('paths', {
+      describe: 'list of files or globs to graph'
     })
   }, async (a: yargs.Arguments) => {
 
+    // todo: how can I visually distinguish different folders?
+    // subgraphs?
     const metaStore: Metadata[] = []
     await run(a, async (parser, path) => {
+      // todo: relative paths are a little... fiddly.
+      // if we accept multiples...
       const rel = relative(dir, path)
       const visitor = new MetadataVisitor(rel)
       const tree = parser.parse()
@@ -246,15 +239,8 @@ yargs
 
     o.write('}\n')
   })
-  .option('edition', {
-    alias: 'e',
-    default: 'sql-server',
-    choices: getSupportedEditions()
-  })
-  .option('verbose', {
-    alias: 'v',
-    default: false
-  })
+  .option('edition', { alias: 'e', default: 'sql-server', choices: getSupportedEditions() })
+  .option('verbose', { alias: 'v', default: false })
   .demandCommand()
   .help('h')
   .alias('h', 'help')
