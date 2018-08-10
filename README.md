@@ -52,12 +52,16 @@ Pull requests and issues welcome!
 
 I'll be implementing the bits of the sql grammar that give the best coverage
 for the kinds of scripts my team works with on a regular basis. If this library
-doesn't cover your code, it's probably *not* your code's fault, so open an 
+doesn't cover your code, it's probably *not* your code's fault, so open an
 issue or shoot me a pull request with a failing test case.
 
 # Notes / Thoughts / Insanity
 
 ## Vizualize the relationships between scripts with graphviz
+
+```
+node .\dist\src\index.js graph .\test\mssql\kitchen_sink.sql | dot -Tsvg | out-file graph.svg
+```
 
 ![example graph](graph.svg)
 
@@ -66,7 +70,7 @@ issue or shoot me a pull request with a failing test case.
 Read about SAT-solvers on reddit recently.
 
 Currently, I have a naive check for obviously UNSAT conditionals, such as a != a, however
-I can think of some less obvious cases that could be automatically proven UNSAT, 
+I can think of some less obvious cases that could be automatically proven UNSAT,
 such as len(anything) < 0, (a + b) != (b + a) and things like that.
 
 So, my hair-brained idea is to write some sort of crazy out-of-process z3 server with a grpc binding.
