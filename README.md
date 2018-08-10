@@ -34,14 +34,17 @@ and provide a sql linter / analyzer / code fix provider. Maybe as a SQL Ops stud
   - [ ] ... more
 - [x] in / exists / like / not
 - [ ] any / all / some (50%)
-- [ ] Common Table Expressions (50%)
-- [x] AST pretty-printer
-- [x] example linter / analyzer with some decent starter rules
+- [x] Common Table Expressions
 - [ ] fulltext search
 - [ ] cursors
+- [ ] transactions
 - [ ] Warehouse Features
   - [x] Create Table As Select (buggy)
   - [ ] Create remote table as select
+- [x] TOOLS
+  - [x] AST pretty-printer
+  - [x] example linter / analyzer with some decent starter rules
+  - [x] dependency graph generator
 
 # Contributing
 
