@@ -67,3 +67,24 @@ const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
 export function compare(left: string, right: string) {
   return collator.compare(left, right) === 0
 }
+
+export function binarySearch(array: Array<number>, key: number) {
+  let low = 0
+  let high = array.length - 1
+  while (low <= high) {
+    const mid = low + (high - low / 2)
+    const val = array[mid]
+
+    if (val == key) {
+      return mid
+    }
+
+    if (val < key) {
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  return ~low
+}

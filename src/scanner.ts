@@ -1,9 +1,9 @@
 import { Chars, isDigit, isLetter } from './chars'
 import { SyntaxKind } from './syntax'
 
-// todo: namespace for all the common stuff?
 import { ParserOptions } from './ast'
 import { FeatureFlags } from './features'
+import { binarySearch } from './utils'
 
 // stash some additional stuff inside the token
 // for later tools
@@ -13,10 +13,12 @@ export enum TokenFlags {
   UnicodeString = 2,
   MoneyLiteral = 4,
   SharedTempTable = 8,
+  QuotedIdentifier = 16,
+  BracketedIdentifier = 32,
   // this is now my least favorite thing
   // so I'm gonna make it my mission
   // to destroy it.
-  InnerTokenWhitespace = 16
+  InnerTokenWhitespace = 64
 }
 
 export class Token {
@@ -47,24 +49,23 @@ interface Bucket {
   max: number
 }
 
-  // it's O(n) time in the worst case
-  // but the bucketed sizes are really small.
-  function invariantMatch(keyword: string, key: string) {
-    if (keyword.length === key.length) {
-      for (let j = 0; j < key.length; j++) {
-        const a = keyword.charCodeAt(j)
-        const b = key.charCodeAt(j)
-        // upper or lower match is fine
-        if (a !== b && a !== b + 32) {
-          return false
-        }
+// todo: intl collator?
+function invariantMatch(keyword: string, key: string) {
+  if (keyword.length === key.length) {
+    for (let j = 0; j < key.length; j++) {
+      const a = keyword.charCodeAt(j)
+      const b = key.charCodeAt(j)
+      // upper or lower match is fine
+      if (a !== b && a !== b + 32) {
+        return false
       }
-
-      return true
     }
 
-    return false
+    return true
   }
+
+  return false
+}
 
 class KeywordLookup {
   private readonly buckets: Array<Bucket>
@@ -84,21 +85,21 @@ class KeywordLookup {
 
   addItem(item: [string, SyntaxKind]): void {
     const [key, kind] = item
-      const i = key.charCodeAt(0) - Chars.a
-      const bucket = (this.buckets[i] = this.buckets[i] || { keywords: [] })
+    const i = key.charCodeAt(0) - Chars.a
+    const bucket = (this.buckets[i] = this.buckets[i] || { keywords: [] })
 
-      bucket.keywords.push({
-        key: key,
-        kind: kind
-      })
+    bucket.keywords.push({
+      key: key,
+      kind: kind
+    })
 
-      bucket.min = Math.min(bucket.min, key.length) || key.length
-      bucket.max = Math.max(bucket.max, key.length)
+    bucket.min = Math.min(bucket.min, key.length) || key.length
+    bucket.max = Math.max(bucket.max, key.length)
 
-      // this is probably not all that important
-      // since each bucket has a min/max
-      this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
-      this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
+    // this is probably not all that important
+    // since each bucket has a min/max
+    this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
+    this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
   }
 
   get(key: string): SyntaxKind | undefined {
@@ -210,7 +211,7 @@ const keywordMap = new KeywordLookup([
   ['from', SyntaxKind.from_keyword],
   ['full', SyntaxKind.full_keyword],
   ['function', SyntaxKind.function_keyword],
-  ['go', SyntaxKind.go_keyword], // special: mssql
+  ['go', SyntaxKind.go_keyword], // special: mssql, maybe remove it unless the flag exists
   ['goto', SyntaxKind.goto_keyword],
   ['grant', SyntaxKind.grant_keyword],
   ['group', SyntaxKind.group_keyword],
@@ -328,27 +329,6 @@ const keywordMap = new KeywordLookup([
   ['within group', SyntaxKind.within_keyword],
   ['writetext', SyntaxKind.writetext_keyword],
 ])
-
-export function binarySearch(array: Array<number>, key: number) {
-  let low = 0
-  let high = array.length - 1
-  while (low <= high) {
-    const mid = low + (high - low / 2)
-    const val = array[mid]
-
-    if (val == key) {
-      return mid
-    }
-
-    if (val < key) {
-      low = mid + 1
-    } else {
-      high = mid - 1
-    }
-  }
-
-  return ~low
-}
 
 export class Scanner {
   private readonly text: string
@@ -469,7 +449,7 @@ export class Scanner {
     // back out one character since we overshot by one
     // and the top level scanning switch is going to advance
     // the position by one.
-    return this.text.substring(start, this.pos--)
+    return this.text.substring(start + 1, (this.pos--) - 1)
   }
 
   /**
@@ -947,9 +927,13 @@ export class Scanner {
 
       case Chars.doubleQuote:
       case Chars.openBrace: {
+        flags |= ch === Chars.doubleQuote
+          ? TokenFlags.QuotedIdentifier
+          : TokenFlags.BracketedIdentifier
+
         val = this.scanIdentifier()
         kind = SyntaxKind.identifier
-        // flags |= TokenFlags.QuotedIdentifier
+
         break
       }
 

@@ -1857,29 +1857,41 @@ export class Parser {
   }
 
   private parseFrom(): FromClause {
-
-    // todo: nested table exprs
     const from = <FromClause>this.createAndMoveNext(this.token, SyntaxKind.from_clause)
-    const source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
 
-    if (this.optional(SyntaxKind.openParen)) {
-      source.expr = this.parseSelect()
-      this.expect(SyntaxKind.closeParen)
-    } else {
-      this.assertKind(SyntaxKind.identifier)
-      source.expr = this.tryParseTableOrFunctionExpression()
-    }
 
-    this.optional(SyntaxKind.as_keyword)
+    from.sources = []
+    do {
+      const source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
+      if (this.optional(SyntaxKind.openParen)) {
+        source.expr = this.parseSelect()
+        this.expect(SyntaxKind.closeParen)
+      } else {
+        this.assertKind(SyntaxKind.identifier)
+        source.expr = this.tryParseTableOrFunctionExpression()
+      }
 
-    if (this.match(SyntaxKind.identifier)) {
-      source.alias = this.parseIdentifier()
-    }
+      this.optional(SyntaxKind.as_keyword)
 
-    from.sources = [source]
+      if (this.match(SyntaxKind.identifier)) {
+        source.alias = this.parseIdentifier()
+      }
+
+      if (this.optional(SyntaxKind.openParen)) {
+        // (column_alias [ ,...n ] )
+        const cols = []
+        do {
+          cols.push(this.createSinglePartIdentifier(this.token, true))
+        } while (this.optional(SyntaxKind.comma_token))
+
+        this.expect(SyntaxKind.closeParen)
+      }
+
+      from.sources.push(source)
+    } while (this.optional(SyntaxKind.comma_token))
+
 
     // todo: multiple table sources...
-    // lots of optional joined tables
     while (true) {
       const join = <JoinedTable>this.createNode(this.token, SyntaxKind.joined_table)
       const isLeft = this.match(SyntaxKind.left_keyword)

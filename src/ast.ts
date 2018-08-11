@@ -396,21 +396,9 @@ export interface Source extends SyntaxNode {
   with?: string[] // todo: specialized type for table hints
 }
 
-// todo: for the resolver
-export enum DataSourceKind {
-  unknown,
-  table,
-  view,
-  subexpression,
-  local_table,
-  temp_table,
-  table_valued_function,
-}
-
 export interface TableLikeDataSource extends SyntaxNode {
   expr: IdentifierExpression | FunctionCallExpression | SelectStatement
   alias?: Identifier
-  source_kind?: DataSourceKind
 }
 
 export type RowValueExpression =
