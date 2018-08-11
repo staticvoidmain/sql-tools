@@ -1,4 +1,5 @@
 import { isLetter, isUpper } from '../chars'
+import { assert } from 'console';
 
 /*
 
@@ -29,34 +30,41 @@ export interface Symbol {
 }
 
 export enum SymbolKind {
-  schema_name,
+  column,
+  schema,
   local_scalar,
   local_table,
-  table_name,
+  table,
+  cursor,
 
 }
+
+
+interface SymbolDeclaration {
+  kind: SymbolKind
+}
+
+// not sure what to do with this yet.
+interface Type { }
 
 type Decl =
   | LocalScalarDecl
   | LocalTableDecl
+  | TableDecl
   | ColumnDecl
 
-interface LocalScalarDecl {
-  kind: SymbolKind
-}
-
-interface LocalTableDecl {
-  kind: SymbolKind
-}
-
+interface LocalScalarDecl { }
+interface LocalTableDecl { }
+interface QueryDecl { }
+interface TableDecl { }
 interface ColumnDecl {
-  kind: SymbolKind
+  ordinal: number
+  type: Type
 }
 
 let global_symbol = 0
 
 class NameTable {
-
   private map: Map<number, Symbol>
 
   /**
@@ -115,17 +123,55 @@ class NameTable {
   }
 }
 
+type DeclType =
+  | 'database'
+  | 'schema'
+  | 'table'
+  | 'local'
+  | 'type'
+
 export class Scope {
-  // is there a shared global id system?
-  // for all symbols... I think so.
-  private parent?: Scope
+  private types?: NameTable
   private schemas?: NameTable
   private databases?: NameTable
   private locals?: NameTable
+
+  // tables in the default schema of the db
+  // can be resolved without a schema qualifier
+  private default_tables?: NameTable
   private temp_tables?: NameTable
 
-  define(name: string, def: Decl) {
-    switch (def.kind) {
+  constructor(private parent?: Scope) { }
+
+  define(type: DeclType, name: string, decl: Decl) {
+    switch (type) {
+
+      case 'database': {
+        if (!this.databases) {
+          this.databases = new NameTable()
+        }
+
+        this.databases.add(name, decl)
+        break
+      }
+
+      case 'local': {
+        if (!this.locals) {
+          this.locals = new NameTable()
+        }
+
+        this.locals.add(name, decl)
+        break
+      }
+
+      case 'type': {
+        if (!this.types) {
+          this.types = new NameTable()
+        }
+
+        this.types.add(name, decl)
+        break
+      }
 
     }
   }
@@ -134,9 +180,8 @@ export class Scope {
    * Attempts to resolve a name within this scope, or a parent scope
    *  usage:
    *
-   * resolve('@foo', SymbolKind.local_scalar)
    */
-  resolve(name: string, hint: SymbolKind): Symbol | undefined {
+  resolve(name: string, hint?: SymbolKind): Symbol | undefined {
     let sym = undefined
 
     if (name.startsWith('@') && this.locals) {
@@ -146,8 +191,33 @@ export class Scope {
     } else {
       // okay now we'll make use of the hints
 
+      switch (hint) {
+        // start at the top if we don't have a hint
+        // and just fall through til we hit a match
+        default:
 
+        case SymbolKind.table: { /* fallthrough */
+          if (this.default_tables) {
+            sym = this.default_tables.get(name)
 
+            if (sym) { break }
+          }
+        }
+
+        case SymbolKind.schema: { /* fallthrough */
+          if (this.schemas) {
+            sym = this.schemas.get(name)
+
+            if (sym) { break }
+          }
+        }
+
+        // todo:
+        case SymbolKind.cursor:
+        case SymbolKind.local_scalar:
+        case SymbolKind.local_table:
+        case SymbolKind.column:
+      }
     }
 
     if (!sym && this.parent) {
@@ -158,9 +228,12 @@ export class Scope {
 
     return sym
   }
+
+  createScope() {
+    return new Scope(this)
+  }
 }
 
-// todo: specialize nameTable to intern strings?
 export enum DataSourceKind {
   unknown,
   table,
@@ -173,8 +246,62 @@ export enum DataSourceKind {
   common_table_expression
 }
 
-const scopes = []
+function schema(name: string, ...tables: TableDecl[]) {
+  return {}
+}
+
+function table(name: string, ...columns: ColumnDecl[]): TableDecl {
+  // todo: assign all the columns ordinal numbers
+  return {}
+}
+
+function column(name: string, type: Type): ColumnDecl {
+  return {
+    type: SymbolKind.column,
+    ordinal: 0
+  }
+}
+
+// min / max? valid range?
+function type(name: string, len?: number, precision?: number) {
+  return {
+    name,
+    len,
+    precision
+  }
+}
+
+// todo: more default types, and some way to
+// specify stuff.
+const INT = type('int')
+const BIGINT = type('bigint')
+const BIT = type('bit')
 
 export function createGlobalScope(): Scope {
-  // this is gonna take a lot more thought
+  const scope = new Scope()
+
+  scope.define('type', 'int', INT)
+  scope.define('type', 'bigint', BIGINT)
+  scope.define('type', 'bit', BIT)
+  scope.define('type', 'varchar', type('varchar'))
+
+  scope.define('database', 'master',
+    schema('sys',
+      table('objects',
+        column('object_id', INT),
+        column('principal_id', INT),
+        column('schema_id', INT),
+        column('parent_object_id', INT),
+        column('type', type('char', 2)),
+        column('type_desc', type('nvarchar', 60)),
+        column('create_date', type('datetime')),
+        column('modify_date', type('datetime')),
+        column('is_ms_shipped', BIT),
+        column('is_published', BIT),
+        column('is_schema_published', BIT)
+      )
+    )
+  )
+
+  return scope
 }

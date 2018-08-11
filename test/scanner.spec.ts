@@ -249,7 +249,7 @@ describe('Scanner', function () {
     const tokens = scanAll(scanner)
 
     assertTokens(tokens, [
-      { kind: SyntaxKind.identifier, value: '[foo]' },
+      { kind: SyntaxKind.identifier, value: 'foo' },
       { kind: SyntaxKind.dot_token },
       { kind: SyntaxKind.identifier, value: 'b@r' },
       { kind: SyntaxKind.dot_token },

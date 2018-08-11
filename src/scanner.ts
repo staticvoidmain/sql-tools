@@ -426,6 +426,7 @@ export class Scanner {
 
     // all idents are at least one character long.
     const start = this.pos++
+    const quoted = insideBraceContext || insideQuoteContext ? 1 : 0
 
     while (ch = this.token()) {
       if ((ch === Chars.doubleQuote && insideQuoteContext)
@@ -449,7 +450,7 @@ export class Scanner {
     // back out one character since we overshot by one
     // and the top level scanning switch is going to advance
     // the position by one.
-    return this.text.substring(start + 1, (this.pos--) - 1)
+    return this.text.substring(start + quoted, (this.pos--) - quoted)
   }
 
   /**
