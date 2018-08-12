@@ -94,7 +94,7 @@ describe('Parser', () => {
     expect(expr.right.kind).to.equal(SyntaxKind.literal_expr)
   })
 
-  it('debug: parse script and print ast', () => {
+  xit('debug: parse script and print ast', () => {
     const path = './test/mssql/kitchen_sink.sql'
     const file = readFileSync(path, 'utf8')
     const parser = new Parser(file, {

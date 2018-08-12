@@ -12,7 +12,7 @@
       "args": [
         "--timeout",
         "999999",
-        "${workspaceFolder}/dist/test/linter.spec.js"
+        "${workspaceFolder}/dist/test/*.spec.js"
       ],
       "internalConsoleOptions": "openOnSessionStart"
     },

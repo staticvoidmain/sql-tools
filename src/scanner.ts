@@ -531,8 +531,9 @@ export class Scanner {
   private scanNumber(): Number {
     const start = this.pos
     while (isDigit(this.token())) this.pos++
-    // todo: scan exponent notation for other vendors
-    // that support that
+
+    // TODO: float/real constants
+    // ex: 101.5E5 + 0.5E-2
     if (this.token() === Chars.period) {
       this.pos++
 
@@ -899,12 +900,22 @@ export class Scanner {
         break
       }
 
-      case Chars.dollar: { /* fallthrough */
+      case Chars.dollar: {
         this.pos++
         flags |= TokenFlags.MoneyLiteral
+        val = this.scanNumber()
+        kind = SyntaxKind.numeric_literal
+        break
       }
 
-      case Chars.num_0:
+      case Chars.num_0: { /* fallthrough */
+        // todo: nonsense...
+        if (this.peek() === Chars.x) {
+          // uhhh... a money hex literal would be
+          // nonsensical.
+        }
+      }
+
       case Chars.num_1:
       case Chars.num_2:
       case Chars.num_3:
