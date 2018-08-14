@@ -13,9 +13,6 @@ describe('Resolver', () => {
 
   it('ignores case', () => {
 
-
-
-
   })
 
   it ('resolves up the scope chain', () => {

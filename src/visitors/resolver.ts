@@ -1,5 +1,7 @@
 import { isLetter, isUpper } from '../chars'
 import { assert } from 'console';
+import { Visitor } from './abstract_visitor';
+import { SelectStatement } from '../ast';
 
 /*
 
@@ -64,15 +66,40 @@ interface ColumnDecl {
 
 let global_symbol = 0
 
+
+const fnv_prime = 16777619
+const hash_base =	0x811c9dc5
+const uint = new Uint32Array(new ArrayBuffer(4))
+
+// 32-bit fnv hash of the string, converting upper letters
+// to their lower equivalent, but keeping all other characters
+// intact.
+function computeHash(name: string) {
+  const len = name.length
+  uint[0] = hash_base
+  for (let i = 0; i < len; i++) {
+    let c = name.charCodeAt(i)
+
+    if (isLetter(c) && isUpper(c)) {
+      c += 32
+    }
+
+    uint[0] ^= c
+    uint[0] *= fnv_prime
+  }
+
+  return uint[0]
+}
+
 class NameTable {
-  private map: Map<number, Symbol>
+  private map: Map<number, Decl>
 
   /**
    * @param prefix coommon prefix used by all members of the table
    *  such as @ for locals, or # for temp tables [optional]
    */
   constructor(private prefix?: string) {
-    this.map = new Map<number, Symbol>()
+    this.map = new Map<number, Decl>()
   }
 
   add(name: string, decl: Decl) {
@@ -83,43 +110,16 @@ class NameTable {
       }
     }
 
-    const hash = this.computeHash(name)
+    const hash = computeHash(name)
     if (this.map.get(hash)) {
       throw 'ERR: symbol redefined: ' + name
     }
 
-    const sym = <Symbol>{
-      id: global_symbol++,
-      decl: decl
-    }
-
-    this.map.set(hash, sym)
+    this.map.set(hash, decl)
   }
 
   get(name: string) {
-    return this.map.get(this.computeHash(name))
-  }
-
-  // fnv hash of the string, converting upper letters
-  // to their lower equivalent, but keeping all other characters
-  // intact.
-  private computeHash(name: string) {
-    const len = name.length
-    let x = 0xcbf29ce484222325
-    for (let i = 0; i < len; i++) {
-      const c = name.charCodeAt(i)
-
-      if (isLetter(c) && isUpper(c)) {
-        x ^= c + 32
-      } else {
-        x ^= c
-      }
-
-      x *= 0x100000001b3
-      x ^= x >> 32
-    }
-
-    return x
+    return this.map.get(computeHash(name))
   }
 }
 
@@ -131,49 +131,12 @@ type DeclType =
   | 'type'
 
 export class Scope {
-  private types?: NameTable
-  private schemas?: NameTable
-  private databases?: NameTable
-  private locals?: NameTable
-
-  // tables in the default schema of the db
-  // can be resolved without a schema qualifier
-  private default_tables?: NameTable
-  private temp_tables?: NameTable
+  private symbols = new NameTable()
 
   constructor(private parent?: Scope) { }
 
   define(type: DeclType, name: string, decl: Decl) {
-    switch (type) {
-
-      case 'database': {
-        if (!this.databases) {
-          this.databases = new NameTable()
-        }
-
-        this.databases.add(name, decl)
-        break
-      }
-
-      case 'local': {
-        if (!this.locals) {
-          this.locals = new NameTable()
-        }
-
-        this.locals.add(name, decl)
-        break
-      }
-
-      case 'type': {
-        if (!this.types) {
-          this.types = new NameTable()
-        }
-
-        this.types.add(name, decl)
-        break
-      }
-
-    }
+    this.symbols.add(name, decl)
   }
 
   /**
@@ -181,44 +144,9 @@ export class Scope {
    *  usage:
    *
    */
-  resolve(name: string, hint?: SymbolKind): Symbol | undefined {
-    let sym = undefined
+  resolve(name: string, hint?: SymbolKind): Decl | undefined {
+    let sym = this.symbols.get(name)
 
-    if (name.startsWith('@') && this.locals) {
-      sym = this.locals.get(name)
-    } else if (name.startsWith('#') && this.temp_tables) {
-      sym = this.temp_tables.get(name)
-    } else {
-      // okay now we'll make use of the hints
-
-      switch (hint) {
-        // start at the top if we don't have a hint
-        // and just fall through til we hit a match
-        default:
-
-        case SymbolKind.table: { /* fallthrough */
-          if (this.default_tables) {
-            sym = this.default_tables.get(name)
-
-            if (sym) { break }
-          }
-        }
-
-        case SymbolKind.schema: { /* fallthrough */
-          if (this.schemas) {
-            sym = this.schemas.get(name)
-
-            if (sym) { break }
-          }
-        }
-
-        // todo:
-        case SymbolKind.cursor:
-        case SymbolKind.local_scalar:
-        case SymbolKind.local_table:
-        case SymbolKind.column:
-      }
-    }
 
     if (!sym && this.parent) {
       // walk up the scope chain and try to
@@ -304,4 +232,28 @@ export function createGlobalScope(): Scope {
   )
 
   return scope
+}
+
+
+export class DeclarationVisitor extends Visitor {
+
+  /**
+   *
+   */
+  constructor(private scope: Scope) {
+    super()
+  }
+
+  visitSelect(select: SelectStatement) {
+    const scope = this.scope.createScope()
+
+    // todo: name resolution tieeem
+
+    if (select.from) {
+      for (const src of select.from.sources) {
+        if ()
+      }
+    }
+
+  }
 }
