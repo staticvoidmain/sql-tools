@@ -199,6 +199,9 @@ yargs
       metaStore.push(visitor.getMetadata())
     })
 
+    // so THIS is like a multi-file interraction graph...
+    // there might also be a single-file step-wise graph
+    // but it would take different data.
     const o = process.stdout
     o.setDefaultEncoding('utf8')
 
