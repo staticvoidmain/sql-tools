@@ -1460,6 +1460,25 @@ export class Parser {
     return exec_string
   }
 
+  private TEMP_discardWithOptions() {
+    if (this.optional(SyntaxKind.with_keyword)) {
+
+      this.expect(SyntaxKind.openParen)
+      let parens = 1
+      // HACK: for now we'll just throw out
+      // all the distribution index stuff
+      // with(distribution = replicate, clustered columnstore index)
+      while (parens > 0) {
+        if (this.match(SyntaxKind.closeParen)) {
+          parens--
+        } else if (this.match(SyntaxKind.openParen)) {
+          parens++
+        }
+        this.moveNext()
+      }
+    }
+  }
+
   private parseCreateStatement(): CreateStatement {
     const start = this.token
     const objectType = this.moveNext()
@@ -1483,22 +1502,7 @@ export class Parser {
 
         if (this.hasFeature(FeatureFlags.CreateTableAsSelect)) {
 
-          if (this.optional(SyntaxKind.with_keyword)) {
-
-            this.expect(SyntaxKind.openParen)
-            let parens = 1
-            // HACK: for now we'll just throw out
-            // all the distribution index stuff
-            // with(distribution = replicate, clustered columnstore index)
-            while (parens > 0) {
-              if (this.match(SyntaxKind.closeParen)) {
-                parens--
-              } else if (this.match(SyntaxKind.openParen)) {
-                parens++
-              }
-              this.moveNext()
-            }
-          }
+          this.TEMP_discardWithOptions()
 
           if (this.match(SyntaxKind.as_keyword)) {
 
@@ -1523,7 +1527,7 @@ export class Parser {
         create.name = name
         create.body = this.parseColumnDefinitionList()
         this.expect(SyntaxKind.closeParen)
-
+        this.TEMP_discardWithOptions()
         this.optional(SyntaxKind.semicolon_token)
         return create
       }
