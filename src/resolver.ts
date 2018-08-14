@@ -1,6 +1,7 @@
 import { isLetter, isUpper } from './chars'
 import { Visitor } from './visitors/abstract_visitor'
-import { SelectStatement } from './ast'
+import { SelectStatement, SyntaxNode, DeclareStatement } from './ast'
+import { SyntaxKind } from './syntax';
 
 /*
 
@@ -268,29 +269,31 @@ export function createGlobalScope(): Scope {
   return scope
 }
 
+// todo: for now we won't actually attempt to resolve type symbols
+// just because it's not really "REQUIRED" unless we want to do something
+// super super fancy.
+export function resolveAll(nodes: SyntaxNode[]) {
+  const scope = createGlobalScope()
 
-// notes: the database is the 'package' in this example, and a package can
-// contain cross-package depdendencies which can be linked.
+  for (const node of nodes) {
+    switch (node.kind) {
+      case SyntaxKind.declare_statement: {
+        const decl = <DeclareStatement>node
 
-export class DeclarationVisitor extends Visitor {
-
-  /**
-   *
-   */
-  constructor(private scope: Scope) {
-    super()
-  }
-
-  visitSelect(select: SelectStatement) {
-    const scope = this.scope.createScope()
-
-    // todo: name resolution tieeem
-
-    if (select.from) {
-      for (const src of select.from.sources) {
-        /// if ()
+        if (decl.variables) {
+          for (const l of decl.variables) {
+            // todo: resolve type
+            scope.define(l.name, local(l.name, undefined))
+          }
+        }
+        break
       }
-    }
 
+      case SyntaxKind.select_statement: { }
+      case SyntaxKind.create_table_as_select_statement: { }
+      case SyntaxKind.create_table_statement: { }
+      case SyntaxKind.update_statement: { }
+      case SyntaxKind.delete_statement: { }
+    }
   }
 }
