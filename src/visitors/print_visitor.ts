@@ -1,4 +1,4 @@
-import { SyntaxKind } from './../syntax'
+import { SyntaxKind } from '../syntax'
 
 import {
   BinaryExpression,
@@ -52,7 +52,7 @@ import {
   OrderExpression,
   HavingClause,
   CommonTableExpression
-} from './../ast'
+} from '../ast'
 
 import { formatIdentifier } from '../utils'
 

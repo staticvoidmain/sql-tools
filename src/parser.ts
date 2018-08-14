@@ -94,7 +94,8 @@ import {
   UpdateStatement,
   Assignment,
   AlterTableStatement,
-  ColumnChange
+  ColumnChange,
+  CreateSchemaStatement
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -116,7 +117,8 @@ export function isStatementKind(kind: SyntaxKind) {
     && kind > SyntaxKind.alter_proc_statement
 }
 
-export function isTemp(val: string) {
+export function isTemp(ident: Identifier) {
+  const val = ident.parts[ident.parts.length - 1]
   return val[0] === '#'
     || (val[0] === '"' && val[1] === '#')
     || (val[0] === '[' && val[1] === '#')
@@ -1543,7 +1545,6 @@ export class Parser {
         this.optional(SyntaxKind.semicolon_token)
 
         return view
-        break
       }
 
       case SyntaxKind.proc_keyword:
@@ -1585,9 +1586,27 @@ export class Parser {
         return stats
       }
 
-      case SyntaxKind.index_keyword:
+      case SyntaxKind.index_keyword: {
         this.error('"create index" not implemented')
         break
+      }
+
+      case SyntaxKind.schema_keyword: {
+        const schema = <CreateSchemaStatement>this.createAndMoveNext(this.token, SyntaxKind.create_schema_statement)
+
+        // todo: pwd / azure sql require the schema name.
+        // but vanilla sql server treats it as optional
+        schema.name = this.parseIdentifier()
+
+
+        if (this.optional(SyntaxKind.authorization_keyword)) {
+          schema.authorization = this.parseIdentifier()
+        }
+
+        // todo: sql server supports nesting "Schema Elements" here
+
+        return schema
+      }
     }
 
     throw new Error('Not sure how to create ' + SyntaxKind[objectType.kind])
@@ -1682,6 +1701,7 @@ export class Parser {
     return <AlterStatement>this.createNode(this.token)
   }
 
+  // todo: I'm not sure if they ALL have these semantics.
   private parseDropStatement() {
     const statement = <DropStatement>this.createAndMoveNext(this.token, SyntaxKind.drop_statement)
 
@@ -1702,6 +1722,7 @@ export class Parser {
       }
     }
 
+    // todo: comma separated list of objects
     statement.target = this.parseIdentifier()
 
     this.optional(SyntaxKind.semicolon_token)

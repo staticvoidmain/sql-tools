@@ -569,6 +569,7 @@ export type CreateStatement =
   | CreateProcedureStatement
   | CreateViewStatement
   | CreateStatisticsStatement
+  | CreateSchemaStatement
   // | CreateFunctionStatement
   // | CreateDatabaseStatement
 
@@ -645,6 +646,12 @@ export interface CreateViewStatement extends SyntaxNode {
   definition: SelectStatement
   // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
   // todo: trailing semicolon
+}
+
+export interface CreateSchemaStatement extends SyntaxNode {
+  name?: Identifier
+  authorization?: Identifier
+  // todo: schema element definitions [complex] [lowvalue]
 }
 
 export interface CreateStatisticsStatement extends SyntaxNode {

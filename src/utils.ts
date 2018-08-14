@@ -88,3 +88,8 @@ export function binarySearch(array: Array<number>, key: number) {
 
   return ~low
 }
+
+export function last<T>(array: ReadonlyArray<T>): T {
+  return array[array.length - 1]
+}
+

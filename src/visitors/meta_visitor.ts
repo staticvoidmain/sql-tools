@@ -72,15 +72,16 @@ export class MetadataVisitor extends Visitor {
   }
 
   visitCreateTable(table: CreateTableStatement) {
-    const name = formatIdentifier(table.name)
-    if (this.includeTemp || !isTemp(name)) {
+    if (this.includeTemp || !isTemp(table.name)) {
+      const name = formatIdentifier(table.name)
       this.meta.create.push(name)
     }
   }
 
   visitCtas(table: CreateTableAsSelectStatement) {
-    const name = formatIdentifier(table.name)
-    if (this.includeTemp || !isTemp(name)) {
+
+    if (this.includeTemp || !isTemp(table.name)) {
+      const name = formatIdentifier(table.name)
       this.meta.create.push(name)
     }
   }
@@ -90,9 +91,9 @@ export class MetadataVisitor extends Visitor {
     // just yet, but this will suffice for now.
     if (source.expr.kind === SyntaxKind.identifier_expr) {
       const ident = <IdentifierExpression>source.expr
-      const name = formatIdentifier(ident.identifier)
 
-      if (this.includeTemp || this.includeTemp || !isTemp(name)) {
+      if (this.includeTemp || !isTemp(ident.identifier)) {
+        const name = formatIdentifier(ident.identifier)
         // need semantic model to know for sure
         this.meta.read.push(name)
       }
@@ -100,18 +101,18 @@ export class MetadataVisitor extends Visitor {
   }
 
   visitInsertStatement(insert: InsertStatement) {
-    const name = formatIdentifier(insert.target)
-
-    if (this.includeTemp || !isTemp(name)) {
+    if (this.includeTemp || !isTemp(insert.target)) {
+      const name = formatIdentifier(insert.target)
 
       this.meta.create.push(name)
     }
   }
 
   visitUpdate(update: UpdateStatement) {
-    let name = formatIdentifier(update.target)
 
-    if (this.includeTemp || !isTemp(name)) {
+    if (this.includeTemp || !isTemp(update.target)) {
+      let name = formatIdentifier(update.target)
+
       if (update.target.parts.length === 1 && update.from) {
         name = findByAlias(update.from, update.target) || name
       }
@@ -121,8 +122,9 @@ export class MetadataVisitor extends Visitor {
   }
 
   visitDelete(del: DeleteStatement) {
-    let name = formatIdentifier(del.target)
-    if (this.includeTemp || !isTemp(name)) {
+    if (this.includeTemp || !isTemp(del.target)) {
+      let name = formatIdentifier(del.target)
+
       if (del.target.parts.length === 1 && del.from) {
         name = findByAlias(del.from, del.target) || name
       }

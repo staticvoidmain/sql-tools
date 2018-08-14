@@ -1,6 +1,6 @@
 import { } from 'mocha'
 import { expect } from 'chai'
-import { Scope, local, INT, createGlobalScope } from '../src/visitors/resolver'
+import { Scope, local, INT, createGlobalScope } from '../src/resolver'
 
 describe('resolver', () => {
 

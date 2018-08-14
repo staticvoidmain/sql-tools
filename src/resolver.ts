@@ -1,7 +1,6 @@
-import { isLetter, isUpper } from '../chars'
-import { assert } from 'console';
-import { Visitor } from './abstract_visitor';
-import { SelectStatement } from '../ast';
+import { isLetter, isUpper } from './chars'
+import { Visitor } from './visitors/abstract_visitor'
+import { SelectStatement } from './ast'
 
 /*
 
@@ -39,6 +38,9 @@ export enum SymbolKind {
   local_table,
   table,
   cursor,
+  cte,
+  temp_table,
+
 }
 
 
@@ -54,6 +56,9 @@ type Decl =
   | LocalTableDecl
   | TableDecl
   | ColumnDecl
+  // | ProcedureDecl
+  // | ViewDecl
+  // | CteDecl
 
 interface LocalScalarDecl {
   name: string
@@ -74,9 +79,6 @@ interface ColumnDecl {
   ordinal: number
   type: Type
 }
-
-let global_symbol = 0
-
 
 const fnv_prime = 16777619
 const hash_base =	0x811c9dc5
@@ -266,6 +268,9 @@ export function createGlobalScope(): Scope {
   return scope
 }
 
+
+// notes: the database is the 'package' in this example, and a package can
+// contain cross-package depdendencies which can be linked.
 
 export class DeclarationVisitor extends Visitor {
 

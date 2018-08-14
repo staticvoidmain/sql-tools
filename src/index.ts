@@ -161,6 +161,10 @@ yargs
         visitor.visit(node)
       }
 
+      // anything that happens at the END
+      // of a script.
+      visitor.visitEndOfFile()
+
       if (a.severity === 'info') {
         for (const key of parser.getKeywords()) {
           visitor.visitKeyword(key)

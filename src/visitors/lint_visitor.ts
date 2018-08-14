@@ -2,12 +2,13 @@ import { Parser, isLocal, isTemp } from '../parser'
 
 import chalk from 'chalk'
 
-import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression, Identifier, FromClause, TableLikeDataSource } from '../ast'
+import { SyntaxNode, BinaryExpression, LiteralExpression, BinaryOperator, Expr, WhereClause, JoinedTable, IdentifierExpression, UnaryExpression, FunctionCallExpression, SearchedCaseExpression, SimpleCaseExpression, ColumnExpression, SelectStatement, LikeExpression, Identifier, FromClause, TableLikeDataSource, CreateTableAsSelectStatement, CreateTableStatement, DropStatement } from '../ast'
 import { Visitor } from './abstract_visitor'
 import { SyntaxKind } from '../syntax'
 import { Token } from '../scanner'
 import { isLetter, isUpper } from '../chars'
 import { isMisspelled, add as addWord } from 'spellchecker'
+import { last } from '../utils';
 
 // todo: add some common sql-isms to the spellchecker
 // dictionary where possible.
@@ -200,8 +201,10 @@ const nameValidators = {
 }
 
 export class ExampleLintVisitor extends Visitor {
-  private readonly severity: number
   public hasIssues = false
+
+  private readonly severity: number
+  private readonly tempTables: Array<string> = []
 
   constructor(private parser: Parser, sev: string) {
     super()
@@ -262,9 +265,15 @@ export class ExampleLintVisitor extends Visitor {
       if (parts.length < 2) {
         // UNLESS it's a temp or local
         if (isLocal(parts[0])) { return }
-        if (isTemp(parts[0])) { return }
+        if (isTemp(expr.identifier)) { return }
 
+        // semantic would make this better...
+        // the real rule is tables should be schema qualified
         this.warning('named data sources should use at least a 2 part name', s)
+      }
+
+      if (isTemp(expr.identifier)) {
+        // if it's a SHARED temp, flag it as a smell
       }
     }
   }
@@ -301,6 +310,8 @@ export class ExampleLintVisitor extends Visitor {
             const parts = ident.identifier.parts
 
             if (parts.length < 2) {
+              // semantic would make this better...
+              // the real rule is tables should be schema qualified
               this.warning('use a two-part name for queries involving more than one table', ident)
             }
           }
@@ -348,15 +359,13 @@ export class ExampleLintVisitor extends Visitor {
 
         // todo: people do like their 1=1 nonsense, give that a pass.
         // todo: link to a full on SAT solver
-        // let's go crazy and add some unreachable code detection
+        // for some unreachable code detection
         this.error('value compared with itself, result will always be constant', node)
       }
     }
 
     // rule: null concat null, unsafe string concat (needs semantic model)
-
     // rule: expressions in a divisor slot which are non-literal
-    // could cause divide by zero, that might be cool to test for
   }
 
   visitLike(like: LikeExpression) {
@@ -409,5 +418,43 @@ export class ExampleLintVisitor extends Visitor {
         }
       })
     })
+  }
+
+  visitCreateTable(table: CreateTableStatement) {
+    if (isTemp(table.name)) {
+      // does schema qualifying a temp table do anything?
+      // seems like it's redundant.
+      if (table.name.parts.length > 1) {
+        this.info('overqualified temp-table name', table.name, undefined, 'code-smell')
+      }
+
+      this.tempTables.push(last(table.name.parts))
+    }
+  }
+
+  visitDrop(drop: DropStatement) {
+    if (drop.objectType.kind === SyntaxKind.table_keyword) {
+      if (isTemp(drop.target)) {
+        const i = this.tempTables.indexOf(last(drop.target.parts))
+
+        if (i === -1) {
+          this.info('Dropping a temp table you didn\'t create in this file.', drop, undefined, 'code-smell')
+        } else {
+          this.tempTables.splice(i, 1)
+        }
+      }
+    }
+  }
+
+  visitEndOfFile() {
+    if (this.tempTables.length > 0) {
+      // if there are undropped temp tables, let's flag those
+      // it might be someone trying to do IPC with them...
+      const tables = this.tempTables.join(', ')
+      const message = 'One or more #temp_tables exist after end of script: ' + tables
+
+      this.info(message,
+        new Token(SyntaxKind.EOF, 0, 0), undefined, 'code-smell')
+    }
   }
 }
