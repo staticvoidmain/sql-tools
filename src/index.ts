@@ -6,15 +6,9 @@ import { printNodes, PrintVisitor } from './visitors/print_visitor'
 import { Parser, ParserException } from './parser'
 
 import {
-  join,
-  normalize,
   relative,
   dirname
 } from 'path'
-
-import {
-  statSync
-} from 'fs'
 
 import { sync as glob } from 'glob'
 
@@ -184,6 +178,10 @@ yargs
     return y.positional('paths', {
       describe: 'list of files or globs to graph'
     })
+    .option('include-temp', {
+      alias: 't',
+      default: false
+    })
   }, async (a: yargs.Arguments) => {
 
     // todo: how can I visually distinguish different folders?
@@ -193,7 +191,7 @@ yargs
       // todo: relative paths are a little... fiddly.
       // if we accept multiples...
       const rel = relative(dir, path)
-      const visitor = new MetadataVisitor(rel)
+      const visitor = new MetadataVisitor(rel, a.includeTemp)
       const tree = parser.parse()
       visitor.visit_each(tree)
 

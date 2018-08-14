@@ -57,7 +57,10 @@ function findByAlias(from: FromClause, ident: Identifier) {
 export class MetadataVisitor extends Visitor {
   private meta: Metadata
 
-  constructor(path: string) {
+  constructor(
+    path: string,
+    private includeTemp = false) {
+
     super()
     this.meta = new Metadata()
     this.meta.path = path
@@ -70,15 +73,16 @@ export class MetadataVisitor extends Visitor {
 
   visitCreateTable(table: CreateTableStatement) {
     const name = formatIdentifier(table.name)
-    if (isTemp(name)) { return }
-    this.meta.create.push(name)
+    if (this.includeTemp || !isTemp(name)) {
+      this.meta.create.push(name)
+    }
   }
 
   visitCtas(table: CreateTableAsSelectStatement) {
-    // unnamed ctas? dafuh?
     const name = formatIdentifier(table.name)
-    if (isTemp(name)) { return }
-    this.meta.create.push(name)
+    if (this.includeTemp || !isTemp(name)) {
+      this.meta.create.push(name)
+    }
   }
 
   visitDataSource(source: TableLikeDataSource) {
@@ -88,7 +92,7 @@ export class MetadataVisitor extends Visitor {
       const ident = <IdentifierExpression>source.expr
       const name = formatIdentifier(ident.identifier)
 
-      if (!isTemp(name)) {
+      if (this.includeTemp || this.includeTemp || !isTemp(name)) {
         // need semantic model to know for sure
         this.meta.read.push(name)
       }
@@ -98,31 +102,32 @@ export class MetadataVisitor extends Visitor {
   visitInsertStatement(insert: InsertStatement) {
     const name = formatIdentifier(insert.target)
 
-    if (isTemp(name)) { return }
+    if (this.includeTemp || !isTemp(name)) {
 
-    this.meta.create.push(name)
+      this.meta.create.push(name)
+    }
   }
 
   visitUpdate(update: UpdateStatement) {
     let name = formatIdentifier(update.target)
 
-    if (isTemp(name)) { return }
+    if (this.includeTemp || !isTemp(name)) {
+      if (update.target.parts.length === 1 && update.from) {
+        name = findByAlias(update.from, update.target) || name
+      }
 
-    if (update.target.parts.length === 1 && update.from) {
-      name = findByAlias(update.from, update.target) || name
+      this.meta.update.push(name)
     }
-
-    this.meta.update.push(name)
   }
 
   visitDelete(del: DeleteStatement) {
     let name = formatIdentifier(del.target)
-    if (isTemp(name)) { return }
+    if (this.includeTemp || !isTemp(name)) {
+      if (del.target.parts.length === 1 && del.from) {
+        name = findByAlias(del.from, del.target) || name
+      }
 
-    if (del.target.parts.length === 1 && del.from) {
-      name = findByAlias(del.from, del.target) || name
+      this.meta.delete.push(name)
     }
-
-    this.meta.delete.push(name)
   }
 }
