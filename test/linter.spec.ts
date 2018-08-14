@@ -33,7 +33,7 @@ function lint(path: string) {
 }
 
 describe('lint_visitor', function () {
-  it('debug: lint the file', function () {
+  xit('debug: lint the file', function () {
     lint('./test/mssql/select_with_join.sql')
   })
 })

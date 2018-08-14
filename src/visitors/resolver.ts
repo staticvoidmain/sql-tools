@@ -39,7 +39,6 @@ export enum SymbolKind {
   local_table,
   table,
   cursor,
-
 }
 
 
