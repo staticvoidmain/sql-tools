@@ -1859,7 +1859,6 @@ export class Parser {
   private parseFrom(): FromClause {
     const from = <FromClause>this.createAndMoveNext(this.token, SyntaxKind.from_clause)
 
-
     from.sources = []
     do {
       const source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
