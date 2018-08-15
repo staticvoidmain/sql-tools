@@ -495,6 +495,12 @@ export class Parser {
     return this.token
   }
 
+  /**
+   * called by create table AND declare @foo table
+   *
+   * the only difference being whether or not they support index and constraint
+   * creation at the moment. Which is probably buggy... oh well.
+   */
   private parseColumnDefinitionList(isCreateTable = false) {
     const cols = []
 

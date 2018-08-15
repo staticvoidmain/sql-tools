@@ -1,7 +1,8 @@
 import { isLetter, isUpper } from './chars'
 import { Visitor } from './visitors/abstract_visitor'
-import { SelectStatement, SyntaxNode, DeclareStatement } from './ast'
+import { SelectStatement, SyntaxNode, DeclareStatement, TableDeclaration, ColumnDefinition, CreateTableElement, Expr, ComputedColumnDefinition, IdentifierExpression, Identifier } from './ast'
 import { SyntaxKind } from './syntax';
+import { last } from './utils';
 
 /*
 
@@ -24,15 +25,14 @@ some notes:
   - and columns (with position to allow for the 1-base order by 1 stuff.
 */
 
-// resolve()
-// define()
-
 export interface Symbol {
   id: number
   decl: Decl
 }
 
 export enum SymbolKind {
+  alias,
+  type,
   column,
   schema,
   local_scalar,
@@ -40,17 +40,19 @@ export enum SymbolKind {
   table,
   cursor,
   cte,
-  temp_table,
-
-}
-
-
-interface SymbolDeclaration {
-  kind: SymbolKind
+  temp_table
 }
 
 // not sure what to do with this yet.
 interface Type { }
+
+// bottom of the semantic stuff
+interface Entity {
+  name: string
+  kind: SymbolKind
+  parent?: Decl
+  references?: Decl[]
+}
 
 type Decl =
   | LocalScalarDecl
@@ -61,24 +63,22 @@ type Decl =
   // | ViewDecl
   // | CteDecl
 
-interface LocalScalarDecl {
-  name: string
-  type: Type
+interface LocalScalarDecl extends Entity {
+  type?: Type
 }
 
-interface LocalTableDecl {
-  name: string
+interface LocalTableDecl extends Entity {
   columns: ColumnDecl[]
 }
 
-interface QueryDecl { }
+interface QueryDecl extends Entity { }
 
-interface TableDecl { }
+interface TableDecl extends Entity {
+  columns: ColumnDecl[]
+}
 
-interface ColumnDecl {
-  name: string
-  ordinal: number
-  type: Type
+interface ColumnDecl extends Entity {
+  // todo: type tags
 }
 
 const fnv_prime = 16777619
@@ -144,8 +144,8 @@ export class Scope {
     private parent?: Scope,
     private name?: string) { }
 
-  define(name: string, decl: Decl) {
-    this.symbols.add(name, decl)
+  define(decl: Decl) {
+    this.symbols.add(decl.name, decl)
     return decl
   }
 
@@ -192,24 +192,34 @@ export enum DataSourceKind {
 }
 
 export function schema(name: string, ...tables: TableDecl[]) {
-  return {}
+  return {
+    name,
+    tables,
+    kind: SymbolKind.schema
+  }
 }
 
 export function table(name: string, ...columns: ColumnDecl[]): TableDecl {
 
   return {
-    columns: columns.map((c, i) => {
-      c.ordinal = i
-      return c
-    })
+    name: name,
+    kind: SymbolKind.table,
+    columns: columns
   }
 }
 
-export function column(name: string, type: Type): ColumnDecl {
+export function column(name: string): ColumnDecl {
   return {
-    name,
-    type: SymbolKind.column,
-    ordinal: 0
+    name: name,
+    kind: SymbolKind.column
+  }
+}
+
+export function alias(name: string, entity: Entity) {
+  return {
+    name: name,
+    kind: SymbolKind.alias,
+    entity: entity
   }
 }
 
@@ -217,15 +227,30 @@ export function type(name: string, has_len?: boolean, has_precision?: boolean) {
   return {
     name,
     has_len,
-    has_precision
+    has_precision,
+    kind: SymbolKind.type
   }
 }
 
-export function local(name: string, type: Type): LocalScalarDecl {
+export function local(name: string, type?: Type): LocalScalarDecl {
   return {
-    name,
-    type
+    name: name,
+    kind: SymbolKind.local_scalar,
   }
+}
+
+export function localTable(name: string, ...columns: ColumnDecl[]): LocalTableDecl {
+  const table = {
+    name: name,
+    kind: SymbolKind.local_table,
+    columns: columns
+  }
+
+  columns.forEach((c, i) => {
+    c.parent = table
+  })
+
+  return table
 }
 
 // todo: more default types, and some way to
@@ -237,43 +262,72 @@ export const VARCHAR = type('varchar')
 export const DATETIME = type('datetime')
 export const DATE = type('date')
 
-// this scope never gets discarded.
+// this scope should never get discarded.
+let global: Scope
 export function createGlobalScope(): Scope {
+
+  if (global) {
+    return global
+  }
+
   const scope = new Scope(undefined, 'global')
 
-  scope.define('int', INT)
-  scope.define('bigint', BIGINT)
-  scope.define('bit', BIT)
-  scope.define('varchar', VARCHAR)
-  scope.define('datetime', DATETIME)
-  scope.define('date', DATE)
+  scope.define(INT)
+  scope.define(BIGINT)
+  scope.define(BIT)
+  scope.define(VARCHAR)
+  scope.define(DATETIME)
+  scope.define(DATE)
 
-  // scope.define('database', 'master',
-  //   schema('sys',
-  //     table('objects',
-  //       column('object_id', INT),
-  //       column('principal_id', INT),
-  //       column('schema_id', INT),
-  //       column('parent_object_id', INT),
-  //       column('type', type('char', 2)),
-  //       column('type_desc', type('nvarchar', 60)),
-  //       column('create_date', ),
-  //       column('modify_date', type('datetime')),
-  //       column('is_ms_shipped', BIT),
-  //       column('is_published', BIT),
-  //       column('is_schema_published', BIT)
-  //     )
-  //   )
-  // )
-
-  return scope
+  return global = scope
 }
+
+function resolveExpr(expr: Expr):any {
+// todo: return some kind of resolved expr...
+// no idea what this should look like
+}
+
+function mapColumns(cols:  CreateTableElement[]) {
+  const columns = []
+
+  for (const i of cols) {
+    if (i.kind === SyntaxKind.computed_column_definition) {
+      // todo: resolve expr
+      const computed = <ComputedColumnDefinition>i
+      columns.push({
+        name: computed.name,
+        expr: resolveExpr(computed.expression)
+      })
+    } else if (i.kind === SyntaxKind.column_definition) {
+      const column = <ColumnDefinition>i
+      // columns.
+    }
+  }
+
+  return columns
+}
+
+function resolveExpr(scope: Scope, expr: Expr) {
+// walk expr?
+}
+
+function resolveIdentifier(scope: Scope, ident: Identifier) {
+  // todo: resolved identifier type
+  const first = ident.parts[0]
+  const symbol = scope.resolve(first)
+
+  // switch the kinds?
+}
+
 
 // todo: for now we won't actually attempt to resolve type symbols
 // just because it's not really "REQUIRED" unless we want to do something
 // super super fancy.
 export function resolveAll(nodes: SyntaxNode[]) {
+  // todo: GET global scope?
   const scope = createGlobalScope()
+
+  // todo:
 
   for (const node of nodes) {
     switch (node.kind) {
@@ -282,18 +336,63 @@ export function resolveAll(nodes: SyntaxNode[]) {
 
         if (decl.variables) {
           for (const l of decl.variables) {
-            // todo: resolve type
-            scope.define(l.name, local(l.name, undefined))
+            scope.define(local(l.name))
           }
         }
+        else {
+          const t = <TableDeclaration>decl.table
+          const name = t.name.parts[0]
+          scope.define(localTable(name, mapColumns(t.body))
+        }
+
         break
       }
 
-      case SyntaxKind.select_statement: { }
-      case SyntaxKind.create_table_as_select_statement: { }
-      case SyntaxKind.create_table_statement: { }
-      case SyntaxKind.update_statement: { }
-      case SyntaxKind.delete_statement: { }
+      case SyntaxKind.select_statement: {
+        const select = <SelectStatement>node
+        const selectScope = scope.createScope()
+
+        // define
+        if (select.from) {
+          for (const src of select.from.sources) {
+            // define the FULL name, and any alias
+            // should have all the info we need here
+            // to resolve this expr
+
+            if (src.expr.kind === SyntaxKind.identifier_expr) {
+              // todo: resolve to the named identifier
+
+              const e = <IdentifierExpression>src.expr
+
+              if (src.alias) {
+                selectScope.define(
+                  alias(last(src.alias.parts),
+                  resolveIdentifier(selectScope, e.identifier)))
+              }
+
+              break
+            }
+
+            const resolved = resolveExpr(selectScope, src.expr)
+
+            if (src.alias) {
+              selectScope.define(
+                alias(last(src.alias.parts), resolved))
+            }
+
+            // if ()
+          }
+        }
+
+        break
+      }
+
+      case SyntaxKind.create_table_as_select_statement: { break }
+      case SyntaxKind.create_table_statement: {
+        break
+      }
+      case SyntaxKind.update_statement: { break }
+      case SyntaxKind.delete_statement: { break }
     }
   }
 }
