@@ -13,15 +13,16 @@ describe('resolver', () => {
 
     for (const schemaName in json) {
       const s = schema(schemaName)
-      const tables = json[schemaName]
+      const tables = json[schemaName].tables
 
       for (const tableName in tables) {
         const t = table(tableName)
-
-        for (const col of tables[tableName].columns) {
-          const entity = column(col.name)
+        const columns = tables[tableName].columns
+        for (const columnName of columns) {
+          const entity = column(columnName)
+          const col = columns[columnName]
           entity.nullable = col.nullable
-
+          entity.type = col.type
           entity.parent = t
           t.columns.push(entity)
         }

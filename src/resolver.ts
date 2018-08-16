@@ -88,6 +88,7 @@ interface Table extends Entity {
 
 interface Column extends Entity {
   nullable: boolean
+  type: string // todo
 }
 
 const fnv_prime = 16777619
@@ -201,7 +202,7 @@ export enum DataSourceKind {
 }
 
 export function schema(name: string, ...tables: Table[]): Schema {
-  return {
+  return <Schema>{
     name: name,
     tables: tables || [],
     kind: SymbolKind.schema
@@ -210,7 +211,7 @@ export function schema(name: string, ...tables: Table[]): Schema {
 
 export function table(name: string, ...columns: Column[]): Table {
 
-  return {
+  return <Table>{
     name: name,
     kind: SymbolKind.table,
     columns: columns
@@ -218,8 +219,10 @@ export function table(name: string, ...columns: Column[]): Table {
 }
 
 export function column(name: string): Column {
-  return {
+  return <Column>{
     name: name,
+    type: '',
+    parent: undefined,
     nullable: false,
     kind: SymbolKind.column,
     references: []
