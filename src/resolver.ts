@@ -44,7 +44,10 @@ export enum SymbolKind {
 }
 
 // not sure what to do with this yet.
-interface Type { }
+interface Type {
+  is_numeric: boolean
+  is_string: boolean
+}
 
 // bottom of the semantic stuff
 interface Entity {
@@ -57,8 +60,10 @@ interface Entity {
 type Decl =
   | LocalScalarDecl
   | LocalTableDecl
-  | TableDecl
-  | ColumnDecl
+  | Table
+  | Column
+  | Schema
+  // | Database
   // | ProcedureDecl
   // | ViewDecl
   // | CteDecl
@@ -68,17 +73,21 @@ interface LocalScalarDecl extends Entity {
 }
 
 interface LocalTableDecl extends Entity {
-  columns: ColumnDecl[]
+  columns: Column[]
 }
 
 interface QueryDecl extends Entity { }
 
-interface TableDecl extends Entity {
-  columns: ColumnDecl[]
+interface Schema extends Entity {
+  tables: Table[]
 }
 
-interface ColumnDecl extends Entity {
-  // todo: type tags
+interface Table extends Entity {
+  columns: Column[]
+}
+
+interface Column extends Entity {
+  nullable: boolean
 }
 
 const fnv_prime = 16777619
@@ -191,15 +200,15 @@ export enum DataSourceKind {
   common_table_expression
 }
 
-export function schema(name: string, ...tables: TableDecl[]) {
+export function schema(name: string, ...tables: Table[]): Schema {
   return {
-    name,
-    tables,
+    name: name,
+    tables: tables || [],
     kind: SymbolKind.schema
   }
 }
 
-export function table(name: string, ...columns: ColumnDecl[]): TableDecl {
+export function table(name: string, ...columns: Column[]): Table {
 
   return {
     name: name,
@@ -208,10 +217,12 @@ export function table(name: string, ...columns: ColumnDecl[]): TableDecl {
   }
 }
 
-export function column(name: string): ColumnDecl {
+export function column(name: string): Column {
   return {
     name: name,
-    kind: SymbolKind.column
+    nullable: false,
+    kind: SymbolKind.column,
+    references: []
   }
 }
 
@@ -239,7 +250,7 @@ export function local(name: string, type?: Type): LocalScalarDecl {
   }
 }
 
-export function localTable(name: string, ...columns: ColumnDecl[]): LocalTableDecl {
+export function localTable(name: string, ...columns: Column[]): LocalTableDecl {
   const table = {
     name: name,
     kind: SymbolKind.local_table,
@@ -307,9 +318,9 @@ function mapColumns(cols:  CreateTableElement[]) {
   return columns
 }
 
-function resolveExpr(scope: Scope, expr: Expr) {
-// walk expr?
-}
+// function resolveExpr(scope: Scope, expr: Expr) {
+
+// }
 
 function resolveIdentifier(scope: Scope, ident: Identifier) {
   // todo: resolved identifier type
@@ -342,7 +353,7 @@ export function resolveAll(nodes: SyntaxNode[]) {
         else {
           const t = <TableDeclaration>decl.table
           const name = t.name.parts[0]
-          scope.define(localTable(name, mapColumns(t.body))
+          // scope.define(localTable(name, mapColumns(t.body))
         }
 
         break
@@ -365,19 +376,19 @@ export function resolveAll(nodes: SyntaxNode[]) {
               const e = <IdentifierExpression>src.expr
 
               if (src.alias) {
-                selectScope.define(
-                  alias(last(src.alias.parts),
-                  resolveIdentifier(selectScope, e.identifier)))
+              //   selectScope.define(
+              //     alias(last(src.alias.parts), ))
+                  // resolveIdentifier(selectScope, e.identifier)))
               }
 
               break
             }
 
-            const resolved = resolveExpr(selectScope, src.expr)
+            // const resolved = resolveExpr(selectScope, src.expr)
 
             if (src.alias) {
-              selectScope.define(
-                alias(last(src.alias.parts), resolved))
+              // selectScope.define(
+              //   alias(last(src.alias.parts), resolved))
             }
 
             // if ()
