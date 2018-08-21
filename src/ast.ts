@@ -35,10 +35,21 @@ export interface SyntaxNode extends TextRange {
   kind: SyntaxKind
 }
 
+export enum IdentifierFlags {
+  None = 0,
+  Resolved     = 1 << 0,
+  HasDatabase  = 1 << 1,
+  HasSchema    = 1 << 2,
+}
+
 // one two or three part name
 // not sure if this needs another type.
 export interface Identifier extends SyntaxNode {
   parts: string[]
+  flags: IdentifierFlags
+
+  // to be resolved later
+  entity?: any
 }
 
 // todo: these might not matter... since createNode makes it with the token kind baked in...

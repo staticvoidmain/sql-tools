@@ -53,46 +53,69 @@ interface Type {
 interface Entity {
   name: string
   kind: SymbolKind
+  has_children: boolean
   parent?: Decl
   references?: Decl[]
+  children?: NameTable
 }
 
 type Decl =
-  | LocalScalarDecl
-  | LocalTableDecl
+  | Alias
+  | LocalScalar
+  | LocalTable
   | Table
   | Column
   | Schema
-  // | Database
-  // | ProcedureDecl
-  // | ViewDecl
-  // | CteDecl
+// | Database
+// | ProcedureDecl
+// | ViewDecl
+// | CteDecl
 
-interface LocalScalarDecl extends Entity {
-  type?: Type
+// todo: something like this
+// interface EntityReference {
+//   identity: Identity
+//   entity: Entity
+// }
+
+// todo: generic type?
+interface Alias extends Entity {
+  kind: SymbolKind.alias
+  // subquery or table alias
+  // should be merged when computing
+  // entity references
+  entity: Entity
 }
 
-interface LocalTableDecl extends Entity {
-  columns: Column[]
+interface LocalScalar extends Entity {
+  type?: Type
+  has_children: false
+}
+
+interface LocalTable extends Entity {
+  kind: SymbolKind.local_table
+  has_children: true
 }
 
 interface QueryDecl extends Entity { }
 
 interface Schema extends Entity {
-  tables: Table[]
+  kind: SymbolKind.schema
+  has_children: true
 }
 
 interface Table extends Entity {
-  columns: Column[]
+  kind: SymbolKind.table
+  has_children: true
 }
 
 interface Column extends Entity {
   nullable: boolean
   type: string // todo
+  has_children: false
 }
 
 const fnv_prime = 16777619
-const hash_base =	0x811c9dc5
+const hash_base = 0x811c9dc5
 const uint = new Uint32Array(new ArrayBuffer(4))
 
 // 32-bit fnv hash of the string, converting upper letters
@@ -115,25 +138,20 @@ function computeHash(name: string) {
   return uint[0]
 }
 
+function throwUnresolved(sym: Symbol, name: string) {
+  if (!sym) {
+    throw Error('Unable to resolve name: ' + name)
+  }
+}
+
 class NameTable {
   private map: Map<number, Decl>
 
-  /**
-   * @param prefix coommon prefix used by all members of the table
-   *  such as @ for locals, or # for temp tables [optional]
-   */
-  constructor(private prefix?: string) {
+  constructor() {
     this.map = new Map<number, Decl>()
   }
 
   add(name: string, decl: Decl) {
-    if (this.prefix) {
-      if (!name.startsWith(this.prefix)) {
-        // this is pretty much just for me
-        throw 'ERR: name missing required prefix'
-      }
-    }
-
     const hash = computeHash(name)
     if (this.map.get(hash)) {
       throw Error('ERR: symbol redefined: ' + name)
@@ -155,6 +173,17 @@ export class Scope {
     private name?: string) { }
 
   define(decl: Decl) {
+    // todo: flag warnings on redefined
+    // symbols from parent scopes?
+
+    // if (this.parent) {
+    //   const sym = this.parent.resolve(decl.name)
+
+    //   if (sym) {
+    //     warn('symbol already defined in a parent scope')
+    //   }
+    // }
+
     this.symbols.add(decl.name, decl)
     return decl
   }
@@ -205,7 +234,8 @@ export function schema(name: string, ...tables: Table[]): Schema {
   return <Schema>{
     name: name,
     tables: tables || [],
-    kind: SymbolKind.schema
+    kind: SymbolKind.schema,
+    has_children: true
   }
 }
 
@@ -214,54 +244,51 @@ export function table(name: string, ...columns: Column[]): Table {
   return <Table>{
     name: name,
     kind: SymbolKind.table,
-    columns: columns
+    columns: columns,
+    has_children: true
   }
 }
 
 export function column(name: string): Column {
   return <Column>{
     name: name,
-    type: '',
+    type: 'todo',
     parent: undefined,
     nullable: false,
     kind: SymbolKind.column,
-    references: []
+    references: [],
+    has_children: false
   }
 }
 
-export function alias(name: string, entity: Entity) {
+export function alias(name: string, entity: Entity): Alias {
   return {
     name: name,
     kind: SymbolKind.alias,
-    entity: entity
+    entity: entity,
+    has_children: entity.has_children
   }
 }
 
-export function type(name: string, has_len?: boolean, has_precision?: boolean) {
-  return {
-    name,
-    has_len,
-    has_precision,
-    kind: SymbolKind.type
-  }
-}
-
-export function local(name: string, type?: Type): LocalScalarDecl {
+export function local(name: string, type?: Type): LocalScalar {
   return {
     name: name,
     kind: SymbolKind.local_scalar,
+    has_children: false
   }
 }
 
-export function localTable(name: string, ...columns: Column[]): LocalTableDecl {
-  const table = {
+export function localTable(name: string, ...columns: Column[]): LocalTable {
+  const table = <LocalTable>{
     name: name,
     kind: SymbolKind.local_table,
-    columns: columns
+    has_children: true,
+    children: new NameTable()
   }
 
   columns.forEach((c, i) => {
     c.parent = table
+    table.children!.add(c.name, c)
   })
 
   return table
@@ -269,12 +296,12 @@ export function localTable(name: string, ...columns: Column[]): LocalTableDecl {
 
 // todo: more default types, and some way to
 // specify stuff.
-export const INT = type('int')
-export const BIGINT = type('bigint')
-export const BIT = type('bit')
-export const VARCHAR = type('varchar')
-export const DATETIME = type('datetime')
-export const DATE = type('date')
+// export const INT = type('int')
+// export const BIGINT = type('bigint')
+// export const BIT = type('bit')
+// export const VARCHAR = type('varchar')
+// export const DATETIME = type('datetime')
+// export const DATE = type('date')
 
 // this scope should never get discarded.
 let global: Scope
@@ -286,22 +313,15 @@ export function createGlobalScope(): Scope {
 
   const scope = new Scope(undefined, 'global')
 
-  scope.define(INT)
-  scope.define(BIGINT)
-  scope.define(BIT)
-  scope.define(VARCHAR)
-  scope.define(DATETIME)
-  scope.define(DATE)
-
   return global = scope
 }
 
-function resolveExpr(expr: Expr):any {
-// todo: return some kind of resolved expr...
-// no idea what this should look like
+function resolveExpr(expr: Expr): any {
+  // todo: return some kind of resolved expr...
+  // no idea what this should look like
 }
 
-function mapColumns(cols:  CreateTableElement[]) {
+function mapColumns(cols: CreateTableElement[]) {
   const columns = []
 
   for (const i of cols) {
@@ -326,23 +346,42 @@ function mapColumns(cols:  CreateTableElement[]) {
 // }
 
 function resolveIdentifier(scope: Scope, ident: Identifier) {
-  // todo: resolved identifier type
+  if (ident.parts.length === 1) {
+    const sym = scope.resolve(ident.parts[0])
+
+    if (!sym) {
+      throw Error('undefined symbol')
+    }
+
+    ident.entity = sym
+    return
+  }
+
   const first = ident.parts[0]
-  const symbol = scope.resolve(first)
+  let sym = scope.resolve(first)
 
-  // switch the kinds?
+  if (!sym) {
+    throw Error('undefined symbol')
+  }
+
+  for (let i = 1; i < ident.parts.length; i++) {
+    const element = ident.parts[i]
+
+    sym = sym.children!.get(element)
+
+    if (!sym) {
+      throw Error('undefined symbol')
+    }
+  }
+
+
 }
-
 
 // todo: for now we won't actually attempt to resolve type symbols
 // just because it's not really "REQUIRED" unless we want to do something
 // super super fancy.
-export function resolveAll(nodes: SyntaxNode[]) {
+export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
   // todo: GET global scope?
-  const scope = createGlobalScope()
-
-  // todo:
-
   for (const node of nodes) {
     switch (node.kind) {
       case SyntaxKind.declare_statement: {
@@ -374,15 +413,15 @@ export function resolveAll(nodes: SyntaxNode[]) {
             // to resolve this expr
 
             if (src.expr.kind === SyntaxKind.identifier_expr) {
-              // todo: resolve to the named identifier
 
               const e = <IdentifierExpression>src.expr
+              resolveIdentifier(scope, e.identifier)
 
               if (src.alias) {
-              //   selectScope.define(
-              //     alias(last(src.alias.parts), ))
-                  // resolveIdentifier(selectScope, e.identifier)))
-              }
+                selectScope.define(
+                  alias(last(src.alias.parts), e.identifier.entity)
+                )
+               }
 
               break
             }

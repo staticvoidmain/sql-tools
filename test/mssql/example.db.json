@@ -1,30 +1,43 @@
 {
-  "dbo": {
-    "tables": {
-      "Customers": {
-        "columns": {
-          "id": {
-            "type": "int"
-          },
-          "name": {
-            "type": "nvarchar(128)"
-          },
-          "birthday": {
-            "type": "datetime"
-          },
-          "some_nullable_bool": {
-            "type": "bit",
-            "nullable": true
+  "databases": {
+    "example": {
+      "schemas": {
+        "dbo": {
+          "tables": {
+            "Customers": {
+              "columns": {
+                "id": {
+                  "type": "int"
+                },
+                "name": {
+                  "type": "nvarchar(128)"
+                },
+                "birthday": {
+                  "type": "datetime"
+                },
+                "some_nullable_bool": {
+                  "type": "bit",
+                  "nullable": true
+                }
+              }
+            },
+            "Orders": {
+              "columns": {
+                "id": {
+                  "type": "int"
+                },
+                "customer_id": {
+                  "type": "int"
+                },
+                "total_cost": {
+                  "type": "decimal(18,2)"
+                },
+                "order_date": {
+                  "type": "datetime"
+                }
+              }
+            }
           }
-        }
-      },
-
-      "Orders": {
-        "columns": {
-          "id": { "type": "int" },
-          "customer_id": { "type": "int" },
-          "total_cost": { "type": "decimal(18,2)" },
-          "order_date": { "type": "datetime" }
         }
       }
     }
