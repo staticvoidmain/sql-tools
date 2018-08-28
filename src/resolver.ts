@@ -213,8 +213,15 @@ export class Scope {
     return new Scope(this, name)
   }
 
+  // only looks one layer down, because forget depth-first search.
   findChild(name: string): Scope | undefined {
-
+    if (this.children) {
+      for (const c of this.children) {
+        if (c.name === name) {
+          return c
+        }
+      }
+    }
   }
 
   findParent(name: string): Scope | undefined {
