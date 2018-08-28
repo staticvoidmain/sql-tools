@@ -1,8 +1,9 @@
 import { } from 'mocha'
 import { expect } from 'chai'
-import { Scope, local, createGlobalScope, resolveAll, schema, table, column, database } from '../src/resolver'
+import { Scope, local, resolveAll, schema, table, column, database, symbol } from '../src/resolver'
 import { Parser } from '../src/parser'
 import { readFileSync } from 'fs'
+import { IdentifierExpression } from '../src/ast'
 
 describe('resolver', () => {
 
@@ -50,11 +51,11 @@ describe('resolver', () => {
           entity.nullable = col.nullable
           entity.type = col.type
           entity.parent = t
-          t.children!.add(columnName, entity)
+          t.children!.add(columnName, symbol(entity))
         }
 
         t.parent = s
-        s.children!.add(tableName, t)
+        s.children!.add(tableName, symbol(t))
 
         // todo: this can be a flag at
         // some point, but for now we'll use the
@@ -96,8 +97,17 @@ describe('resolver', () => {
     const list = parser.parse()
 
     const env = loadEnvironment('./test/mssql/example.db.json')
-    const db = env.findChild('example')!
+    const db = env.findChild('example')
 
-    resolveAll(list, db)
+    resolveAll(list, db!)
+
+    const select = <any>list[0]
+    const expr = <IdentifierExpression>select.where!.predicate.left
+    expect(expr.identifier.entity.name).to.equal('birthday')
+    expect(expr.identifier.entity.parent.name).to.equal('Customers')
+
+
+
+    // I want to test that birthday got resolved.
   })
 })

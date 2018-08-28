@@ -48,7 +48,7 @@ export interface Identifier extends SyntaxNode {
   parts: string[]
   flags: IdentifierFlags
 
-  // to be resolved later
+  // to be resolved later to an entity reference
   entity?: any
 }
 
@@ -296,7 +296,7 @@ export interface DataType extends SyntaxNode {
   null?: boolean
 }
 
-// todo: convert to union type?
+// todo: convert to a tagged union type?
 export interface Expr extends SyntaxNode { }
 
 export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }

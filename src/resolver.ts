@@ -1,8 +1,24 @@
 import { isLetter, isUpper } from './chars'
-import { Visitor } from './visitors/abstract_visitor'
-import { SelectStatement, SyntaxNode, DeclareStatement, TableDeclaration, ColumnDefinition, CreateTableElement, Expr, ComputedColumnDefinition, IdentifierExpression, Identifier } from './ast'
-import { SyntaxKind } from './syntax';
-import { last } from './utils';
+import {
+  SelectStatement,
+  SyntaxNode,
+  DeclareStatement,
+  TableDeclaration,
+  ColumnDefinition,
+  CreateTableElement,
+  Expr,
+  ComputedColumnDefinition,
+  IdentifierExpression,
+  Identifier,
+  BinaryExpression,
+  UnaryExpression,
+  SimpleCaseExpression,
+  SearchedCaseExpression,
+  FunctionCallExpression
+} from './ast'
+
+import { SyntaxKind } from './syntax'
+import { last } from './utils'
 
 /*
 
@@ -25,9 +41,15 @@ some notes:
   - and columns (with position to allow for the 1-base order by 1 stuff.
 */
 
+
+export enum SymbolFlags {
+  None = 0,
+  Ambiguous = 1
+}
+
 export interface Symbol {
-  id: number
-  decl: Decl
+  flags: SymbolFlags
+  entity: Entity
 }
 
 export enum SymbolKind {
@@ -36,6 +58,7 @@ export enum SymbolKind {
   column,
   database,
   schema,
+  query,
   local_scalar,
   local_table,
   table,
@@ -54,10 +77,10 @@ interface Type {
 interface Entity {
   name: string
   kind: SymbolKind
-  has_children: boolean
-  parent?: Decl
-  references?: Decl[]
+  parent?: Entity
+  references?: Expr[]
   children?: NameTable
+  name_collision?: Decl
 }
 
 type Decl =
@@ -68,17 +91,10 @@ type Decl =
   | Column
   | Schema
   | Database
-// | Procedure
-// | View
-// | CommonTableExpression
+  | Procedure
+  | View
+  | CommonTableExpression
 
-// todo: something like this
-// interface EntityReference {
-//   identity: Identity
-//   entity: Entity
-// }
-
-// todo: generic type?
 interface Alias extends Entity {
   kind: SymbolKind.alias
   // subquery or table alias
@@ -89,36 +105,39 @@ interface Alias extends Entity {
 
 interface LocalScalar extends Entity {
   type?: Type
-  has_children: false
 }
 
 interface LocalTable extends Entity {
   kind: SymbolKind.local_table
-  has_children: true
 }
 
-interface QueryDecl extends Entity { }
+interface Query extends Entity {
+  kind: SymbolKind.query
+}
 
 interface Database extends Entity {
   kind: SymbolKind.database
-  has_children: true
 }
 
 interface Schema extends Entity {
   kind: SymbolKind.schema
-  has_children: true
 }
+
+interface Procedure extends Entity {
+  // arguments
+}
+
+interface View extends Entity { }
+interface CommonTableExpression extends Entity { }
 
 interface Table extends Entity {
   kind: SymbolKind.table
-  has_children: true
 }
 
 interface Column extends Entity {
   ordinal: number
   nullable: boolean
   type: string // todo
-  has_children: false
 }
 
 const fnv_prime = 16777619
@@ -146,39 +165,55 @@ function computeHash(name: string) {
 }
 
 class NameTable {
-  private map: Map<number, Decl>
+  private map: Map<number, Symbol>
 
   constructor() {
-    this.map = new Map<number, Decl>()
+    this.map = new Map<number, Symbol>()
   }
 
-  add(name: string, decl: Decl) {
+  add(name: string, sym: Symbol) {
     const hash = computeHash(name)
-    if (this.map.get(hash)) {
-      throw Error('ERR: symbol redefined: ' + name)
+    const existing = this.map.get(hash)
+    if (existing) {
+      existing.flags |= SymbolFlags.Ambiguous
+      sym.flags |= SymbolFlags.Ambiguous
+      return
+      // I guess it's not really an error...
+      // throw Error('ERR: symbol redefined: ' + name)
     }
 
-    this.map.set(hash, decl)
+    this.map.set(hash, sym)
   }
 
   get(name: string) {
     return this.map.get(computeHash(name))
   }
+
+  all() {
+    return this.map.values()
+  }
+}
+
+export function symbol(entity: Entity) {
+  return {
+    entity: entity,
+    flags: SymbolFlags.None
+  }
 }
 
 export class Scope {
   private symbols = new NameTable()
-  private children: Scope[] = []
+  private child_scopes: Scope[] = []
 
   constructor(
-    private parent?: Scope,
+    private parent_scope?: Scope,
     private name?: string) {
-      if (parent) {
-        parent.children.push(this)
-      }
+    if (parent_scope) {
+      parent_scope.child_scopes.push(this)
     }
+  }
 
-  define(decl: Decl) {
+  define(entity: Entity, allow_redefine?: boolean) {
     // todo: flag warnings on redefined
     // symbols from parent scopes?
 
@@ -190,33 +225,38 @@ export class Scope {
     //   }
     // }
 
-    this.symbols.add(decl.name, decl)
-    return decl
+    this.symbols.add(entity.name, symbol(entity))
+    return entity
   }
 
   /**
    * Attempts to resolve a name within this scope, or a parent scope
    */
   resolve(name: string): Decl | undefined {
-    let sym = this.symbols.get(name)
+    const sym = this.symbols.get(name)
+
+    if (sym) {
+      return sym.entity
+    }
 
     // walk up the scope chain and try to
     // resolve the symbol there.
-    if (!sym && this.parent) {
-      sym = this.parent.resolve(name)
+    if (this.parent_scope) {
+      return this.parent_scope.resolve(name)
     }
-
-    return sym
   }
 
   createScope(name?: string) {
     return new Scope(this, name)
   }
 
-  // only looks one layer down, because forget depth-first search.
+  // only looks one layer down,
+  // the only use-case right now
+  // is to work out the database scope
+  // from inside the root scope.
   findChild(name: string): Scope | undefined {
-    if (this.children) {
-      for (const c of this.children) {
+    if (this.child_scopes) {
+      for (const c of this.child_scopes) {
         if (c.name === name) {
           return c
         }
@@ -224,13 +264,16 @@ export class Scope {
     }
   }
 
+  // this one is recursive, but short
+  // no current use-case, just added
+  // for symmetry
   findParent(name: string): Scope | undefined {
-    if (this.parent) {
-      if (this.parent.name === name) {
-        return this.parent
+    if (this.parent_scope) {
+      if (this.parent_scope.name === name) {
+        return this.parent_scope
       }
 
-      return this.parent.findParent(name)
+      return this.parent_scope.findParent(name)
     }
   }
 }
@@ -252,7 +295,6 @@ export function database(name: string): Database {
     name: name,
     children: new NameTable(),
     kind: SymbolKind.database,
-    has_children: true
   }
 }
 
@@ -261,7 +303,6 @@ export function schema(name: string): Schema {
     name: name,
     children: new NameTable(),
     kind: SymbolKind.schema,
-    has_children: true
   }
 }
 
@@ -271,7 +312,6 @@ export function table(name: string): Table {
     name: name,
     kind: SymbolKind.table,
     children: new NameTable(),
-    has_children: true
   }
 }
 
@@ -284,7 +324,6 @@ export function column(name: string): Column {
     kind: SymbolKind.column,
     references: [],
     ordinal: 0,
-    has_children: false
   }
 }
 
@@ -293,7 +332,6 @@ export function alias(name: string, entity: Entity): Alias {
     name: name,
     kind: SymbolKind.alias,
     entity: entity,
-    has_children: entity.has_children
   }
 }
 
@@ -301,7 +339,6 @@ export function local(name: string, type?: Type): LocalScalar {
   return {
     name: name,
     kind: SymbolKind.local_scalar,
-    has_children: false
   }
 }
 
@@ -309,7 +346,6 @@ export function localTable(name: string): LocalTable {
   const table = <LocalTable>{
     name: name,
     kind: SymbolKind.local_table,
-    has_children: true,
     children: new NameTable()
   }
 
@@ -326,24 +362,72 @@ export function localTable(name: string): LocalTable {
 // export const DATE = type('date')
 
 // this scope should never get discarded.
-let global: Scope
-export function createGlobalScope(): Scope {
 
-  if (global) {
-    return global
+
+function resolveExpr(scope: Scope, expr: Expr) {
+
+  switch (expr.kind) {
+    case SyntaxKind.identifier_expr: {
+      const ex = <IdentifierExpression>expr
+      resolveIdentifier(scope, ex.identifier)
+      break
+    }
+
+    case SyntaxKind.binary_expr: {
+      const binary = <BinaryExpression>expr
+      resolveExpr(scope, binary.left)
+      resolveExpr(scope, binary.right)
+      break
+    }
+
+    case SyntaxKind.function_call_expr: {
+      const call = <FunctionCallExpression>expr
+
+      if (call.arguments) {
+        call.arguments.forEach(arg => resolveExpr(scope, arg))
+      }
+      break
+    }
+
+    case SyntaxKind.unary_plus_expr:
+    case SyntaxKind.bitwise_not_expr:
+    case SyntaxKind.logical_not_expr:
+    case SyntaxKind.null_test_expr:
+    case SyntaxKind.unary_minus_expr: {
+      const unary = <UnaryExpression>expr
+
+      resolveExpr(scope, unary.expr)
+      break
+    }
+
+    case SyntaxKind.searched_case_expr: {
+      const searched = <SearchedCaseExpression>expr
+
+      searched.cases.forEach(c => {
+        resolveExpr(scope, c.when)
+        resolveExpr(scope, c.then)
+      })
+
+      resolveExpr(scope, searched.else)
+      break
+    }
+
+    case SyntaxKind.simple_case_expr: {
+      const simple = <SimpleCaseExpression>expr
+      resolveExpr(scope, simple.input_expression)
+
+      simple.cases.forEach(c => {
+        resolveExpr(scope, c.when)
+        resolveExpr(scope, c.then)
+      })
+
+      resolveExpr(scope, simple.else)
+      break
+    }
   }
-
-  const scope = new Scope(undefined, 'global')
-
-  return global = scope
 }
 
-function resolveExpr(expr: Expr): any {
-  // todo: return some kind of resolved expr...
-  // no idea what this should look like
-}
-
-function mapColumns(cols: CreateTableElement[]) {
+function mapColumns(scope: Scope, cols: CreateTableElement[]) {
   const columns = []
 
   for (const i of cols) {
@@ -352,7 +436,7 @@ function mapColumns(cols: CreateTableElement[]) {
       const computed = <ComputedColumnDefinition>i
       columns.push({
         name: computed.name,
-        expr: resolveExpr(computed.expression)
+        expr: resolveExpr(scope, computed.expression)
       })
     } else if (i.kind === SyntaxKind.column_definition) {
       const column = <ColumnDefinition>i
@@ -363,32 +447,36 @@ function mapColumns(cols: CreateTableElement[]) {
   return columns
 }
 
-// function resolveExpr(scope: Scope, expr: Expr) {
-
-// }
-
 function resolveIdentifier(scope: Scope, ident: Identifier) {
   const first = ident.parts[0]
-  let sym = scope.resolve(first)
+  let entity = scope.resolve(first)
 
-  if (!sym) {
+  if (!entity) {
     throw Error('undefined symbol: ' + first)
   }
 
   if (ident.parts.length === 1) {
-    ident.entity = sym
-    return
+    return ident.entity = entity
   }
 
+  let child
   for (let i = 1; i < ident.parts.length; i++) {
     const element = ident.parts[i]
 
-    sym = sym.children!.get(element)
+    if (!entity.children) {
+      throw Error(`entity ${ident.parts[i - 1]} has no member ${element}`)
+    }
 
-    if (!sym) {
+    child = entity.children!.get(element)
+
+    if (!child) {
       throw Error('undefined symbol: ' + element)
     }
+
+    entity = child.entity
   }
+
+  return ident.entity = entity
 }
 
 // todo: for now we won't actually attempt to resolve type symbols
@@ -422,33 +510,67 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
         // define
         if (select.from) {
           for (const src of select.from.sources) {
-            // define the FULL name, and any alias
-            // should have all the info we need here
-            // to resolve this expr
-
             if (src.expr.kind === SyntaxKind.identifier_expr) {
-
               const e = <IdentifierExpression>src.expr
-              resolveIdentifier(scope, e.identifier)
+              const entity = resolveIdentifier(scope, e.identifier)
 
               if (src.alias) {
                 selectScope.define(
-                  alias(last(src.alias.parts), e.identifier.entity)
+                  alias(last(src.alias.parts), entity)
                 )
-               }
+              }
+
+              // implicitly define the children,
+              // which means we can now have ambiguous names
+              if (entity.children) {
+                for (const sym of entity.children.all()) {
+                  selectScope.define(sym.entity, true)
+                }
+              }
 
               break
             }
 
-            // const resolved = resolveExpr(selectScope, src.expr)
-
+            //
             if (src.alias) {
+              // todo: this should probably be select_expr
+              // but I'd have to rewrite things a bit
+              if (src.kind === SyntaxKind.select_statement) {
+                // entity = makeTemp(
+                  break
+              }
+
+              if (src.kind === SyntaxKind.function_call_expr) {
+                break
+              }
+
+
+              // const entity = {}
               // selectScope.define(
-              //   alias(last(src.alias.parts), resolved))
+              //   alias(last(src.alias.parts), entity))
             }
 
             // if ()
           }
+        }
+
+        // resolve
+        // -------
+        for (const col of select.columns) {
+          resolveExpr(selectScope, col.expression)
+          // todo: add each column to the defined cols of the select as well.
+        }
+
+        if (select.where) {
+          resolveExpr(selectScope, select.where)
+        }
+
+        if (select.group_by) {
+          resolveExpr(selectScope, select.group_by)
+        }
+
+        if (select.order_by) {
+          resolveExpr(selectScope, select.order_by)
         }
 
         break
