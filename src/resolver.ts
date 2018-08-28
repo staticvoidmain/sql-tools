@@ -34,6 +34,7 @@ export enum SymbolKind {
   alias,
   type,
   column,
+  database,
   schema,
   local_scalar,
   local_table,
@@ -63,13 +64,13 @@ type Decl =
   | Alias
   | LocalScalar
   | LocalTable
-  | Table
+  | Table // includes temp?
   | Column
   | Schema
-// | Database
-// | ProcedureDecl
-// | ViewDecl
-// | CteDecl
+  | Database
+// | Procedure
+// | View
+// | CommonTableExpression
 
 // todo: something like this
 // interface EntityReference {
@@ -98,6 +99,11 @@ interface LocalTable extends Entity {
 
 interface QueryDecl extends Entity { }
 
+interface Database extends Entity {
+  kind: SymbolKind.database
+  has_children: true
+}
+
 interface Schema extends Entity {
   kind: SymbolKind.schema
   has_children: true
@@ -109,6 +115,7 @@ interface Table extends Entity {
 }
 
 interface Column extends Entity {
+  ordinal: number
   nullable: boolean
   type: string // todo
   has_children: false
@@ -138,12 +145,6 @@ function computeHash(name: string) {
   return uint[0]
 }
 
-function throwUnresolved(sym: Symbol, name: string) {
-  if (!sym) {
-    throw Error('Unable to resolve name: ' + name)
-  }
-}
-
 class NameTable {
   private map: Map<number, Decl>
 
@@ -167,10 +168,15 @@ class NameTable {
 
 export class Scope {
   private symbols = new NameTable()
+  private children: Scope[] = []
 
   constructor(
     private parent?: Scope,
-    private name?: string) { }
+    private name?: string) {
+      if (parent) {
+        parent.children.push(this)
+      }
+    }
 
   define(decl: Decl) {
     // todo: flag warnings on redefined
@@ -207,13 +213,17 @@ export class Scope {
     return new Scope(this, name)
   }
 
-  findScope(name: string): Scope | undefined {
+  findChild(name: string): Scope | undefined {
+
+  }
+
+  findParent(name: string): Scope | undefined {
     if (this.parent) {
       if (this.parent.name === name) {
         return this.parent
       }
 
-      return this.parent.findScope(name)
+      return this.parent.findParent(name)
     }
   }
 }
@@ -230,21 +240,30 @@ export enum DataSourceKind {
   common_table_expression
 }
 
-export function schema(name: string, ...tables: Table[]): Schema {
+export function database(name: string): Database {
+  return <Database>{
+    name: name,
+    children: new NameTable(),
+    kind: SymbolKind.database,
+    has_children: true
+  }
+}
+
+export function schema(name: string): Schema {
   return <Schema>{
     name: name,
-    tables: tables || [],
+    children: new NameTable(),
     kind: SymbolKind.schema,
     has_children: true
   }
 }
 
-export function table(name: string, ...columns: Column[]): Table {
+export function table(name: string): Table {
 
   return <Table>{
     name: name,
     kind: SymbolKind.table,
-    columns: columns,
+    children: new NameTable(),
     has_children: true
   }
 }
@@ -257,6 +276,7 @@ export function column(name: string): Column {
     nullable: false,
     kind: SymbolKind.column,
     references: [],
+    ordinal: 0,
     has_children: false
   }
 }
@@ -278,18 +298,13 @@ export function local(name: string, type?: Type): LocalScalar {
   }
 }
 
-export function localTable(name: string, ...columns: Column[]): LocalTable {
+export function localTable(name: string): LocalTable {
   const table = <LocalTable>{
     name: name,
     kind: SymbolKind.local_table,
     has_children: true,
     children: new NameTable()
   }
-
-  columns.forEach((c, i) => {
-    c.parent = table
-    table.children!.add(c.name, c)
-  })
 
   return table
 }
@@ -346,22 +361,16 @@ function mapColumns(cols: CreateTableElement[]) {
 // }
 
 function resolveIdentifier(scope: Scope, ident: Identifier) {
-  if (ident.parts.length === 1) {
-    const sym = scope.resolve(ident.parts[0])
-
-    if (!sym) {
-      throw Error('undefined symbol')
-    }
-
-    ident.entity = sym
-    return
-  }
-
   const first = ident.parts[0]
   let sym = scope.resolve(first)
 
   if (!sym) {
-    throw Error('undefined symbol')
+    throw Error('undefined symbol: ' + first)
+  }
+
+  if (ident.parts.length === 1) {
+    ident.entity = sym
+    return
   }
 
   for (let i = 1; i < ident.parts.length; i++) {
@@ -370,11 +379,9 @@ function resolveIdentifier(scope: Scope, ident: Identifier) {
     sym = sym.children!.get(element)
 
     if (!sym) {
-      throw Error('undefined symbol')
+      throw Error('undefined symbol: ' + element)
     }
   }
-
-
 }
 
 // todo: for now we won't actually attempt to resolve type symbols

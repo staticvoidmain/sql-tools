@@ -12,7 +12,7 @@
       "args": [
         "--timeout",
         "999999",
-        "${workspaceFolder}/dist/test/*.spec.js"
+        "${workspaceFolder}/dist/test/resolver.spec.js"
       ],
       "internalConsoleOptions": "openOnSessionStart"
     },

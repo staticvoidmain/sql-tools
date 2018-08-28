@@ -1,6 +1,6 @@
 import { } from 'mocha'
 import { expect } from 'chai'
-import { Scope, local, createGlobalScope, resolveAll, schema, table, column } from '../src/resolver'
+import { Scope, local, createGlobalScope, resolveAll, schema, table, column, database } from '../src/resolver'
 import { Parser } from '../src/parser'
 import { readFileSync } from 'fs'
 
@@ -26,19 +26,20 @@ describe('resolver', () => {
     const scope = new Scope(undefined, 'root')
 
     for (const dbName in json.databases) {
-      const db  = scope.createScope(dbName)
+      scope.define(database(dbName))
 
-      loadDatabase(db, json.databases[dbName])
+      loadDatabase(
+        scope.createScope(dbName),
+        json.databases[dbName])
     }
 
     return scope
   }
 
   function loadDatabase(scope: Scope, db: any) {
-
     for (const schemaName in db.schemas) {
       const s = schema(schemaName)
-      const tables = db[schemaName].tables
+      const tables = db.schemas[schemaName].tables
 
       for (const tableName in tables) {
         const t = table(tableName)
@@ -86,16 +87,17 @@ describe('resolver', () => {
 
   it('debug: full resolver test', () => {
     const source = `
-     select foo.Bar
-     from [dbo]."PrimaryTable" as foo
-     where PrimaryTable.Bazz is not null
+     select cust.id
+     from [dbo]."Customers" as cust
+     where cust.birthday < dateadd(year, -18, getdate())
     `
 
     const parser = new Parser(source, {})
     const list = parser.parse()
 
     const env = loadEnvironment('./test/mssql/example.db.json')
+    const db = env.findChild('example')!
 
-    resolveAll(list, env)
+    resolveAll(list, db)
   })
 })
