@@ -332,6 +332,7 @@ export function alias(name: string, entity: Entity): Alias {
     name: name,
     kind: SymbolKind.alias,
     entity: entity,
+    children: entity.children
   }
 }
 
@@ -562,15 +563,19 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
         }
 
         if (select.where) {
-          resolveExpr(selectScope, select.where)
+          resolveExpr(selectScope, select.where.predicate)
         }
 
         if (select.group_by) {
-          resolveExpr(selectScope, select.group_by)
+          for (const expr of select.group_by.grouping) {
+            resolveExpr(selectScope, expr)
+          }
         }
 
         if (select.order_by) {
-          resolveExpr(selectScope, select.order_by)
+          for (const order of select.order_by.orderings) {
+            resolveExpr(selectScope, order.expr)
+          }
         }
 
         break
