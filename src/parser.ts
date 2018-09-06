@@ -693,7 +693,9 @@ export class Parser {
     if (this.token.kind === SyntaxKind.table_keyword) {
       const table = <TableDeclaration>this.createAndMoveNext(this.token, SyntaxKind.table_variable_decl)
       table.name = local.value
+      this.expect(SyntaxKind.openParen)
       table.body = this.parseColumnDefinitionList()
+      this.expect(SyntaxKind.closeParen)
       statement.table = table
     }
     else {

@@ -19,6 +19,8 @@ import {
 
 import { SyntaxKind } from './syntax'
 import { last } from './utils'
+import { readFileSync } from 'fs'
+
 
 /*
 
@@ -53,6 +55,7 @@ export interface Symbol {
 }
 
 export enum SymbolKind {
+  unknown,
   alias,
   type,
   column,
@@ -73,13 +76,14 @@ interface Type {
   is_string: boolean
 }
 
-// bottom of the semantic stuff
 interface Entity {
   name: string
   kind: SymbolKind
   parent?: Entity
   references?: Expr[]
   children?: NameTable
+
+  // todo: there could be multiples...
   name_collision?: Decl
 }
 
@@ -194,6 +198,20 @@ class NameTable {
   }
 }
 
+const options = {
+  strict: false,
+  allowShadow: true,
+  // verifyTypes: false
+}
+
+export function configureResolver(
+  strict?: boolean,
+  allowShadow?: boolean) {
+
+  if (strict !== undefined) options.strict = strict
+  if (allowShadow !== undefined) options.allowShadow = allowShadow
+}
+
 export function symbol(entity: Entity) {
   return {
     entity: entity,
@@ -214,18 +232,19 @@ export class Scope {
   }
 
   define(entity: Entity, allow_redefine?: boolean) {
-    // todo: flag warnings on redefined
-    // symbols from parent scopes?
 
-    // if (this.parent) {
-    //   const sym = this.parent.resolve(decl.name)
+    if (!options.allowShadow) {
+      if (this.parent_scope) {
+        const sym = this.parent_scope.resolve(entity.name)
 
-    //   if (sym) {
-    //     warn('symbol already defined in a parent scope')
-    //   }
-    // }
+        if (sym) {
+          // warn('symbol already defined in a parent scope')
+        }
+      }
+    }
 
     this.symbols.add(entity.name, symbol(entity))
+
     return entity
   }
 
@@ -353,6 +372,13 @@ export function localTable(name: string): LocalTable {
   return table
 }
 
+// placeholder entity for an unresolveable symbol
+export const UNKNOWN = {
+  name: 'unknown',
+  kind: SymbolKind.unknown,
+  references: new Array<Expr>()
+}
+
 // todo: more default types, and some way to
 // specify stuff.
 // export const INT = type('int')
@@ -448,12 +474,16 @@ function mapColumns(scope: Scope, cols: CreateTableElement[]) {
   return columns
 }
 
-function resolveIdentifier(scope: Scope, ident: Identifier) {
+function resolveIdentifier(scope: Scope, ident: Identifier): Entity {
   const first = ident.parts[0]
   let entity = scope.resolve(first)
 
   if (!entity) {
-    throw Error('undefined symbol: ' + first)
+    if (options.strict) {
+      throw Error('undefined symbol: ' + first)
+    } else {
+      return UNKNOWN
+    }
   }
 
   if (ident.parts.length === 1) {
@@ -465,13 +495,13 @@ function resolveIdentifier(scope: Scope, ident: Identifier) {
     const element = ident.parts[i]
 
     if (!entity.children) {
-      throw Error(`entity ${ident.parts[i - 1]} has no member ${element}`)
+      throw Error(`entity ${ident.parts[i - 1]} has no child elements`)
     }
 
     child = entity.children!.get(element)
 
     if (!child) {
-      throw Error('undefined symbol: ' + element)
+      throw Error(`entity ${ident.parts[i - 1]} has no member ${element}`)
     }
 
     entity = child.entity
@@ -483,8 +513,8 @@ function resolveIdentifier(scope: Scope, ident: Identifier) {
 // todo: for now we won't actually attempt to resolve type symbols
 // just because it's not really "REQUIRED" unless we want to do something
 // super super fancy.
-export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
-  // todo: GET global scope?
+export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
+
   for (const node of nodes) {
     switch (node.kind) {
       case SyntaxKind.declare_statement: {
@@ -538,13 +568,12 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
               // but I'd have to rewrite things a bit
               if (src.kind === SyntaxKind.select_statement) {
                 // entity = makeTemp(
-                  break
+                break
               }
 
               if (src.kind === SyntaxKind.function_call_expr) {
                 break
               }
-
 
               // const entity = {}
               // selectScope.define(
@@ -588,5 +617,64 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope) {
       case SyntaxKind.update_statement: { break }
       case SyntaxKind.delete_statement: { break }
     }
+  }
+}
+
+/*
+load an environment data structure from some external database schema dump to json
+*/
+
+// TODO: to enable "strict" mode, we have to load the
+// environment with all the server default identifiers
+// like all the datepart shit, built in functions,
+// dmvs, blah blah blah.
+// so we COULD do that, or... just make the
+// undefined symbols resolve to some "any" type
+// and get back to it later.
+export function loadEnvironment(file: string) {
+  const text = readFileSync(file, 'utf8')
+  const json = JSON.parse(text)
+  const scope = new Scope(undefined, 'root')
+
+  for (const dbName in json.databases) {
+    scope.define(database(dbName))
+
+    loadDatabase(
+      scope.createScope(dbName),
+      json.databases[dbName])
+  }
+
+  return scope
+}
+
+function loadDatabase(scope: Scope, db: any) {
+  for (const schemaName in db.schemas) {
+    const s = schema(schemaName)
+    const tables = db.schemas[schemaName].tables
+
+    for (const tableName in tables) {
+      const t = table(tableName)
+      const columns = tables[tableName].columns
+      for (const columnName in columns) {
+        const entity = column(columnName)
+        const col = columns[columnName]
+        entity.nullable = col.nullable
+        entity.type = col.type
+        entity.parent = t
+        t.children!.add(columnName, symbol(entity))
+      }
+
+      t.parent = s
+      s.children!.add(tableName, symbol(t))
+
+      // todo: this can be a flag at
+      // some point, but for now we'll use the
+      // standard default
+      if (schemaName === 'dbo') {
+        scope.define(t)
+      }
+    }
+
+    scope.define(s)
   }
 }

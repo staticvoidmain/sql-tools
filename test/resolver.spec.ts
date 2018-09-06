@@ -1,73 +1,11 @@
 import { } from 'mocha'
 import { expect } from 'chai'
-import { Scope, local, resolveAll, schema, table, column, database, symbol } from '../src/resolver'
+import { Scope, local, resolveAll, schema, table, column, database, symbol, loadEnvironment } from '../src/resolver'
 import { Parser } from '../src/parser'
 import { readFileSync } from 'fs'
 import { IdentifierExpression } from '../src/ast'
 
 describe('resolver', () => {
-
-
-  /*
-  load an environment data structure from some external database schema dump to json
-
-
-  <root>
-    <database>
-    scope::
-      <dbo>
-        <table>
-
-      <table>
-  */
-
-  function loadEnvironment(file: string) {
-    const text = readFileSync(file, 'utf8')
-    const json = JSON.parse(text)
-    const scope = new Scope(undefined, 'root')
-
-    for (const dbName in json.databases) {
-      scope.define(database(dbName))
-
-      loadDatabase(
-        scope.createScope(dbName),
-        json.databases[dbName])
-    }
-
-    return scope
-  }
-
-  function loadDatabase(scope: Scope, db: any) {
-    for (const schemaName in db.schemas) {
-      const s = schema(schemaName)
-      const tables = db.schemas[schemaName].tables
-
-      for (const tableName in tables) {
-        const t = table(tableName)
-        const columns = tables[tableName].columns
-        for (const columnName in columns) {
-          const entity = column(columnName)
-          const col = columns[columnName]
-          entity.nullable = col.nullable
-          entity.type = col.type
-          entity.parent = t
-          t.children!.add(columnName, symbol(entity))
-        }
-
-        t.parent = s
-        s.children!.add(tableName, symbol(t))
-
-        // todo: this can be a flag at
-        // some point, but for now we'll use the
-        // standard default
-        if (schemaName === 'dbo') {
-          scope.define(t)
-        }
-      }
-
-      scope.define(s)
-    }
-  }
 
   it('ignores case', () => {
     const test = new Scope(undefined, 'test')

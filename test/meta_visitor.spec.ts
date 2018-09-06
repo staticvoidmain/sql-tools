@@ -24,4 +24,8 @@ describe('MetadataVisitor', () => {
 
     console.log(JSON.stringify(meta, undefined, ' '))
   })
+
+  xit('captures column references', () => {
+    // todo:
+  })
 })
