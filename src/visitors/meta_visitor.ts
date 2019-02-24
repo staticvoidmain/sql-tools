@@ -1,5 +1,6 @@
 /**
- * Extracts metadata from a given script for use in diagraming. *
+ * Extracts metadata from a given script for use in diagraming.
+ *
  */
 import { Visitor } from './abstract_visitor'
 import { CreateTableAsSelectStatement, TableLikeDataSource, IdentifierExpression, UpdateStatement, DeleteStatement, InsertStatement, FromClause, Identifier, CreateTableStatement } from '../ast'

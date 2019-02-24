@@ -640,7 +640,7 @@ export class Scanner {
     }
 
     const peek_pos = this.seekNonWhitespace()
-    const peek_cached = this.text.charCodeAt(peek_pos)
+    const peek_char = this.text.charCodeAt(peek_pos)
 
     switch (ch) {
       //#region simple terminals
@@ -721,7 +721,7 @@ export class Scanner {
           this.pos += 2
           val = this.scanBlockComment()
         }
-        else if (peek_cached === Chars.equal) {
+        else if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -738,7 +738,7 @@ export class Scanner {
       case Chars.plus: {
         kind = SyntaxKind.plus_token
 
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -752,10 +752,10 @@ export class Scanner {
 
       case Chars.hyphen: {
 
-        if (this.peek() === Chars.hyphen) {
+        if (peek_char === Chars.hyphen) {
           this.scanInlineComment()
           kind = SyntaxKind.comment_inline
-        } else if (peek_cached === Chars.equal) {
+        } else if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -780,7 +780,7 @@ export class Scanner {
       case Chars.asterisk: {
         kind = SyntaxKind.mul_token
 
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -795,7 +795,7 @@ export class Scanner {
       case Chars.forwardSlash: {
         kind = SyntaxKind.div_token
 
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -809,7 +809,7 @@ export class Scanner {
       // & or &=
       case Chars.ampersand: {
         kind = SyntaxKind.bitwise_and_token
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -824,7 +824,7 @@ export class Scanner {
       case Chars.pipe: {
         kind = SyntaxKind.bitwise_or_token
 
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -837,7 +837,7 @@ export class Scanner {
       // ^ or ^=
       case Chars.caret: {
         kind = SyntaxKind.bitwise_xor_token
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -852,9 +852,9 @@ export class Scanner {
       case Chars.lessThan: {
         kind = SyntaxKind.lessThan
 
-        if (peek_cached === Chars.greaterThan) {
+        if (peek_char === Chars.greaterThan) {
           kind = SyntaxKind.ltGt
-        } else if (peek_cached === Chars.equal) {
+        } else if (peek_char === Chars.equal) {
           kind = SyntaxKind.lessThanEqual
         }
 
@@ -872,7 +872,7 @@ export class Scanner {
       // > >=
       case Chars.greaterThan: {
         kind = SyntaxKind.greaterThan
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
           }
@@ -885,15 +885,15 @@ export class Scanner {
 
       // !=, !<, !>
       case Chars.bang: {
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           kind = SyntaxKind.notEqual
-        } else if (peek_cached === Chars.lessThan) {
+        } else if (peek_char === Chars.lessThan) {
           kind = SyntaxKind.notLessThan
-        } else if (peek_cached === Chars.greaterThan) {
+        } else if (peek_char === Chars.greaterThan) {
           kind = SyntaxKind.notGreaterThan
         }
         else {
-          this.illegal(peek_cached)
+          this.illegal(peek_char)
         }
 
         if (peek_pos - start > 1) {
@@ -907,7 +907,7 @@ export class Scanner {
       case Chars.percent: {
         kind = SyntaxKind.mod_token
 
-        if (peek_cached === Chars.equal) {
+        if (peek_char === Chars.equal) {
           kind = SyntaxKind.modEqualsAssignment
           if (peek_pos - start > 1) {
             flags |= TokenFlags.InnerTokenWhitespace
@@ -955,7 +955,7 @@ export class Scanner {
 
       case Chars.at: {
         kind = SyntaxKind.identifier
-        if (this.peek() === Chars.at) {
+        if (peek_char === Chars.at) {
           // mssql config functions
           this.pos++
         }
@@ -967,7 +967,7 @@ export class Scanner {
       case Chars.hash: {
         kind = SyntaxKind.identifier
 
-        if (this.peek() === Chars.hash) {
+        if (peek_char === Chars.hash) {
           // mssql shared temp table
           flags |= TokenFlags.SharedTempTable
           this.pos++
@@ -983,7 +983,7 @@ export class Scanner {
 
       case Chars.n:
       case Chars.N: { /* fallthrough */
-        if (this.peek() === Chars.singleQuote) {
+        if (peek_char === Chars.singleQuote) {
           this.pos++
           val = this.scanString()
           kind = SyntaxKind.string_literal

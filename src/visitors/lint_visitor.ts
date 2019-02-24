@@ -27,7 +27,6 @@ function isNullLiteral(node: SyntaxNode) {
   return false
 }
 
-// todo: I think
 function getIdentifierText(part: string) {
   let start = 0
   let end = part.length - 1
@@ -192,7 +191,6 @@ const severityMap: any = {
 
 const nameValidators = {
   // allows runs of digits to be slapped in there
-  // for reasons...
   'camelCase': /^[a-z]+(?:[0-9]*[A-Z][a-z0-9]+)*\b$/,
   'PascalCase': /^[A-Z](?:[A-Z]+[0-9]*[a-z]*)*$/,
   'snake_case': /^[a-z]+(?:_[a-z0-9]+)*$/,

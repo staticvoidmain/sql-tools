@@ -163,8 +163,6 @@ function supportsOverClause(ident: Identifier) {
     return false
   }
 
-  // this could also be a case insensitive dict,
-  // but whatever, I'll eat the allocation cost
   const name = ident.parts[0].toLowerCase()
 
   switch (name) {
@@ -226,8 +224,8 @@ export class Parser {
   private debugNodeList: Array<SyntaxNode> = []
 
   // todo: capture trivia
-  // private leadingTriviaBuffer: Array<Token> = []
-  // private trailingTriviaBuffer: Array<Token> = []
+  private leadingTriviaBuffer: Array<Token> = []
+  private trailingTriviaBuffer: Array<Token> = []
   private keywords: Array<Token> = []
 
   constructor(script: string, info: ParserOptions = {}) {
