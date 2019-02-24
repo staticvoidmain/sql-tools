@@ -94,7 +94,8 @@ import {
   UpdateStatement,
   Assignment,
   AlterTableStatement,
-  ColumnChange
+  ColumnChange,
+  CreateSchemaStatement
 } from './ast'
 
 import { FeatureFlags } from './features'
@@ -116,7 +117,8 @@ export function isStatementKind(kind: SyntaxKind) {
     && kind > SyntaxKind.alter_proc_statement
 }
 
-export function isTemp(val: string) {
+export function isTemp(ident: Identifier) {
+  const val = ident.parts[ident.parts.length - 1]
   return val[0] === '#'
     || (val[0] === '"' && val[1] === '#')
     || (val[0] === '[' && val[1] === '#')
@@ -491,6 +493,12 @@ export class Parser {
     return this.token
   }
 
+  /**
+   * called by create table AND declare @foo table
+   *
+   * the only difference being whether or not they support index and constraint
+   * creation at the moment. Which is probably buggy... oh well.
+   */
   private parseColumnDefinitionList(isCreateTable = false) {
     const cols = []
 
@@ -683,7 +691,9 @@ export class Parser {
     if (this.token.kind === SyntaxKind.table_keyword) {
       const table = <TableDeclaration>this.createAndMoveNext(this.token, SyntaxKind.table_variable_decl)
       table.name = local.value
+      this.expect(SyntaxKind.openParen)
       table.body = this.parseColumnDefinitionList()
+      this.expect(SyntaxKind.closeParen)
       statement.table = table
     }
     else {
@@ -1458,6 +1468,25 @@ export class Parser {
     return exec_string
   }
 
+  private TEMP_discardWithOptions() {
+    if (this.optional(SyntaxKind.with_keyword)) {
+
+      this.expect(SyntaxKind.openParen)
+      let parens = 1
+      // HACK: for now we'll just throw out
+      // all the distribution index stuff
+      // with(distribution = replicate, clustered columnstore index)
+      while (parens > 0) {
+        if (this.match(SyntaxKind.closeParen)) {
+          parens--
+        } else if (this.match(SyntaxKind.openParen)) {
+          parens++
+        }
+        this.moveNext()
+      }
+    }
+  }
+
   private parseCreateStatement(): CreateStatement {
     const start = this.token
     const objectType = this.moveNext()
@@ -1481,22 +1510,7 @@ export class Parser {
 
         if (this.hasFeature(FeatureFlags.CreateTableAsSelect)) {
 
-          if (this.optional(SyntaxKind.with_keyword)) {
-
-            this.expect(SyntaxKind.openParen)
-            let parens = 1
-            // HACK: for now we'll just throw out
-            // all the distribution index stuff
-            // with(distribution = replicate, clustered columnstore index)
-            while (parens > 0) {
-              if (this.match(SyntaxKind.closeParen)) {
-                parens--
-              } else if (this.match(SyntaxKind.openParen)) {
-                parens++
-              }
-              this.moveNext()
-            }
-          }
+          this.TEMP_discardWithOptions()
 
           if (this.match(SyntaxKind.as_keyword)) {
 
@@ -1521,7 +1535,7 @@ export class Parser {
         create.name = name
         create.body = this.parseColumnDefinitionList()
         this.expect(SyntaxKind.closeParen)
-
+        this.TEMP_discardWithOptions()
         this.optional(SyntaxKind.semicolon_token)
         return create
       }
@@ -1537,7 +1551,6 @@ export class Parser {
         this.optional(SyntaxKind.semicolon_token)
 
         return view
-        break
       }
 
       case SyntaxKind.proc_keyword:
@@ -1579,9 +1592,27 @@ export class Parser {
         return stats
       }
 
-      case SyntaxKind.index_keyword:
+      case SyntaxKind.index_keyword: {
         this.error('"create index" not implemented')
         break
+      }
+
+      case SyntaxKind.schema_keyword: {
+        const schema = <CreateSchemaStatement>this.createAndMoveNext(this.token, SyntaxKind.create_schema_statement)
+
+        // todo: pwd / azure sql require the schema name.
+        // but vanilla sql server treats it as optional
+        schema.name = this.parseIdentifier()
+
+
+        if (this.optional(SyntaxKind.authorization_keyword)) {
+          schema.authorization = this.parseIdentifier()
+        }
+
+        // todo: sql server supports nesting "Schema Elements" here
+
+        return schema
+      }
     }
 
     throw new Error('Not sure how to create ' + SyntaxKind[objectType.kind])
@@ -1676,6 +1707,7 @@ export class Parser {
     return <AlterStatement>this.createNode(this.token)
   }
 
+  // todo: I'm not sure if they ALL have these semantics.
   private parseDropStatement() {
     const statement = <DropStatement>this.createAndMoveNext(this.token, SyntaxKind.drop_statement)
 
@@ -1696,6 +1728,7 @@ export class Parser {
       }
     }
 
+    // todo: comma separated list of objects
     statement.target = this.parseIdentifier()
 
     this.optional(SyntaxKind.semicolon_token)
@@ -1855,29 +1888,40 @@ export class Parser {
   }
 
   private parseFrom(): FromClause {
-
-    // todo: nested table exprs
     const from = <FromClause>this.createAndMoveNext(this.token, SyntaxKind.from_clause)
-    const source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
 
-    if (this.optional(SyntaxKind.openParen)) {
-      source.expr = this.parseSelect()
-      this.expect(SyntaxKind.closeParen)
-    } else {
-      this.assertKind(SyntaxKind.identifier)
-      source.expr = this.tryParseTableOrFunctionExpression()
-    }
+    from.sources = []
+    do {
+      const source = <TableLikeDataSource>this.createNode(this.token, SyntaxKind.data_source)
+      if (this.optional(SyntaxKind.openParen)) {
+        source.expr = this.parseSelect()
+        this.expect(SyntaxKind.closeParen)
+      } else {
+        this.assertKind(SyntaxKind.identifier)
+        source.expr = this.tryParseTableOrFunctionExpression()
+      }
 
-    this.optional(SyntaxKind.as_keyword)
+      this.optional(SyntaxKind.as_keyword)
 
-    if (this.match(SyntaxKind.identifier)) {
-      source.alias = this.parseIdentifier()
-    }
+      if (this.match(SyntaxKind.identifier)) {
+        source.alias = this.parseIdentifier()
+      }
 
-    from.sources = [source]
+      if (this.optional(SyntaxKind.openParen)) {
+        // (column_alias [ ,...n ] )
+        const cols = []
+        do {
+          cols.push(this.createSinglePartIdentifier(this.token, true))
+        } while (this.optional(SyntaxKind.comma_token))
+
+        this.expect(SyntaxKind.closeParen)
+      }
+
+      from.sources.push(source)
+    } while (this.optional(SyntaxKind.comma_token))
+
 
     // todo: multiple table sources...
-    // lots of optional joined tables
     while (true) {
       const join = <JoinedTable>this.createNode(this.token, SyntaxKind.joined_table)
       const isLeft = this.match(SyntaxKind.left_keyword)

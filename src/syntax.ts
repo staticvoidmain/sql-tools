@@ -37,8 +37,8 @@ export enum SyntaxKind {
   bitwise_not_token,     // ~
   plusEqualsAssignment,  // +=
   minusEqualsAssignment, // -=
-  divEqualsAssignment,   //  /=
-  mulEqualsAssignment,   //  *=
+  divEqualsAssignment,   // /=
+  mulEqualsAssignment,   // *=
   modEqualsAssignment,   // %=
   bitwiseAndAssignment,  // &=
   bitwiseOrAssignment,   // |=
@@ -286,6 +286,7 @@ export enum SyntaxKind {
   commit_transaction_statement,
   create_proc_statement,
   create_statistics_statement,
+  create_schema_statement,
   create_table_as_select_statement,
   create_table_statement,
   create_view_statement,

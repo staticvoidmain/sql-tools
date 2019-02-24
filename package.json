@@ -8,18 +8,22 @@
   },
   "scripts": {
     "test": "mocha ./dist/test",
-    "lint": "node ./dist/src/index.js lint ./test/mssql/select_with_join.sql --verbose --severity=info",
-    "print": "node ./dist/src/index.js print ./test/mssql/kitchen_sink.sql --verbose"
+    "console": "node ./dist/src/index.js",
+    "lint": "npm run console lint ./test/mssql/select_with_join.sql --verbose --severity=info",
+    "print": "npm run console print ./test/mssql/kitchen_sink.sql --verbose",
+    "graph": "npm run console graph ./test/mssql/*.sql"
   },
   "devDependencies": {
     "@types/chai": "^4.1.4",
     "@types/chalk": "^2.2.0",
     "@types/core-js": "^0.9.42",
+    "@types/glob": "^5.0.35",
     "@types/mocha": "^2.2.40",
     "@types/node": "^10.5.1",
     "@types/yargs": "^11.1.1",
     "chai": "^3.5.0",
     "chalk": "^2.4.1",
+    "glob": "^7.1.2",
     "mocha": "^5.2.0",
     "mocha-typescript": "^1.0.23",
     "spellchecker": "^3.4.4",

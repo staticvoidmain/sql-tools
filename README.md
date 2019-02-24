@@ -34,23 +34,17 @@ and provide a sql linter / analyzer / code fix provider. Maybe as a SQL Ops stud
   - [ ] ... more
 - [x] in / exists / like / not
 - [ ] any / all / some (50%)
-- [ ] Common Table Expressions (50%)
-- [x] AST pretty-printer
-- [x] example linter / analyzer with some decent starter rules
+- [x] Common Table Expressions
 - [ ] fulltext search
 - [ ] cursors
+- [ ] transactions
 - [ ] Warehouse Features
   - [x] Create Table As Select (buggy)
   - [ ] Create remote table as select
-
-# Contributing
-
-Pull requests and issues welcome!
-
-I'll be implementing the bits of the sql grammar that give the best coverage
-for the kinds of scripts my team works with on a regular basis. If this library
-doesn't cover your code, it's probably *not* your code's fault, so open an
-issue or shoot me a pull request with a failing test case.
+- [x] TOOLS
+  - [x] AST pretty-printer
+  - [x] example linter / analyzer with some decent starter rules
+  - [x] dependency graph generator
 
 # Notes / Thoughts / Insanity
 
@@ -61,6 +55,18 @@ node .\dist\src\index.js graph .\test\mssql\kitchen_sink.sql | dot -Tsvg | out-f
 ```
 
 ![example graph](graph.svg)
+
+## Module: Data Governance
+
+- [Change Governance] Detect logical conflicts between multiple changes.
+- Trace risk impact of a change against an entire system
+- Reverse a field to find all the upstream calculations
+  - include filters and possibly data volume information?
+    - 5M -> {filter} -> 2m -> {filter} -> 100k 
+- Mass-Refactoring: flow a data type change or column rename through an entire
+  codebase and generate the required
+- Experiment: test a change (at a small scale) to see how a code change will affect the
+  end result.
 
 ## Z3 Server
 

@@ -6,7 +6,7 @@ import { getFlagsForEdition } from '../src/features'
 
 describe('MetadataVisitor', () => {
 
-  it('debug: captures CRUD', () => {
+  xit('debug: captures CRUD', () => {
 
     const path = './test/mssql/kitchen_sink.sql'
     const visitor = new MetadataVisitor(path)
@@ -23,5 +23,9 @@ describe('MetadataVisitor', () => {
     const meta = visitor.getMetadata()
 
     console.log(JSON.stringify(meta, undefined, ' '))
+  })
+
+  xit('captures column references', () => {
+    // todo:
   })
 })

@@ -1,4 +1,4 @@
-import { SyntaxKind } from './../syntax'
+import { SyntaxKind } from '../syntax'
 
 import {
   BinaryExpression,
@@ -49,9 +49,9 @@ import {
   HavingClause,
   UpdateStatement,
   DeleteStatement
-} from './../ast'
+} from '../ast'
 
-import { Token } from './../scanner'
+import { Token } from '../scanner'
 
 /**
  * This visitor will allow rules to be evaluated simply by extending this base

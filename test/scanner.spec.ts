@@ -249,11 +249,11 @@ describe('Scanner', function () {
     const tokens = scanAll(scanner)
 
     assertTokens(tokens, [
-      { kind: SyntaxKind.identifier, value: '[foo]' },
+      { kind: SyntaxKind.identifier, value: 'foo' },
       { kind: SyntaxKind.dot_token },
       { kind: SyntaxKind.identifier, value: 'b@r' },
       { kind: SyntaxKind.dot_token },
-      { kind: SyntaxKind.identifier, value: '"$b_z"' },
+      { kind: SyntaxKind.identifier, value: '$b_z' },
     ])
   })
 
@@ -274,22 +274,21 @@ describe('Scanner', function () {
     ])
   })
 
-  xit('scans insane identifiers', function () {
-    // todo: this is a stupid edge case
-    // that I probably won't find in the wild.
+  xit('EDGE: scans insane identifiers', function () {
     // this is ACTUALLY a temp table...named #"sometable"
+    // due to quote escaping
     const scanner = new Scanner('"#""sometable"""    ')
     const token = scanner.scan()
 
     expect(token.kind).to.equal(SyntaxKind.identifier)
 
     // not sure how i like the handling of quoted identifiers...
-    expect(token.value).to.equal('"#""sometable"""')
+    expect(token.value).to.equal('#""sometable""')
   })
 
   xit('todo: should stop after the last unescaped double-quote')
 
-  xit ('debug: show token stream', function() {
+  xit('debug: show token stream', function() {
     const file = readFileSync('./test/mssql/basic_select.sql', 'utf8')
     const scanner = new Scanner(file)
     const tokens = scanAll(scanner, false)

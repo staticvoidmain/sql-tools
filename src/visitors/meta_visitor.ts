@@ -58,7 +58,10 @@ function findByAlias(from: FromClause, ident: Identifier) {
 export class MetadataVisitor extends Visitor {
   private meta: Metadata
 
-  constructor(path: string) {
+  constructor(
+    path: string,
+    private includeTemp = false) {
+
     super()
     this.meta = new Metadata()
     this.meta.path = path
@@ -70,16 +73,18 @@ export class MetadataVisitor extends Visitor {
   }
 
   visitCreateTable(table: CreateTableStatement) {
-    const name = formatIdentifier(table.name)
-    if (isTemp(name)) { return }
-    this.meta.create.push(name)
+    if (this.includeTemp || !isTemp(table.name)) {
+      const name = formatIdentifier(table.name)
+      this.meta.create.push(name)
+    }
   }
 
   visitCtas(table: CreateTableAsSelectStatement) {
-    // unnamed ctas? dafuh?
-    const name = formatIdentifier(table.name)
-    if (isTemp(name)) { return }
-    this.meta.create.push(name)
+
+    if (this.includeTemp || !isTemp(table.name)) {
+      const name = formatIdentifier(table.name)
+      this.meta.create.push(name)
+    }
   }
 
   visitDataSource(source: TableLikeDataSource) {
@@ -87,9 +92,9 @@ export class MetadataVisitor extends Visitor {
     // just yet, but this will suffice for now.
     if (source.expr.kind === SyntaxKind.identifier_expr) {
       const ident = <IdentifierExpression>source.expr
-      const name = formatIdentifier(ident.identifier)
 
-      if (!isTemp(name)) {
+      if (this.includeTemp || !isTemp(ident.identifier)) {
+        const name = formatIdentifier(ident.identifier)
         // need semantic model to know for sure
         this.meta.read.push(name)
       }
@@ -97,33 +102,35 @@ export class MetadataVisitor extends Visitor {
   }
 
   visitInsertStatement(insert: InsertStatement) {
-    const name = formatIdentifier(insert.target)
+    if (this.includeTemp || !isTemp(insert.target)) {
+      const name = formatIdentifier(insert.target)
 
-    if (isTemp(name)) { return }
-
-    this.meta.create.push(name)
+      this.meta.create.push(name)
+    }
   }
 
   visitUpdate(update: UpdateStatement) {
-    let name = formatIdentifier(update.target)
 
-    if (isTemp(name)) { return }
+    if (this.includeTemp || !isTemp(update.target)) {
+      let name = formatIdentifier(update.target)
 
-    if (update.target.parts.length === 1 && update.from) {
-      name = findByAlias(update.from, update.target) || name
+      if (update.target.parts.length === 1 && update.from) {
+        name = findByAlias(update.from, update.target) || name
+      }
+
+      this.meta.update.push(name)
     }
-
-    this.meta.update.push(name)
   }
 
   visitDelete(del: DeleteStatement) {
-    let name = formatIdentifier(del.target)
-    if (isTemp(name)) { return }
+    if (this.includeTemp || !isTemp(del.target)) {
+      let name = formatIdentifier(del.target)
 
-    if (del.target.parts.length === 1 && del.from) {
-      name = findByAlias(del.from, del.target) || name
+      if (del.target.parts.length === 1 && del.from) {
+        name = findByAlias(del.from, del.target) || name
+      }
+
+      this.meta.delete.push(name)
     }
-
-    this.meta.delete.push(name)
   }
 }

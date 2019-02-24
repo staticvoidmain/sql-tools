@@ -35,10 +35,21 @@ export interface SyntaxNode extends TextRange {
   kind: SyntaxKind
 }
 
+export enum IdentifierFlags {
+  None = 0,
+  Resolved     = 1 << 0,
+  HasDatabase  = 1 << 1,
+  HasSchema    = 1 << 2,
+}
+
 // one two or three part name
 // not sure if this needs another type.
 export interface Identifier extends SyntaxNode {
   parts: string[]
+  flags: IdentifierFlags
+
+  // to be resolved later to an entity reference
+  entity?: any
 }
 
 // todo: these might not matter... since createNode makes it with the token kind baked in...
@@ -285,7 +296,7 @@ export interface DataType extends SyntaxNode {
   null?: boolean
 }
 
-// todo: convert to union type?
+// todo: convert to a tagged union type?
 export interface Expr extends SyntaxNode { }
 
 export interface NullExpression extends SyntaxNode { kind: SyntaxKind.null_keyword }
@@ -396,21 +407,9 @@ export interface Source extends SyntaxNode {
   with?: string[] // todo: specialized type for table hints
 }
 
-// todo: for the resolver
-export enum DataSourceKind {
-  unknown,
-  table,
-  view,
-  subexpression,
-  local_table,
-  temp_table,
-  table_valued_function,
-}
-
 export interface TableLikeDataSource extends SyntaxNode {
   expr: IdentifierExpression | FunctionCallExpression | SelectStatement
   alias?: Identifier
-  source_kind?: DataSourceKind
 }
 
 export type RowValueExpression =
@@ -581,6 +580,7 @@ export type CreateStatement =
   | CreateProcedureStatement
   | CreateViewStatement
   | CreateStatisticsStatement
+  | CreateSchemaStatement
   // | CreateFunctionStatement
   // | CreateDatabaseStatement
 
@@ -657,6 +657,12 @@ export interface CreateViewStatement extends SyntaxNode {
   definition: SelectStatement
   // todo: optional with (SCHEMABINDING | ENCRYPTION | VIEWMETADATA)
   // todo: trailing semicolon
+}
+
+export interface CreateSchemaStatement extends SyntaxNode {
+  name?: Identifier
+  authorization?: Identifier
+  // todo: schema element definitions [complex] [lowvalue]
 }
 
 export interface CreateStatisticsStatement extends SyntaxNode {
