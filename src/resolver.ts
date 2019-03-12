@@ -14,7 +14,10 @@ import {
   UnaryExpression,
   SimpleCaseExpression,
   SearchedCaseExpression,
-  FunctionCallExpression
+  FunctionCallExpression,
+  ColumnExpression,
+  LiteralExpression,
+  SetStatement
 } from './ast'
 
 import { SyntaxKind } from './syntax'
@@ -67,7 +70,8 @@ export enum SymbolKind {
   table,
   cursor,
   cte,
-  temp_table
+  temp_table,
+  table_expr
 }
 
 // not sure what to do with this yet.
@@ -132,7 +136,10 @@ interface Procedure extends Entity {
 }
 
 interface View extends Entity { }
-interface CommonTableExpression extends Entity { }
+
+interface CommonTableExpression extends Entity {
+  kind: SymbolKind.table_expr
+}
 
 interface Table extends Entity {
   kind: SymbolKind.table
@@ -144,54 +151,27 @@ interface Column extends Entity {
   type: string // todo
 }
 
-const fnv_prime = 16777619
-const hash_base = 0x811c9dc5
-const uint = new Uint32Array(new ArrayBuffer(4))
-
-// 32-bit fnv hash of the string, converting upper letters
-// to their lower equivalent, but keeping all other characters
-// intact.
-function computeHash(name: string) {
-  const len = name.length
-  uint[0] = hash_base
-  for (let i = 0; i < len; i++) {
-    let c = name.charCodeAt(i)
-
-    if (isLetter(c) && isUpper(c)) {
-      c += 32
-    }
-
-    uint[0] ^= c
-    uint[0] *= fnv_prime
-  }
-
-  return uint[0]
-}
-
 // todo: this scheme COULD run into name collisions.
 class NameTable {
-  private map: Map<number, Symbol>
+  private map: Map<string, Symbol>
 
   constructor() {
-    this.map = new Map<number, Symbol>()
+    this.map = new Map<string, Symbol>()
   }
 
   add(name: string, sym: Symbol) {
-    const hash = computeHash(name)
-    const existing = this.map.get(hash)
+    const existing = this.map.get(name)
     if (existing) {
       existing.flags |= SymbolFlags.Ambiguous
       sym.flags |= SymbolFlags.Ambiguous
       return
-      // I guess it's not really an error...
-      // throw Error('ERR: symbol redefined: ' + name)
     }
 
-    this.map.set(hash, sym)
+    this.map.set(name, sym)
   }
 
   get(name: string) {
-    return this.map.get(computeHash(name))
+    return this.map.get(name)
   }
 
   all() {
@@ -335,11 +315,21 @@ export function table(name: string): Table {
   }
 }
 
-export function column(name: string): Column {
+export function tableExpression(name: string): CommonTableExpression {
+
+  return <CommonTableExpression>{
+    name: name,
+    kind: SymbolKind.table_expr,
+    children: new NameTable(),
+  }
+}
+
+
+export function column(name: string, parent: Table): Column {
   return <Column>{
     name: name,
-    type: 'todo',
-    parent: undefined,
+    type: '_todo_',
+    parent: parent,
     nullable: false,
     kind: SymbolKind.column,
     references: [],
@@ -511,19 +501,53 @@ function resolveIdentifier(scope: Scope, ident: Identifier): Entity {
   return ident.entity = entity
 }
 
+function tryGetColumnNameForDefine(col: ColumnExpression) {
+  if (col.alias) {
+    return last(col.alias.parts)
+  }
+
+  if (col.expression.kind === SyntaxKind.identifier_expr) {
+    return last((<IdentifierExpression>col.expression).identifier.parts)
+  }
+
+  // todo: what else?
+}
+
+function getColumnEntity(col: ColumnExpression) {
+  if (col.alias) {
+    return col.alias.entity
+  }
+
+  if (col.expression.kind === SyntaxKind.identifier_expr) {
+    return last((<IdentifierExpression>col.expression).identifier.entity)
+  }
+
+  // same question as above?
+}
+
 // todo: for now we won't actually attempt to resolve type symbols
 // just because it's not really "REQUIRED" unless we want to do something
 // super super fancy.
 export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
 
+  let batch = scope.createScope()
+
   for (const node of nodes) {
     switch (node.kind) {
+      case SyntaxKind.go_statement: {
+        batch = scope.createScope()
+        break
+      }
+
       case SyntaxKind.declare_statement: {
         const decl = <DeclareStatement>node
 
         if (decl.variables) {
-          for (const l of decl.variables) {
-            scope.define(local(l.name))
+          for (const v of decl.variables) {
+            if (v.expression) {
+              resolveExpr(batch, v.expression)
+            }
+            batch.define(local(v.name))
           }
         }
         else {
@@ -535,16 +559,50 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
         break
       }
 
+      case SyntaxKind.set_statement: {
+        const set = <SetStatement>node
+        const decl = batch.resolve(set.name)
+
+        if (!decl) {
+          throw Error(`undefined identifier ${set.name}`)
+        }
+
+        resolveExpr(batch, set.expression)
+        break
+      }
+
       case SyntaxKind.select_statement: {
         const select = <SelectStatement>node
-        const selectScope = scope.createScope()
+        const selectScope = batch.createScope()
 
-        // define
+        // PHASE: define
+
+        if (select.ctes) {
+          for (const cte of select.ctes) {
+            resolveAll([cte.definition], batch)
+            const cols = cte.definition.columns
+            // todo: error if there are mismatched column counts
+            // todo: error if the column types are mismatched
+
+            const anon = selectScope.define(tableExpression(last(cte.name.parts)))
+
+            for (let index = 0; index < cols.length; index++) {
+              const col = cols[index]
+              const name = cte.columns
+                ? last(cte.columns[index].parts)
+                : tryGetColumnNameForDefine(col)
+
+              // todo:
+              anon.children!.add(name!, getColumnEntity(col))
+            }
+          }
+        }
+
         if (select.from) {
           for (const src of select.from.sources) {
             if (src.expr.kind === SyntaxKind.identifier_expr) {
               const e = <IdentifierExpression>src.expr
-              const entity = resolveIdentifier(scope, e.identifier)
+              const entity = resolveIdentifier(batch, e.identifier)
 
               if (src.alias) {
                 selectScope.define(
@@ -563,7 +621,8 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
               break
             }
 
-            //
+            // todo: other kinds of sources... like nested selects
+
             if (src.alias) {
               // todo: this should probably be select_expr
               // but I'd have to rewrite things a bit
@@ -585,18 +644,20 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
           }
         }
 
-        // resolve
-        // -------
+        // PHASE: resolve
         for (const col of select.columns) {
           resolveExpr(selectScope, col.expression)
-          // todo: add each column to the defined cols of the select as well.
+          // todo: add each column to the defined cols of the select as well?
         }
 
         if (select.where) {
           resolveExpr(selectScope, select.where.predicate)
         }
 
+        // todo: group by and order by support ordinal column lists
+        // so, resolveExpr(selectScope, 1) is a fun edge case for future me
         if (select.group_by) {
+
           for (const expr of select.group_by.grouping) {
             resolveExpr(selectScope, expr)
           }
@@ -611,11 +672,16 @@ export function resolveAll(nodes: SyntaxNode[], scope: Scope): void {
         break
       }
 
-      case SyntaxKind.create_table_as_select_statement: { break }
+      case SyntaxKind.create_table_as_select_statement: {
+        break
+      }
+
       case SyntaxKind.create_table_statement: {
         break
       }
+
       case SyntaxKind.update_statement: { break }
+
       case SyntaxKind.delete_statement: { break }
     }
   }
@@ -656,12 +722,12 @@ function loadDatabase(scope: Scope, db: any) {
     for (const tableName in tables) {
       const t = table(tableName)
       const columns = tables[tableName].columns
+
       for (const columnName in columns) {
-        const entity = column(columnName)
+        const entity = column(columnName, t)
         const col = columns[columnName]
         entity.nullable = col.nullable
         entity.type = col.type
-        entity.parent = t
         t.children!.add(columnName, symbol(entity))
       }
 

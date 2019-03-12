@@ -502,8 +502,11 @@ export interface SetStatement extends SyntaxNode {
 
 export interface CommonTableExpression extends SyntaxNode {
   name: Identifier
-  columns: Identifier[]
   definition: SelectStatement
+
+  // the column aliases are optional,
+  // otherwise take the projected names
+  columns?: Identifier[]
 }
 
 export interface HasCommonTableExpressions extends SyntaxNode {

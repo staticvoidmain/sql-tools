@@ -4,7 +4,7 @@
       "schemas": {
         "dbo": {
           "tables": {
-            "Customers": {
+            "customers": {
               "columns": {
                 "id": {
                   "type": "int"
@@ -21,7 +21,7 @@
                 }
               }
             },
-            "Orders": {
+            "orders": {
               "columns": {
                 "id": {
                   "type": "int"

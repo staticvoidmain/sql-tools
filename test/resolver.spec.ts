@@ -1,19 +1,15 @@
 import { } from 'mocha'
 import { expect } from 'chai'
-import { Scope, local, resolveAll, schema, table, column, database, symbol, loadEnvironment } from '../src/resolver'
+import { Scope, local, resolveAll, loadEnvironment } from '../src/resolver'
 import { Parser } from '../src/parser'
-import { readFileSync } from 'fs'
-import { IdentifierExpression } from '../src/ast'
+import { IdentifierExpression, SelectStatement, BinaryExpression } from '../src/ast'
+import { notDeepEqual } from 'assert';
+
 
 describe('resolver', () => {
 
-  it('ignores case', () => {
-    const test = new Scope(undefined, 'test')
-    const defined = test.define(local('@foo'))
-    const resolved = test.resolve('@FOO')
-
-    expect(defined).to.equal(resolved)
-  })
+  const env = loadEnvironment('./test/mssql/example.db.json')
+  const db = env.findChild('example')!
 
   it('resolves up the scope chain', () => {
     const test = new Scope(undefined, 'test')
@@ -24,26 +20,63 @@ describe('resolver', () => {
     expect(defined).to.equal(resolved)
   })
 
-  it('debug: full resolver test', () => {
+  it ('warns on amiguous symbols', () => {
+    // todo
+  })
+
+  it('resolves through aliases', () => {
     const source = `
      select cust.id
      from [dbo]."Customers" as cust
      where cust.birthday < dateadd(year, -18, getdate())
     `
 
-    const parser = new Parser(source, {})
+    const parser = new Parser(source, { vendor: 'mssql' })
     const list = parser.parse()
 
-    const env = loadEnvironment('./test/mssql/example.db.json')
-    const db = env.findChild('example')
+    resolveAll(list, db)
 
-    resolveAll(list, db!)
+    const select = <SelectStatement>list[0]
+    const column = <IdentifierExpression>select.columns[0].expression
 
-    const select = <any>list[0]
-    const expr = <IdentifierExpression>select.where!.predicate.left
-    expect(expr.identifier.entity.name).to.equal('birthday')
-    expect(expr.identifier.entity.parent.name).to.equal('Customers')
+    expect(column.identifier.entity).to.exist
 
-    // todo: I want to test that birthday got resolved.
+    const expr = <BinaryExpression>select.where!.predicate
+    const entity = (<IdentifierExpression>expr.left).identifier.entity
+    expect(entity.name).to.equal('birthday')
+    expect(entity.parent.name).to.equal('customers')
+
+    expect(entity.parent).to.equal(column.identifier.entity.parent)
+  })
+
+  it ('discards scope on GO-stmt', () => {
+    const source = `
+     declare @x int = 1;
+     go
+     set @x = 10;
+    `
+
+    const parser = new Parser(source, { vendor: 'mssql' })
+    const list = parser.parse()
+
+    // should get an undeclared identifier
+    expect(() => { resolveAll(list, db) }).to.throw()
+  })
+
+  it('resolves with nested select', () => {
+    const source = `
+     select cust.id
+     from (
+       select id, birthday
+       from [dbo]."Customers"
+     ) as cust
+     where cust.birthday < dateadd(year, -18, getdate())
+    `
+    const parser = new Parser(source, { vendor: 'mssql' })
+    const list = parser.parse()
+
+    resolveAll(list, db)
+
+    // todo: no asserts... fixme
   })
 })
