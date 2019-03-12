@@ -26,6 +26,7 @@ export class Token {
   end: number
   kind: SyntaxKind
   value?: any
+  identifier?: string
   flags: TokenFlags
 
   constructor(kind: SyntaxKind, start: number, end: number) {
@@ -96,8 +97,6 @@ class KeywordLookup {
     bucket.min = Math.min(bucket.min, key.length) || key.length
     bucket.max = Math.max(bucket.max, key.length)
 
-    // this is probably not all that important
-    // since each bucket has a min/max
     this.minIdentifier = Math.min(this.minIdentifier, key.length) || key.length
     this.maxIdentifier = Math.max(this.maxIdentifier, key.length)
   }
@@ -211,7 +210,6 @@ const keywordMap = new KeywordLookup([
   ['from', SyntaxKind.from_keyword],
   ['full', SyntaxKind.full_keyword],
   ['function', SyntaxKind.function_keyword],
-  ['go', SyntaxKind.go_keyword], // special: mssql, maybe remove it unless the flag exists
   ['goto', SyntaxKind.goto_keyword],
   ['grant', SyntaxKind.grant_keyword],
   ['group', SyntaxKind.group_keyword],
@@ -301,7 +299,6 @@ const keywordMap = new KeywordLookup([
   ['tablesample', SyntaxKind.tablesample_keyword],
   ['textsize', SyntaxKind.textsize_keyword],
   ['then', SyntaxKind.then_keyword],
-  // missing from the list of online keywords...
   ['throw', SyntaxKind.throw_keyword],
   ['to', SyntaxKind.to_keyword],
   ['top', SyntaxKind.top_keyword],
@@ -346,6 +343,12 @@ export class Scanner {
       if (this.options.features & FeatureFlags.CreateRemoteTableAsSelect) {
         keywordMap.addItem(['remote', SyntaxKind.remote_keyword])
       }
+    }
+
+    // just playing with vendor specific syntax
+    // still not sure I'm going to support it
+    if (this.options.vendor === 'mssql') {
+      keywordMap.addItem(['go', SyntaxKind.go_keyword])
     }
   }
 
@@ -568,16 +571,6 @@ export class Scanner {
     return peek
   }
 
-  private consumeWhitespace() {
-    if (this.isSpace(this.token())) {
-      do {
-        this.pos++
-      } while (this.isSpace(this.token()))
-      return true
-    }
-    return false
-  }
-
   getSourceLine(line: number) {
     this.lazyComputeLineNumbers()
 
@@ -615,6 +608,7 @@ export class Scanner {
     const ch = this.token()
     let flags = 0
     let val = undefined
+    let ident = undefined
     let kind = SyntaxKind.EOF
 
     if (isNaN(ch)) { // EOF
@@ -945,6 +939,7 @@ export class Scanner {
           : TokenFlags.BracketedIdentifier
 
         val = this.scanIdentifier()
+        ident = val.toLowerCase()
         kind = SyntaxKind.identifier
 
         break
@@ -953,11 +948,14 @@ export class Scanner {
       case Chars.at: {
         kind = SyntaxKind.identifier
         if (peek_char === Chars.at) {
-          // mssql config functions
+          // todo: check vendor, might be illegal
+          // todo: kind for mssql config function?
           this.pos++
         }
 
         val = this.scanRegularIdentifier()
+        ident = val.toLowerCase()
+
         break
       }
 
@@ -971,6 +969,7 @@ export class Scanner {
         }
 
         val = this.scanRegularIdentifier()
+        ident = val.toLowerCase()
         break
       }
 
@@ -999,6 +998,9 @@ export class Scanner {
           kind = keyword
           flags |= TokenFlags.Keyword
         }
+        else {
+          ident = val.toLowerCase()
+        }
 
         break
       }
@@ -1007,6 +1009,14 @@ export class Scanner {
     const token = new Token(kind, start, this.pos++)
     token.flags = flags
     token.value = val
+
+    if (kind === SyntaxKind.identifier) {
+      if (!ident) {
+        this.error('illegal identifier!')
+      }
+
+      token.identifier = ident
+    }
 
     return token
   }

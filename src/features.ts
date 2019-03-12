@@ -8,12 +8,15 @@ export enum FeatureFlags {
   // for maybe later...
   HexLiterals               = 1 << 4,
   CreateIfNotExist          = 1 << 5,
+  DoubleColonCast           = 1 << 6
 }
 
 export enum Edition {
-  default = 'sql-server',
-  azure = 'azure-data-warehouse',
-  pdw = 'parallel-data-warehouse'
+  default = 'ms:sql-server',
+  azure = 'ms:azure-data-warehouse',
+  pdw = 'ms:parallel-data-warehouse',
+  postgres = 'postgres',
+  sqlite = ''
 }
 
 export function getSupportedEditions(): string[] {
@@ -29,20 +32,23 @@ export function getSupportedEditions(): string[] {
 export function getFlagsForEdition(edition: string, version: string) {
   let flags = FeatureFlags.None
 
-  if (edition === 'parallel-data-warehouse') {
+  if (edition === 'ms:parallel-data-warehouse') {
     flags |= FeatureFlags.CreateTableAsSelect
     flags |= FeatureFlags.CreateRemoteTableAsSelect
-  } else if (edition === 'azure-data-warehouse') {
+  } else if (edition === 'ms:azure-data-warehouse') {
     flags |= FeatureFlags.CreateTableAsSelect
-  } else if (edition === 'sql-server') {
-    // does pdw support it? probably not right?
+  } else if (edition === 'ms:sql-server') {
     flags |= FeatureFlags.SharedTemporaryTables
-    // todo: semver?
     const num = Number(version)
 
     if (num >= 2016) {
       flags |= FeatureFlags.DropIfExists
     }
+  } else if (edition === 'postgres') {
+    // totally unsupported right now
+    flags |= FeatureFlags.DropIfExists
+    flags |= FeatureFlags.CreateIfNotExist
+    flags |= FeatureFlags.DoubleColonCast
   }
 
   return flags

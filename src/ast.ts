@@ -23,6 +23,7 @@ export interface ParserOptions {
   skipKeywordTracking?: boolean
   error?: ErrorCallback
   debug?: boolean
+  vendor?: 'mssql' | 'postgres'
   features?: FeatureFlags
 }
 
@@ -289,6 +290,7 @@ export type ValueExpression =
 // todo: table expression with select-top 1 some_col
 // or just select 1
 
+// todo: this gets a LOT more complex if we introduce postgres
 // max 2: precision + scale | length | 'max'
 export interface DataType extends SyntaxNode {
   name: string

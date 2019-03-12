@@ -245,9 +245,10 @@ yargs
 
     o.write('}\n')
   })
-  .option('edition', { alias: 'e', default: 'sql-server', choices: getSupportedEditions() })
+  .option('edition', { alias: 'e', default: 'ms:sql-server', choices: getSupportedEditions() })
   .option('verbose', { alias: 'v', default: false })
   .demandCommand()
+  .demandOption('edition')
   .help('h')
   .alias('h', 'help')
   .parse()

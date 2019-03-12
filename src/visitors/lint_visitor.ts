@@ -69,6 +69,16 @@ function isComparison(op: BinaryOperator) {
   return false
 }
 
+function isOneEqualsOne(expr: BinaryExpression) {
+  if (expr.op.kind === SyntaxKind.equal) {
+    // todo: what does 1=1 come in as?
+    if (expr.left.kind === SyntaxKind.numeric_literal) {
+
+    }
+  }
+  return false
+}
+
 function isUnary(expr: Expr) {
   const kind = expr.kind
   return kind === SyntaxKind.unary_minus_expr
@@ -316,11 +326,16 @@ export class ExampleLintVisitor extends Visitor {
         })
       }
     })
+
+    if (node.ctes) {
+      // todo: if the node contains  CTEs, ensure that they
+      // are all used somewhere in the query
+    }
   }
 
   visitWhere(node: WhereClause) {
     // TODO: technically ANY expr that mutates a column value
-    // will not be sargable, not just function calls
+    // will not be s-argable, not just function calls
     // abc + 1 = 'foo1' would break it
     walkExpr(node.predicate, (e: Expr) => {
       if (e.kind === SyntaxKind.function_call_expr) {
@@ -355,6 +370,7 @@ export class ExampleLintVisitor extends Visitor {
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
 
+        if (isOneEqualsOne(node)) return
         // todo: people do like their 1=1 nonsense, give that a pass.
         // todo: link to a full on SAT solver
         // for some unreachable code detection

@@ -196,16 +196,15 @@ function supportsOverClause(ident: Identifier) {
   return false
 }
 
-// todo: zero unnecessary allocations!
+// todo: fixme
 function isCast(ident: Identifier) {
   return ident.parts.length === 1
     && ident.parts[0].toLowerCase() === 'cast'
 }
 
-// todo: zero unnecessary allocations!
 function isConvert(ident: Identifier) {
   return ident.parts.length === 1
-    && ident.parts[0].toLowerCase() === 'convert'
+    && ident.parts[0] === 'convert'
 }
 
 // wrapper with the current parser state
@@ -433,7 +432,7 @@ export class Parser {
         message: message
       })
     } else {
-
+      //
       throw new ParserException(
         `${this.options.path} (${line + 1}, ${col + 1}) ${message} \n${text}`,
         this.debugNodeList)
@@ -1066,7 +1065,7 @@ export class Parser {
     }
 
     ident.parts = [
-      token.value
+      <string>token.identifier
     ]
     return ident
   }
@@ -1087,17 +1086,15 @@ export class Parser {
       } else {
         // expect will advance to the next token
         const partial = this.expect(SyntaxKind.identifier)
-        ident.parts.push(partial.value)
+
+        ident.parts.push(<string>partial.identifier)
         ident.end = partial.end
       }
     }
 
-    // todo: maybe also intern the identifier for easy lookup?
-    // maybe allowing us to resolve them to the same ident or something
     return ident
   }
 
-  // todo:
   private tryParseUnaryExpr(comparison?: boolean) {
     if (this.match(SyntaxKind.minus_token)) {
       const neg = <UnaryMinusExpression>this.createAndMoveNext(this.token, SyntaxKind.unary_minus_expr)
@@ -2086,8 +2083,18 @@ export class Parser {
 
     this.moveNext()
     let node = undefined
-    while (node = this.parseStatement()) {
-      statements.push(node)
+    for (; ;) {
+      try {
+        node = this.parseStatement()
+        if (!node) {
+          break
+        }
+
+        statements.push(node)
+      }
+      catch (ex) {
+        this.error(ex)
+      }
     }
 
     // todo: error recovery?

@@ -51,7 +51,9 @@ import {
   OrderByClause,
   OrderExpression,
   HavingClause,
-  CommonTableExpression
+  CommonTableExpression,
+  UpdateStatement,
+  LiteralKind
 } from '../ast'
 
 import { formatIdentifier } from '../utils'
@@ -199,6 +201,7 @@ export class PrintVisitor {
       case SyntaxKind.identifier: {
         const ident = <Identifier>node
         this.write(formatIdentifier(ident))
+        this.write(' ')
         break
       }
 
@@ -263,7 +266,7 @@ export class PrintVisitor {
 
         this.push('(drop ')
         this.write(keyword(drop.objectType.kind))
-        this.write(formatIdentifier(drop.target))
+        this.printNode(drop.target)
         this.pop(true)
         break
       }
@@ -340,6 +343,28 @@ export class PrintVisitor {
         break
       }
 
+      case SyntaxKind.update_statement: {
+        const update = <UpdateStatement>node
+
+        this.push('(update ')
+        this.printNode(update.target)
+
+        this.printList(update.ctes)
+
+        update.assignments.forEach(a => {
+          const lvl = this.push('(set ')
+          this.printNode(a.target)
+          this.printNode(a.value)
+          this.pop(lvl === this.level)
+        })
+
+        this.printNode(update.from)
+
+        this.pop()
+
+        break
+      }
+
       case SyntaxKind.delete_statement: {
         const del = <DeleteStatement>node
 
@@ -357,7 +382,7 @@ export class PrintVisitor {
 
         this.push('(if ')
         this.printNode(_if.predicate)
-        const then_level = this.push('(then')
+        const then_level = this.push('(then ')
         this.printNode(_if.then)
         this.pop(then_level === this.level)
 
@@ -499,7 +524,7 @@ export class PrintVisitor {
 
       case SyntaxKind.having_clause: {
         const having = <HavingClause>node
-        this.push('(having')
+        this.push('(having ')
         this.printNode(having.predicate)
         this.pop()
         break
@@ -549,7 +574,6 @@ export class PrintVisitor {
         break
       }
 
-      // unary
       case SyntaxKind.null_test_expr: {
         const test = <IsNullTestExpression>node
 
@@ -565,14 +589,15 @@ export class PrintVisitor {
 
       case SyntaxKind.identifier_expr: {
         const ident = <IdentifierExpression>node
-        this.write(formatIdentifier(ident.identifier))
+        this.printNode(ident.identifier)
         break
       }
 
       case SyntaxKind.literal_expr: {
         const literal = <LiteralExpression>node
 
-        if (typeof literal.value === 'string') {
+        // todo: more kinds (mostly for postgres)
+        if (literal.literal_kind === LiteralKind.String) {
           this.write('\'' + literal.value + '\'')
         }
         else {

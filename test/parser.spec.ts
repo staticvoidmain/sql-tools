@@ -16,12 +16,15 @@ import {
 } from '../src/ast'
 
 import { printNodes } from '../src/visitors/print_visitor'
-import { last } from '../src/utils';
+import { last } from '../src/utils'
+
 
 describe('Parser', () => {
 
+  const opt: any = { vendor: 'mssql' }
+
   it('returns an array of statements', () => {
-    const parser = new Parser('use MyDb\n go\n')
+    const parser = new Parser('use MyDb\n go\n', opt)
     const list = parser.parse()
 
     expect(list).to.be.an('array')

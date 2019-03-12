@@ -12,7 +12,7 @@
       "args": [
         "--timeout",
         "999999",
-        "${workspaceFolder}/dist/test/resolver.spec.js"
+        "${workspaceFolder}/dist/test/*.spec.js"
       ],
       "internalConsoleOptions": "openOnSessionStart"
     },
@@ -23,8 +23,8 @@
       "name": "run program",
       "program": "${workspaceFolder}/dist/src/index.js",
       "args": [
-        "graph",
-        "${workspaceFolder}\\test\\mssql\\select_with_join.sql"
+        "lint",
+        "${workspaceFolder}\\test\\mssql\\kitchen_sink.sql"
       ],
       "cwd": "${workspaceFolder}"
     }

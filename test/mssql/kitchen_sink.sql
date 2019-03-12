@@ -30,11 +30,12 @@ values ( @foo, case when @foo >= -1 then 1 else 0 end )
 
 -- -- drop procedure asdf.foo
 -- print 'create table'
-create table dbo.whatever (
-  [id] int identity(1, 1) not null,
-  [name] varchar(256) null,
-  [date] datetime null
-);
+
+-- create table dbo.whatever (
+--   [id] int identity(1, 1) not null,
+--   [name] varchar(256) null,
+--   [date] datetime null
+-- );
 
 
 with cte as (select 1 from abc.SRC_TABLE)
