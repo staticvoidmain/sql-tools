@@ -608,7 +608,7 @@ export class Scanner {
   }
 
   /**
-   * advance the token stream by one and return the current token.
+   * advance the token stream and return the current token.
    */
   scan(): Token {
     const start = this.pos
@@ -617,10 +617,11 @@ export class Scanner {
     let val = undefined
     let kind = SyntaxKind.EOF
 
-    if (isNaN(ch)) {
+    if (isNaN(ch)) { // EOF
       return new Token(kind, start, this.pos)
     }
 
+    // todo: if eating whitespace, we should add this to the trivia list.
     const peek_pos = this.seekNonWhitespace()
     const peek_char = this.text.charCodeAt(peek_pos)
 
@@ -629,11 +630,11 @@ export class Scanner {
 
       case Chars.period: {
         kind = SyntaxKind.dot_token
-        const next = this.peek()
-        if (next === Chars.period) {
+
+        if (peek_char === Chars.period) {
           this.pos++
           kind = SyntaxKind.dotdot_token
-        } else if (isDigit(next)) {
+        } else if (isDigit(peek_char)) {
           // leading decimal digit float
           do {
             this.pos++
@@ -653,11 +654,11 @@ export class Scanner {
 
       case Chars.colon: {
         // todo: probably legal whitespace
-        if (this.peek() === Chars.colon) {
+        if (peek_char === Chars.colon) {
           this.pos++
           kind = SyntaxKind.double_colon_token
         } else {
-          this.illegal(this.peek())
+          this.illegal(peek_char)
         }
 
         break

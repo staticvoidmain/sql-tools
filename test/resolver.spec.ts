@@ -44,6 +44,6 @@ describe('resolver', () => {
     expect(expr.identifier.entity.name).to.equal('birthday')
     expect(expr.identifier.entity.parent.name).to.equal('Customers')
 
-    // I want to test that birthday got resolved.
+    // todo: I want to test that birthday got resolved.
   })
 })

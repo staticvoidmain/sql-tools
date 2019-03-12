@@ -34,7 +34,7 @@ some notes:
   declare @asdf int;
 
   // eh... maybe just
-  scope.define(local('@asdf', INT)
+  scope.define(local('@asdf', INT))
 
   - each select introduces a new enclosing scope
   - and pops it off when it completes and all names are resolved
@@ -168,6 +168,7 @@ function computeHash(name: string) {
   return uint[0]
 }
 
+// todo: this scheme COULD run into name collisions.
 class NameTable {
   private map: Map<number, Symbol>
 
@@ -201,7 +202,7 @@ class NameTable {
 const options = {
   strict: false,
   allowShadow: true,
-  // verifyTypes: false
+  verifyTypes: false
 }
 
 export function configureResolver(

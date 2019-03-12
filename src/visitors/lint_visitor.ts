@@ -8,7 +8,7 @@ import { SyntaxKind } from '../syntax'
 import { Token } from '../scanner'
 import { isLetter, isUpper } from '../chars'
 import { isMisspelled, add as addWord } from 'spellchecker'
-import { last } from '../utils';
+import { last } from '../utils'
 
 // todo: add some common sql-isms to the spellchecker
 // dictionary where possible.
