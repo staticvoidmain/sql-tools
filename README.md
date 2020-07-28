@@ -46,7 +46,17 @@ and provide a sql linter / analyzer / code fix provider. Maybe as a SQL Ops stud
   - [x] example linter / analyzer with some decent starter rules
   - [x] dependency graph generator
 
-# Notes / Thoughts / Insanity
+# Shower Thoughts
+
+## Format with symbolic names
+
+Pretty-print code based on the underlying table schema.
+
+```sql
+SELECT * FROM SOME.TABLENAMEHERE
+-- to
+select * from some.TableNameHere
+```
 
 ## Vizualize the relationships between scripts with graphviz
 
