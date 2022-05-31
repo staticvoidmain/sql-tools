@@ -1,26 +1,23 @@
-import {} from "mocha";
 import { expect } from "chai";
-
 import { readFileSync } from "fs";
-
-import { Parser } from "../src/parser";
-import { SyntaxKind } from "../src/syntax";
+import {} from "mocha";
 import {
   BinaryExpression,
-  SetStatement,
-  DeclareStatement,
-  VariableDeclaration,
-  SelectStatement,
   ColumnExpression,
+  DeclareStatement,
   Identifier,
-  FunctionCallExpression,
+  ParserOptions,
+  SelectStatement,
+  SetStatement,
+  VariableDeclaration,
 } from "../src/ast";
-
-import { printNodes } from "../src/visitors/print_visitor";
+import { Parser } from "../src/parser";
+import { SyntaxKind } from "../src/syntax";
 import { last } from "../src/utils";
+import { printNodes } from "../src/visitors/print_visitor";
 
 describe("Parser", () => {
-  const opt: any = { vendor: "mssql" };
+  const opt: ParserOptions = { vendor: "mssql", path: "parser.spec.sql" };
 
   it("returns an array of statements", () => {
     const parser = new Parser("use MyDb\n go\n", opt);
@@ -91,17 +88,6 @@ describe("Parser", () => {
     expect(table.body[0].nullability).to.eq("not-null");
   });
 
-  it("parses functions with expression args", () => {
-    const parser = new Parser("select iif((1 + 1) > 1, 'yep', 'nope')");
-    const list = parser.parse();
-
-    expect(list.length).to.equal(1);
-
-    const select = <SelectStatement>list[0];
-
-    expect(select.columns[0].style).to.equal("expr_only");
-  });
-
   it("parses select statements", () => {
     const parser = new Parser("select sum = 1 + 1");
     const list = parser.parse();
@@ -140,6 +126,29 @@ describe("Parser", () => {
     const select = <SelectStatement>list[0];
     const col = select.columns[0];
     expect(col.kind).to.equal(SyntaxKind.function_call_expr);
+  });
+
+  it("parses paren expressions", () => {
+    const parser = new Parser("select (1+1+2)", opt);
+    const list = parser.parse();
+
+    const select = <SelectStatement>list[0];
+    const expr = select.columns[0].expression;
+
+    expect(expr.kind).to.equal(SyntaxKind.paren_expr);
+
+    printNodes(list);
+  });
+
+  it("parses functions with expression args", () => {
+    const parser = new Parser("select iif((1 + 1) > 1, 'yep', 'nope')");
+    const list = parser.parse();
+
+    expect(list.length).to.equal(1);
+
+    const select = <SelectStatement>list[0];
+
+    expect(select.columns[0].style).to.equal("expr_only");
   });
 
   xit("debug: parse script and print ast", () => {

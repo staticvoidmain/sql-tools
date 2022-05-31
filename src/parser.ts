@@ -1109,6 +1109,8 @@ export class Parser {
   }
 
   private tryParseScalarExpression(comparison?: boolean): Expr {
+    // try parse Boolean expression
+
     let expr = this.tryParseMultiplicationExpr(comparison);
 
     while (this.isAddPrecedence()) {
@@ -1279,6 +1281,7 @@ export class Parser {
 
     const start = this.token;
 
+    // case: '*'
     if (this.match(SyntaxKind.mul_token)) {
       // todo: this is really only legal in a few places...
       // select, group by, order by, having
@@ -1327,6 +1330,8 @@ export class Parser {
         // syntax analyzer, parse it separately
       }
 
+      // iif takes an expression which we don't handle at the moment
+
       if (!this.match(SyntaxKind.openParen)) {
         // just a standalone ident expr
         const expr = <IdentifierExpression>(
@@ -1339,20 +1344,20 @@ export class Parser {
         return expr;
       } else {
         // some other general func with arguments
-        const expr = <FunctionCallExpression>(
+        const fn = <FunctionCallExpression>(
           this.createAndMoveNext(start, SyntaxKind.function_call_expr)
         );
-        expr.arguments = [];
-        expr.name = ident;
+        fn.arguments = [];
+        fn.name = ident;
 
         if (!this.match(SyntaxKind.closeParen)) {
           do {
             // collect all function arg expressions
-            expr.arguments.push(this.tryParseScalarExpression());
+            fn.arguments.push(this.tryParseLogicalExpression());
           } while (this.optional(SyntaxKind.comma_token));
         }
 
-        expr.end = this.token.end;
+        fn.end = this.token.end;
         this.expect(SyntaxKind.closeParen);
 
         if (supportsOverClause(ident)) {
@@ -1360,9 +1365,7 @@ export class Parser {
           if (this.optional(SyntaxKind.over_keyword)) {
             this.expect(SyntaxKind.openParen);
 
-            expr.over = <OverClause>(
-              this.createNode(over, SyntaxKind.over_clause)
-            );
+            fn.over = <OverClause>this.createNode(over, SyntaxKind.over_clause);
 
             if (this.match(SyntaxKind.partition_keyword)) {
               const partition = <PartitionByClause>(
@@ -1379,16 +1382,16 @@ export class Parser {
                 partition.expressions.push(this.tryParseScalarExpression());
               } while (this.optional(SyntaxKind.comma_token));
 
-              expr.over.partition = partition;
+              fn.over.partition = partition;
             }
 
-            expr.over.order_by = this.parseOrderBy();
+            fn.over.order_by = this.parseOrderBy();
 
             this.expect(SyntaxKind.closeParen);
           }
         }
 
-        return expr;
+        return fn;
       }
     }
 
@@ -1410,7 +1413,7 @@ export class Parser {
 
       if (!this.match(SyntaxKind.closeParen)) {
         while (true) {
-          expr.arguments.push(this.tryParseScalarExpression());
+          expr.arguments.push(this.tryParseLogicalExpression());
 
           if (!this.match(SyntaxKind.comma_token)) break;
         }
