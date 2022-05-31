@@ -1,19 +1,18 @@
-import {} from "mocha";
 import { expect } from "chai";
+import {} from "mocha";
 import {
-  Scope,
-  local,
-  resolveAll,
-  loadEnvironment,
-  configureResolver,
-} from "../src/resolver";
-import { Parser } from "../src/parser";
-import {
+  BinaryExpression,
   IdentifierExpression,
   SelectStatement,
-  BinaryExpression,
-  ColumnExpression,
 } from "../src/ast";
+import { Parser } from "../src/parser";
+import {
+  configureResolver,
+  loadEnvironment,
+  local,
+  resolveAll,
+  Scope,
+} from "../src/resolver";
 
 describe("resolver", () => {
   const env = loadEnvironment("./test/mssql/example.db.json");
@@ -31,7 +30,7 @@ describe("resolver", () => {
     expect(defined).to.equal(resolved);
   });
 
-  it("warns on amiguous symbols", () => {
+  it("warns on ambiguous symbols", () => {
     // todo
   });
 

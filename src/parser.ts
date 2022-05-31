@@ -1,14 +1,4 @@
 import {
-  Scanner,
-  Token,
-  EmptyToken,
-  TokenFlags,
-  invariantMatch,
-} from "./scanner";
-
-import { SyntaxKind } from "./syntax";
-
-import {
   AlterStatement,
   AlterTableStatement,
   AndEqualsOperator,
@@ -99,8 +89,15 @@ import {
   WhileStatement,
   XorEqualsOperator,
 } from "./ast";
-
 import { FeatureFlags } from "./features";
+import {
+  EmptyToken,
+  invariantMatch,
+  Scanner,
+  Token,
+  TokenFlags,
+} from "./scanner";
+import { SyntaxKind } from "./syntax";
 
 /**
  * reserved words that can be used as functions...
@@ -1314,7 +1311,7 @@ export class Parser {
     } else if (isLegalFunctionName(this.token.kind)) {
       ident = this.createSinglePartIdentifier(this.token, true);
 
-      // or it's a bug! illegal identifierrrr
+      // or it's a bug! illegal identifier!
       this.assertKind(SyntaxKind.openParen);
     }
 
@@ -1544,7 +1541,7 @@ export class Parser {
       return exec;
     }
 
-    // skip caputre and move next over the
+    // skip capture and move next over the
     const hasParen = this.optional(SyntaxKind.openParen);
     const exec_string = <ExecuteStringStatement>(
       this.createNode(start, SyntaxKind.execute_string_statement)
@@ -2289,9 +2286,9 @@ export class Parser {
 
         statements.push(node);
       } catch (ex) {
-        // todo:
+        // todo: is this cast correct?
         console.error(ex);
-        this.error(ex);
+        this.error(<string>ex);
       }
     }
 

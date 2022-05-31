@@ -1,38 +1,33 @@
-import { Parser, isLocal, isTemp } from "../parser";
-
 import chalk from "chalk";
-
 import {
-  SyntaxNode,
   BinaryExpression,
-  LiteralExpression,
-  BinaryOperator,
-  Expr,
-  WhereClause,
-  JoinedTable,
-  IdentifierExpression,
-  UnaryExpression,
-  FunctionCallExpression,
-  SearchedCaseExpression,
-  SimpleCaseExpression,
   ColumnExpression,
-  SelectStatement,
-  LikeExpression,
-  Identifier,
-  FromClause,
-  TableLikeDataSource,
-  CreateTableAsSelectStatement,
   CreateTableStatement,
   DropStatement,
-  isUnary,
+  Expr,
+  FromClause,
+  FunctionCallExpression,
+  Identifier,
+  IdentifierExpression,
   isComparison,
+  isUnary,
+  JoinedTable,
+  LikeExpression,
+  LiteralExpression,
+  SearchedCaseExpression,
+  SelectStatement,
+  SimpleCaseExpression,
+  SyntaxNode,
+  TableLikeDataSource,
+  UnaryExpression,
+  WhereClause,
 } from "../ast";
-import { Visitor } from "./abstract_visitor";
-import { SyntaxKind } from "../syntax";
-import { Token } from "../scanner";
 import { isLetter, isUpper } from "../chars";
-
+import { isLocal, isTemp, Parser } from "../parser";
+import { Token } from "../scanner";
+import { SyntaxKind } from "../syntax";
 import { last } from "../utils";
+import { Visitor } from "./abstract_visitor";
 
 // made this dependency optional
 const feature = {
@@ -413,7 +408,6 @@ export class ExampleLintVisitor extends Visitor {
     } else {
       if (isComparison(node.op) && exprEquals(node.left, node.right)) {
         if (isOneEqualsOne(node)) return;
-        // todo: people do like their 1=1 nonsense, give that a pass.
         // todo: link to a full on SAT solver
         // for some unreachable code detection
         this.error(
@@ -445,7 +439,6 @@ export class ExampleLintVisitor extends Visitor {
     const val = <string>token.value;
 
     for (let i = 0; i < val.length; i++) {
-      // todo: reverse this for the crazy UPPER nerds
       if (isUpper(val.charCodeAt(i))) {
         this.info("keywords should be lower case", token);
         break;
