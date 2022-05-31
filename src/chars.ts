@@ -64,8 +64,7 @@ export const enum Chars {
   X = 88,
   Y = 89,
   Z = 90,
-  openBrace = 91,
-  backslash = 92,
+  openBrace = 91,   // [
   closeBrace = 93,
   caret = 94,
   underscore = 95,

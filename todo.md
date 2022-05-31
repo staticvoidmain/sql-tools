@@ -16,6 +16,8 @@
 
 ## scanner.ts
 - (minor) fix quoted identifier issues
+- (minor) add hex literal support
+- 
 
 ## scanner.spec.ts
 - test for quoted identifiers terminating after unescaped ] or "

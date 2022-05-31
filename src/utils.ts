@@ -46,6 +46,7 @@ export function bufferToString(buffer: Buffer) {
 
 // does allocations but whatever, I'll optimize later
 export function formatIdentifier(id: Identifier) {
+  // todo: double-quotes also
   return id.parts.map(p => p.replace(/"\[\]/g, '')).join('.')
 }
 

@@ -31,7 +31,7 @@ interface TokenAssert {
 }
 
 function tokenToString(token: Token | TokenAssert) {
-  const val = token.value ? ' = '  + token.value : ''
+  const val = token.value ? ' = ' + token.value : ''
 
   return SyntaxKind[token.kind] + val
 }
@@ -103,13 +103,13 @@ describe('Scanner', function () {
     const tokens = scanAll(scanner)
 
     assertTokens(tokens, [
-      { kind: SyntaxKind.numeric_literal,  value: 1.2 },
+      { kind: SyntaxKind.numeric_literal, value: 1.2 },
       { kind: SyntaxKind.mul_token },
       { kind: SyntaxKind.numeric_literal, value: 3 },
     ])
   })
 
-  it ('scans miscellaneous terminals',  function() {
+  it('scans miscellaneous terminals', function () {
     const scanner = new Scanner(', . ; ( ) ~')
     const tokens = scanAll(scanner)
 
@@ -165,6 +165,23 @@ describe('Scanner', function () {
       SyntaxKind.update_keyword,
       SyntaxKind.insert_keyword,
       SyntaxKind.current_date_keyword
+    ])
+  })
+
+  it('scans with my left() func hack', () => {
+    const scanner = new Scanner('select left(x, 1) from src');
+    const tokens = scanAll(scanner);
+
+    assertTokenKinds(tokens, [
+      SyntaxKind.select_keyword,
+      SyntaxKind.identifier,
+      SyntaxKind.openParen,
+      SyntaxKind.identifier,
+      SyntaxKind.comma_token,
+      SyntaxKind.numeric_literal,
+      SyntaxKind.closeParen,
+      SyntaxKind.from_keyword,
+      SyntaxKind.identifier
     ])
   })
 
@@ -232,7 +249,7 @@ describe('Scanner', function () {
     ])
   })
 
-  it ('scans regular identifiers with dots', function() {
+  it('scans regular identifiers with dots', function () {
     // maybe some kind of flavor: mssql flag?
     const scanner = new Scanner('@sometable.some_col')
     const tokens = scanAll(scanner, false)
@@ -245,6 +262,7 @@ describe('Scanner', function () {
   })
 
   it('scans complex identifiers', function () {
+    // idents can indeed contain @ signs...
     const scanner = new Scanner('[foo].b@r."$b_z"')
     const tokens = scanAll(scanner)
 
@@ -257,7 +275,7 @@ describe('Scanner', function () {
     ])
   })
 
-  it ('handles nested block comments', () => {
+  it('handles nested block comments', () => {
     const scanner = new Scanner('/*/*/*I am a bad person*****/*/*/')
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [
@@ -265,7 +283,7 @@ describe('Scanner', function () {
     ])
   })
 
-  it('you gotta be kidding me... whitespace between token characters', function() {
+  it('handles whitespace between tokens', function () {
     const scanner = new Scanner('! =      <  \n>')
     const tokens = scanAll(scanner)
     assertTokenKinds(tokens, [
@@ -284,15 +302,5 @@ describe('Scanner', function () {
 
     // not sure how i like the handling of quoted identifiers...
     expect(token.value).to.equal('#""sometable""')
-  })
-
-  xit('todo: should stop after the last unescaped double-quote')
-
-  xit('debug: show token stream', function() {
-    const file = readFileSync('./test/mssql/basic_select.sql', 'utf8')
-    const scanner = new Scanner(file)
-    const tokens = scanAll(scanner, false)
-
-    console.log(tokens.map(tokenToString).join('\r\n'))
   })
 })

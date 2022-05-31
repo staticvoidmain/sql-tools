@@ -1,10 +1,10 @@
-import { } from 'mocha'
-import { expect } from 'chai'
+import {} from "mocha";
+import { expect } from "chai";
 
-import { readFileSync } from 'fs'
+import { readFileSync } from "fs";
 
-import { Parser } from '../src/parser'
-import { SyntaxKind } from '../src/syntax'
+import { Parser } from "../src/parser";
+import { SyntaxKind } from "../src/syntax";
 import {
   BinaryExpression,
   SetStatement,
@@ -12,109 +12,146 @@ import {
   VariableDeclaration,
   SelectStatement,
   ColumnExpression,
-  Identifier
-} from '../src/ast'
+  Identifier,
+  FunctionCallExpression,
+} from "../src/ast";
 
-import { printNodes } from '../src/visitors/print_visitor'
-import { last } from '../src/utils'
+import { printNodes } from "../src/visitors/print_visitor";
+import { last } from "../src/utils";
 
+describe("Parser", () => {
+  const opt: any = { vendor: "mssql" };
 
-describe('Parser', () => {
+  it("returns an array of statements", () => {
+    const parser = new Parser("use MyDb\n go\n", opt);
+    const list = parser.parse();
 
-  const opt: any = { vendor: 'mssql' }
+    expect(list).to.be.an("array");
+    expect(list.length).to.eq(2);
+  });
 
-  it('returns an array of statements', () => {
-    const parser = new Parser('use MyDb\n go\n', opt)
-    const list = parser.parse()
+  it("parses set statements", function () {
+    const parser = new Parser("set @x = 1 + 2");
+    const list = parser.parse();
+    expect(list.length).to.eq(1);
 
-    expect(list).to.be.an('array')
-    expect(list.length).to.eq(2)
-  })
+    const statement = <SetStatement>list[0];
 
-  it('parses set statements', function () {
-    const parser = new Parser('set @x = 1 + 2')
-    const list = parser.parse()
-    expect(list.length).to.eq(1)
+    expect(statement.name).to.eq("@x");
+    const expr = <BinaryExpression>statement.expression;
 
-    const statement = <SetStatement>list[0]
+    expect(expr.left).to.include({ value: 1 });
+    expect(expr.op.kind).to.eq(SyntaxKind.plus_token);
+    expect(expr.right).to.include({ value: 2 });
+  });
 
-    expect(statement.name).to.eq('@x')
-    const expr = <BinaryExpression>statement.expression
+  it("parses declare statements", () => {
+    const parser = new Parser("declare @x int = 0");
+    const list = parser.parse();
 
-    expect(expr.left).to.include({ value: 1 })
-    expect(expr.op.kind).to.eq(SyntaxKind.plus_token)
-    expect(expr.right).to.include({ value: 2 })
-  })
+    expect(list.length).to.eq(1);
 
-  it('parses declare statements', () => {
-    const parser = new Parser('declare @x int = 0')
-    const list = parser.parse()
+    const statement = <DeclareStatement>list[0];
+    const decls = <VariableDeclaration[]>statement.variables;
 
-    expect(list.length).to.eq(1)
+    expect(decls.length).to.eq(1);
 
-    const statement = <DeclareStatement>list[0]
-    const decls = <VariableDeclaration[]>statement.variables
+    const decl = decls[0];
 
-    expect(decls.length).to.eq(1)
+    expect(decl.name).to.eq("@x");
+    expect(decl.type.name).to.eq("int");
+    expect(decl.expression).to.exist;
+  });
 
-    const decl = decls[0]
+  it("parses multi-declares", () => {
+    const parser = new Parser("declare @x int=0,\n     @y varchar(max)");
+    const list = parser.parse();
 
-    expect(decl.name).to.eq('@x')
-    expect(decl.type.name).to.eq('int')
-    expect(decl.expression).to.exist
-  })
+    const statement = <DeclareStatement>list[0];
+    const decls = statement.variables!;
 
-  it('parses multi-declares', () => {
-    const parser = new Parser('declare @x int=0,\n     @y varchar(max)')
-    const list = parser.parse()
+    expect(decls.length).to.eq(2);
 
-    const statement = <DeclareStatement>list[0]
-    const decls = statement.variables!
+    const decl = decls[1];
 
-    expect(decls.length).to.eq(2)
+    expect(decl.name).to.eq("@y");
+    expect(decl.type.name).to.eq("varchar");
+    expect(decl.type.args).to.eq("max");
+  });
 
-    const decl = decls[1]
+  it("parses declare table", () => {
+    const parser = new Parser(
+      "declare @x table ( id int not null, name char(10) null );"
+    );
+    const list = parser.parse();
+    const decl = <DeclareStatement>list[0];
+    const table = <any>decl.table!;
 
-    expect(decl.name).to.eq('@y')
-    expect(decl.type.name).to.eq('varchar')
-    expect(decl.type.args).to.eq('max')
-  })
+    expect(last(table.name)).to.eq("x");
+    expect(table.body[0].nullability).to.eq("not-null");
+  });
 
-  it('parses declare table', () => {
-    const parser = new Parser('declare @x table ( id int not null, name char(10) null );')
-    const list = parser.parse()
-    const decl = <DeclareStatement>list[0]
-    const table = <any>decl.table!
+  it("parses functions with expression args", () => {
+    const parser = new Parser("select iif((1 + 1) > 1, 'yep', 'nope')");
+    const list = parser.parse();
 
-    expect(last(table.name)).to.eq('x')
-    expect(table.body[0].nullability).to.eq('not-null')
-  })
+    expect(list.length).to.equal(1);
 
-  it('parses select statements', () => {
-    const parser = new Parser('select sum = 1 + 1')
-    const list = parser.parse()
+    const select = <SelectStatement>list[0];
 
-    const select = <SelectStatement>list[0]
-    const col = <ColumnExpression>select.columns[0]
+    expect(select.columns[0].style).to.equal("expr_only");
+  });
 
-    expect((<Identifier>col.alias).parts[0]).to.eq('sum')
+  it("parses select statements", () => {
+    const parser = new Parser("select sum = 1 + 1");
+    const list = parser.parse();
 
-    const expr = <BinaryExpression>col.expression
-    expect(expr.left.kind).to.eq(SyntaxKind.literal_expr)
-    expect(expr.op.kind).to.eq(SyntaxKind.plus_token)
-    expect(expr.right.kind).to.eq(SyntaxKind.literal_expr)
-  })
+    const select = <SelectStatement>list[0];
+    const col = <ColumnExpression>select.columns[0];
 
-  xit('debug: parse script and print ast', () => {
-    const path = './test/mssql/kitchen_sink.sql'
-    const file = readFileSync(path, 'utf8')
+    expect((<Identifier>col.alias).parts[0]).to.eq("sum");
+
+    const expr = <BinaryExpression>col.expression;
+    expect(expr.left.kind).to.eq(SyntaxKind.literal_expr);
+    expect(expr.op.kind).to.eq(SyntaxKind.plus_token);
+    expect(expr.right.kind).to.eq(SyntaxKind.literal_expr);
+  });
+
+  it("can parse this update", () => {
+    const src = `
+    update ex
+    set ex.foo /= 10,
+        ex.bar = ex.bar - 1
+    from [SomeTable] as ex
+    where ex.bar <= @foo and ex.foo is null
+    `;
+
+    const parser = new Parser(src, { debug: true });
+    const statements = parser.parse();
+
+    expect(statements.length).to.equal(1);
+    // todo: no asserts just wanna know why this fails.
+  });
+
+  xit("recognizes functions that conflict with keywords", () => {
+    const parser = new Parser("select left(x, 1) from src");
+    const list = parser.parse();
+
+    const select = <SelectStatement>list[0];
+    const col = select.columns[0];
+    expect(col.kind).to.equal(SyntaxKind.function_call_expr);
+  });
+
+  xit("debug: parse script and print ast", () => {
+    const path = "./test/mssql/kitchen_sink.sql";
+    const file = readFileSync(path, "utf8");
     const parser = new Parser(file, {
       debug: true,
-      path: path
-    })
+      path: path,
+    });
 
-    const tree = parser.parse()
+    const tree = parser.parse();
 
-    printNodes(tree)
-  })
-})
+    printNodes(tree);
+  });
+});

@@ -53,6 +53,8 @@ order by s.foo desc, s.bar asc
 
 --go
 
+-- TODO: this doesn't work for some reason...
+-- maybe the trailing asc doesn't end the statement?
 update ex
 set ex.foo /= 10,
     ex.bar = ex.bar - 1
